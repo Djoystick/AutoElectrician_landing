@@ -61,12 +61,10 @@ export default function Hero() {
         {/* Title */}
         <div ref={titleRef} className="mb-6 flex flex-col gap-1 md:gap-2">
           <h1
-            className="hero-title glitch m-0"
-            data-text="АВТОЭЛЕКТРИК"
+            className="hero-title neon-text m-0"
             style={{ marginBottom: 0 }}
           >
-            <span className="line inline-block">АВТО</span>
-            <span className="line inline-block neon-text">ЭЛЕКТРИК</span>
+            <span className="line block">АВТОЭЛЕКТРИК</span>
           </h1>
           <h2
             className="hero-title m-0"

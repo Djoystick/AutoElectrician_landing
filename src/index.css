@@ -109,7 +109,7 @@ section {
 }
 
 .glitch::after {
-  color: #ff004f;
+  color: var(--neon-blue);
   animation: glitch-2 3s infinite linear;
   clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
 }
