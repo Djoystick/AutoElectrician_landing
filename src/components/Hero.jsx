@@ -59,14 +59,22 @@ export default function Hero() {
         </div>
 
         {/* Title with glitch */}
-        <h1
-          ref={titleRef}
-          className="hero-title glitch"
-          data-text="АВТОЭЛЕКТРИК"
-        >
-          <span className="line block">АВТО</span>
-          <span className="line block neon-text">ЭЛЕКТРИК</span>
-        </h1>
+        <div ref={titleRef} className="mb-6 flex flex-col gap-1 md:gap-2">
+          <h1
+            className="hero-title glitch neon-text m-0"
+            data-text="АВТОЭЛЕКТРИК"
+            style={{ marginBottom: 0 }}
+          >
+            <span className="line block">АВТОЭЛЕКТРИК</span>
+          </h1>
+          <h2
+            className="hero-title glitch neon-text-yellow m-0"
+            data-text="ДИАГНОСТИКА"
+            style={{ fontSize: 'clamp(28px, 7vw, 90px)', marginBottom: 0 }}
+          >
+            <span className="line block">ДИАГНОСТИКА</span>
+          </h2>
+        </div>
 
         {/* Subtitle */}
         <p ref={subtitleRef} className="hero-subtitle" style={{ opacity: 0 }}>
