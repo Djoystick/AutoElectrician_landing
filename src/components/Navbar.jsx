@@ -41,11 +41,11 @@ export default function Navbar() {
   return (
     <>
       <nav ref={navRef} className={`nav ${scrolled ? 'scrolled' : ''}`}>
-        <div className="nav-logo">
-          АВТО
+        {/* Logo — just the M badge, no dry title */}
+        <a href="#hero" data-hover className="nav-logo-link">
           <span className="m-badge">M</span>
-          ЭЛЕКТРИК
-        </div>
+          <span className="nav-logo-text">ЭЛЕКТРИК</span>
+        </a>
 
         <div className="hidden md:flex items-center gap-8">
           {links.map(({ label, id }) => (
