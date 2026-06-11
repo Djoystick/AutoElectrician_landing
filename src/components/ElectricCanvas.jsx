@@ -9,9 +9,8 @@ export default function ElectricCanvas() {
     let animId;
     let W, H;
 
-    // ── Particle grid ───────────────────────────────────────────
-    const COLS = 28;
-    const ROWS = 18;
+    const COLS = 32;
+    const ROWS = 20;
     const particles = [];
 
     function resize() {
@@ -30,7 +29,7 @@ export default function ElectricCanvas() {
             y:  (j / ROWS) * H,
             vx: 0, vy: 0,
             offset: Math.random() * Math.PI * 2,
-            speed:  0.3 + Math.random() * 0.4,
+            speed:  0.25 + Math.random() * 0.35,
           });
         }
       }
@@ -40,17 +39,16 @@ export default function ElectricCanvas() {
     buildGrid();
     window.addEventListener('resize', () => { resize(); buildGrid(); });
 
-    // ── Electric bolt helper ────────────────────────────────────
-    function drawBolt(x1, y1, x2, y2, alpha, jagged = 4) {
+    function drawBolt(x1, y1, x2, y2, alpha, jagged = 5) {
       const dx = x2 - x1, dy = y2 - y1;
       const len = Math.sqrt(dx * dx + dy * dy);
-      if (len < 5) return;
+      if (len < 8) return;
 
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(x1, y1);
 
-      const steps = Math.max(3, Math.floor(len / 22));
+      const steps = Math.max(4, Math.floor(len / 25));
       for (let s = 1; s < steps; s++) {
         const t = s / steps;
         const mx = x1 + dx * t + (Math.random() - 0.5) * jagged * 2;
@@ -60,12 +58,11 @@ export default function ElectricCanvas() {
       ctx.lineTo(x2, y2);
 
       ctx.strokeStyle = `rgba(0,245,255,${alpha})`;
-      ctx.lineWidth = 0.7;
+      ctx.lineWidth = 0.8;
       ctx.shadowColor = '#00f5ff';
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 10;
       ctx.stroke();
 
-      // bright core
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       for (let s = 1; s < steps; s++) {
@@ -73,81 +70,73 @@ export default function ElectricCanvas() {
         ctx.lineTo(x1 + dx * t, y1 + dy * t);
       }
       ctx.lineTo(x2, y2);
-      ctx.strokeStyle = `rgba(180,255,255,${alpha * 0.5})`;
-      ctx.lineWidth = 0.3;
-      ctx.shadowBlur = 2;
+      ctx.strokeStyle = `rgba(200,255,255,${alpha * 0.6})`;
+      ctx.lineWidth = 0.35;
+      ctx.shadowBlur = 3;
       ctx.stroke();
       ctx.restore();
     }
 
-    // ── Spark nodes ─────────────────────────────────────────────
-    const sparks = Array.from({ length: 12 }, () => ({
+    const sparks = Array.from({ length: 15 }, () => ({
       x: Math.random() * W,
       y: Math.random() * H,
       life: Math.random(),
-      speed: 0.004 + Math.random() * 0.006,
+      speed: 0.003 + Math.random() * 0.005,
     }));
 
     let t = 0;
 
     function draw() {
       ctx.clearRect(0, 0, W, H);
+      t += 0.007;
 
-      t += 0.008;
-
-      // ── Flowing grid ───────────────────────────────────────────
       const cols1 = COLS + 1;
       particles.forEach((p, idx) => {
-        const wave = Math.sin(t * p.speed + p.offset) * 18;
+        const wave = Math.sin(t * p.speed + p.offset) * 20;
         p.x = p.bx + wave;
-        p.y = p.by + Math.cos(t * p.speed * 0.7 + p.offset) * 10;
+        p.y = p.by + Math.cos(t * p.speed * 0.6 + p.offset) * 12;
 
-        // draw dot
-        const dotAlpha = 0.08 + 0.07 * Math.sin(t + p.offset);
+        const dotAlpha = 0.06 + 0.05 * Math.sin(t + p.offset);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, 1.4, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(0,245,255,${dotAlpha})`;
         ctx.fill();
 
-        // horizontal edge
         if (idx % cols1 < COLS) {
           const next = particles[idx + 1];
           if (next) {
-            const a = 0.035 + 0.02 * Math.abs(Math.sin(t * 0.5 + p.offset));
+            const a = 0.025 + 0.015 * Math.abs(Math.sin(t * 0.4 + p.offset));
             ctx.beginPath();
             ctx.moveTo(p.x, p.y);
             ctx.lineTo(next.x, next.y);
-            ctx.strokeStyle = `rgba(0,120,180,${a})`;
-            ctx.lineWidth = 0.6;
+            ctx.strokeStyle = `rgba(0,100,160,${a})`;
+            ctx.lineWidth = 0.5;
             ctx.shadowBlur = 0;
             ctx.stroke();
           }
         }
 
-        // vertical edge
         if (idx + cols1 < particles.length) {
           const below = particles[idx + cols1];
-          const a = 0.03 + 0.015 * Math.abs(Math.cos(t * 0.5 + p.offset));
+          const a = 0.02 + 0.012 * Math.abs(Math.cos(t * 0.4 + p.offset));
           ctx.beginPath();
           ctx.moveTo(p.x, p.y);
           ctx.lineTo(below.x, below.y);
-          ctx.strokeStyle = `rgba(0,100,160,${a})`;
-          ctx.lineWidth = 0.5;
+          ctx.strokeStyle = `rgba(0,80,140,${a})`;
+          ctx.lineWidth = 0.4;
           ctx.stroke();
         }
       });
 
-      // ── Random electric arcs ────────────────────────────────────
-      if (Math.random() < 0.12) {
+      if (Math.random() < 0.1) {
         const a = particles[Math.floor(Math.random() * particles.length)];
         const b = particles[Math.floor(Math.random() * particles.length)];
         const dist = Math.hypot(a.x - b.x, a.y - b.y);
-        if (dist < 220 && dist > 40) {
-          drawBolt(a.x, a.y, b.x, b.y, 0.35 + Math.random() * 0.25, 6);
+        if (dist < 250 && dist > 50) {
+          drawBolt(a.x, a.y, b.x, b.y, 0.3 + Math.random() * 0.2, 7);
         }
       }
 
-      // ── Drifting sparks ─────────────────────────────────────────
       sparks.forEach(sp => {
         sp.life += sp.speed;
         if (sp.life > 1) {
@@ -155,30 +144,28 @@ export default function ElectricCanvas() {
           sp.x = Math.random() * W;
           sp.y = Math.random() * H;
         }
-        const a = Math.sin(sp.life * Math.PI) * 0.7;
-        const r = 2.5 * Math.sin(sp.life * Math.PI);
+        const a = Math.sin(sp.life * Math.PI) * 0.6;
+        const r = 3 * Math.sin(sp.life * Math.PI);
 
         ctx.save();
         ctx.beginPath();
         ctx.arc(sp.x, sp.y, r, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(0,245,255,${a})`;
         ctx.shadowColor = '#00f5ff';
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 15;
         ctx.fill();
         ctx.restore();
 
-        // shoot tiny bolt from spark occasionally
-        if (Math.random() < 0.015) {
+        if (Math.random() < 0.012) {
           const angle = Math.random() * Math.PI * 2;
-          const len = 20 + Math.random() * 60;
-          drawBolt(sp.x, sp.y, sp.x + Math.cos(angle) * len, sp.y + Math.sin(angle) * len, a * 0.5, 3);
+          const len = 25 + Math.random() * 70;
+          drawBolt(sp.x, sp.y, sp.x + Math.cos(angle) * len, sp.y + Math.sin(angle) * len, a * 0.4, 4);
         }
       });
 
-      // ── Radial gradient vignette ────────────────────────────────
-      const grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.75);
+      const grad = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.8);
       grad.addColorStop(0, 'rgba(0,20,40,0)');
-      grad.addColorStop(1, 'rgba(2,4,8,0.55)');
+      grad.addColorStop(1, 'rgba(3,7,18,0.6)');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, W, H);
 

@@ -44,21 +44,20 @@ function ServiceCard({ service, index }) {
     const el = cardRef.current;
 
     gsap.fromTo(el,
-      { opacity: 0, y: 56, scale: 0.96 },
+      { opacity: 0, y: 60, scale: 0.95 },
       {
         opacity: 1, y: 0, scale: 1,
         duration: 0.9,
         ease: 'power3.out',
-        delay: (index % 3) * 0.11,
+        delay: (index % 3) * 0.12,
         scrollTrigger: {
           trigger: el,
-          start: 'top 88%',
+          start: 'top 90%',
           toggleActions: 'play none none none',
         },
       }
     );
 
-    // Subtle magnetic drift on hover
     const handleMove = (e) => {
       const rect = el.getBoundingClientRect();
       const relX = e.clientX - rect.left - rect.width / 2;
@@ -66,13 +65,13 @@ function ServiceCard({ service, index }) {
       gsap.to(el, {
         x: relX * 0.05,
         y: relY * 0.05,
-        duration: 0.45,
+        duration: 0.5,
         ease: 'power2.out',
       });
     };
 
     const handleLeave = () => {
-      gsap.to(el, { x: 0, y: 0, duration: 0.7, ease: 'elastic.out(1,0.45)' });
+      gsap.to(el, { x: 0, y: 0, duration: 0.7, ease: 'elastic.out(1,0.4)' });
     };
 
     el.addEventListener('mousemove', handleMove);
@@ -84,51 +83,34 @@ function ServiceCard({ service, index }) {
   }, [index]);
 
   return (
-    /* h-full on the wrapper so every cell in the CSS grid stretches to full row height */
     <div className="h-full">
       <div
         ref={cardRef}
-        className="glass-card p-7 cursor-none h-full flex flex-col"
+        className="glass-card p-8 cursor-none h-full flex flex-col"
         data-hover
         style={{ opacity: 0 }}
       >
-        {/* Card number — absolute, top-right */}
         <span className="service-num">
           {String(index + 1).padStart(2, '0')}
         </span>
 
-        {/* Icon container — larger, gradient bg, glow on hover */}
         <div className="service-icon">
           <span role="img" aria-label={service.name}>{service.icon}</span>
         </div>
 
-        {/* Title — bold, tight tracking, Space Grotesk */}
         <h3 className="service-name">{service.name}</h3>
-
-        {/* Description — muted, flex-grow pushes bottom bar down */}
         <p className="service-desc flex-grow">{service.desc}</p>
 
-        {/* Bottom "more" bar — mt-auto guarantees bottom-alignment across all cards */}
-        <div className="mt-auto pt-6 flex items-center gap-3">
-          <div
-            className="flex-1 h-px"
-            style={{
-              background: 'linear-gradient(to right, rgba(0,245,255,0.3), transparent)',
-            }}
-          />
-          <span
-            className="text-[11px] tracking-[0.2em] uppercase transition-colors duration-300"
-            style={{ color: 'rgba(0,245,255,0.4)' }}
-          >
-            Подробнее
-          </span>
+        <div className="service-bottom">
+          <div className="service-bottom-line" />
+          <span className="service-bottom-text">Подробнее</span>
           <svg
-            width="13" height="13"
+            className="service-bottom-arrow"
+            width="14" height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
-            style={{ color: 'rgba(0,245,255,0.4)', flexShrink: 0 }}
+            strokeWidth="2.5"
           >
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>
@@ -156,16 +138,14 @@ export default function Services() {
 
   return (
     <section className="services-section" id="services">
-      {/* Section header */}
       <div ref={headerRef} className="mb-16" style={{ opacity: 0 }}>
-        <p className="section-label">Что я делаю</p>
+        <p className="section-label mb-6">Что я делаю</p>
         <h2 className="section-title">
           Услуги<br />
-          <span className="neon-text">автоэлектрика</span>
+          <span className="glow-text">автоэлектрика</span>
         </h2>
       </div>
 
-      {/* Grid — align-items: stretch via CSS so all cells fill the row height */}
       <div className="services-grid">
         {SERVICES.map((s, i) => (
           <ServiceCard key={s.name} service={s} index={i} />

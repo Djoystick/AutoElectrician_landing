@@ -20,11 +20,11 @@ export default function CustomCursor() {
     const lerp = (a, b, n) => a + (b - a) * n;
 
     const animate = () => {
-      rx = lerp(rx, mx, 0.13);
-      ry = lerp(ry, my, 0.13);
+      rx = lerp(rx, mx, 0.12);
+      ry = lerp(ry, my, 0.12);
 
       dot.style.transform  = `translate(${mx - 4}px, ${my - 4}px)`;
-      ring.style.transform = `translate(${rx - 18}px, ${ry - 18}px)`;
+      ring.style.transform = `translate(${rx - 20}px, ${ry - 20}px)`;
 
       raf = requestAnimationFrame(animate);
     };

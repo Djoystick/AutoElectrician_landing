@@ -13,13 +13,13 @@ export default function Hero() {
     const tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
 
     tl.fromTo(badgeRef.current,
-        { opacity: 0, y: 24 },
-        { opacity: 1, y: 0, duration: 0.9 }
+        { opacity: 0, y: 30, scale: 0.9 },
+        { opacity: 1, y: 0, scale: 1, duration: 1 }
       )
       .fromTo(titleRef.current.querySelectorAll('.line'),
         { opacity: 0, y: 80, skewY: 4 },
-        { opacity: 1, y: 0, skewY: 0, duration: 1.1, stagger: 0.15 },
-        '-=0.5'
+        { opacity: 1, y: 0, skewY: 0, duration: 1.2, stagger: 0.15 },
+        '-=0.6'
       )
       .fromTo(subtitleRef.current,
         { opacity: 0, y: 30 },
@@ -27,7 +27,7 @@ export default function Hero() {
         '-=0.6'
       )
       .fromTo(btnsRef.current.children,
-        { opacity: 0, y: 24, scale: 0.95 },
+        { opacity: 0, y: 30, scale: 0.95 },
         { opacity: 1, y: 0, scale: 1, duration: 0.7, stagger: 0.12 },
         '-=0.5'
       )
@@ -38,8 +38,8 @@ export default function Hero() {
       )
       .fromTo(scrollRef.current,
         { opacity: 0 },
-        { opacity: 1, duration: 1 },
-        '-=0.2'
+        { opacity: 0.7, duration: 1.4 },
+        '-=0.3'
       );
   }, []);
 
@@ -51,6 +51,11 @@ export default function Hero() {
     <section className="hero-section" id="hero">
       <div className="scan-line" />
 
+      {/* Ambient glow orbs */}
+      <div className="ambient-orb ambient-orb--cyan absolute top-1/4 left-1/4 w-[700px] h-[700px]" />
+      <div className="ambient-orb ambient-orb--purple absolute bottom-1/4 right-1/4 w-[600px] h-[600px]" />
+      <div className="ambient-orb ambient-orb--blue absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px]" />
+
       <div className="relative z-10 max-w-6xl w-full mx-auto">
         {/* Badge */}
         <div ref={badgeRef} className="hero-badge" style={{ opacity: 0 }}>
@@ -59,18 +64,12 @@ export default function Hero() {
         </div>
 
         {/* Title */}
-        <div ref={titleRef} className="mb-6 flex flex-col gap-1 md:gap-2">
-          <h1
-            className="hero-title neon-text m-0"
-            style={{ marginBottom: 0 }}
-          >
-            <span className="line block">АВТОЭЛЕКТРИК</span>
+        <div ref={titleRef} className="mb-6" style={{ opacity: 0 }}>
+          <h1 className="hero-title m-0">
+            <span className="line block glow-text">АВТОЭЛЕКТРИК</span>
           </h1>
-          <h2
-            className="hero-title m-0"
-            style={{ fontSize: 'clamp(28px, 7vw, 90px)', marginBottom: 0 }}
-          >
-            <span className="line block text-white opacity-90">ДИАГНОСТИКА</span>
+          <h2 className="hero-title-accent m-0">
+            <span className="line block">ДИАГНОСТИКА</span>
           </h2>
         </div>
 
@@ -88,18 +87,18 @@ export default function Hero() {
             onClick={() => scrollTo('contacts')}
             className="neon-btn"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.09 9.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 .18h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/>
             </svg>
-            Позвонить сейчас
+            Позвонить
           </button>
           <button
             data-hover
             onClick={() => scrollTo('services')}
-            className="neon-btn neon-btn-yellow"
+            className="neon-btn neon-btn--outline"
           >
             Все услуги
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M5 12h14M12 5l7 7-7 7"/>
             </svg>
           </button>
@@ -114,13 +113,8 @@ export default function Hero() {
             { num: '24/7', label: 'На связи' },
           ].map(({ num, label }) => (
             <div key={label} className="flex flex-col">
-              <span
-                className="font-display text-4xl font-bold neon-text"
-                style={{ fontFamily: 'var(--font-display)' }}
-              >
-                {num}
-              </span>
-              <span className="text-xs tracking-widest uppercase text-[var(--text-secondary)] mt-1">
+              <span className="text-4xl font-bold glow-text font-display">{num}</span>
+              <span className="text-[12px] tracking-[0.2em] uppercase text-[var(--text-3)] mt-2">
                 {label}
               </span>
             </div>
@@ -131,17 +125,17 @@ export default function Hero() {
       {/* Scroll indicator */}
       <div
         ref={scrollRef}
-        className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
+        className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3"
         style={{ opacity: 0 }}
       >
-        <span className="text-[10px] tracking-[0.3em] uppercase text-[var(--text-secondary)]">
+        <span className="text-[11px] tracking-[0.35em] uppercase text-[var(--text-3)]">
           Scroll
         </span>
         <div className="w-px h-12 relative overflow-hidden">
           <div
-            className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--neon-cyan)] to-transparent"
+            className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--accent)] to-transparent"
             style={{
-              animation: 'scan 1.6s linear infinite',
+              animation: 'scan 1.8s linear infinite',
               height: '200%',
               top: '-100%'
             }}
