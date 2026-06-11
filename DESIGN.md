@@ -1,21 +1,27 @@
-# DESIGN.md - BMW M Design System
+# DESIGN.md - Premium Tech (Apple / Stripe / Linear Style)
 
 ## Concept
-Motorsport automotive. Pure black canvas, M tricolor stripe accents, aggressive uppercase typography, precision engineering aesthetic.
+A premium, highly polished, modern aesthetic inspired by Apple, Stripe, and Linear. The design must feel expensive, fluid, and technologically advanced. Mobile-First approach is mandatory.
+
+## Space & Layout
+- **Negative Space**: Generous, purposeful padding and margins. Elements should breathe.
+- **Mobile-First**: Everything must be optimized for mobile screens first (compact, readable, thumb-friendly).
 
 ## Color Tokens
-- **Background**: Pure Black `#000000` or `#050505`
-- **Text**: Pure White `#FFFFFF` for primary headings, Gray `#A0A0A0` for secondary text.
-- **Brand Accents (M Tricolor)**:
-  - **Light Blue**: `#33a0d1`
-  - **Dark Blue**: `#373485`
-  - **Red**: `#c52b30`
+- **Background**: Deep, complex dark themes. DO NOT use `#000000`. Use deep graphite (`#09090b`), dark navy (`#020617`), or subtle dark mesh gradients.
+- **Primary Accent**: Glowing, electric blue/cyan (`#06b6d4`, `#3b82f6`) or subtle purple.
+- **Text**: Pure white (`#ffffff`) for primary headers, soft slate (`#94a3b8`) for secondary text.
+- **Surfaces**: Frosted glass panels (Glassmorphism) with slight translucency (`bg-white/5` with `backdrop-blur-md`).
 
 ## Typography
-- **Headings (Display)**: Uppercase, aggressive, wide tracking. (e.g., Space Grotesk, Oswald, or similar).
-- **Body**: Clean, legible sans-serif (e.g., Inter).
+- **Font**: Premium, highly legible sans-serif (Inter, SF Pro, or Roboto).
+- **Hierarchy**: Strong contrast between large, heavy headers (`tracking-tight`) and readable, airy body text.
 
-## Components & Geometry
-- **Geometry**: Sharp corners (0px border-radius), brutalist lines.
-- **Borders**: Use 1px borders in dark gray or the tricolor gradient.
-- **Photography/Graphics**: High contrast, full-bleed backgrounds where appropriate.
+## UI Elements & Effects
+- **Borders**: 1px subtle borders (`border-white/10`).
+- **Glow & Shadows**: Soft, colored drop-shadows to create depth (not harsh borders).
+- **Animations (Micro-interactions)**:
+  - Elements should have smooth `transition-all duration-300`.
+  - Cards should slightly lift or highlight their border on hover (Spotlight effect).
+  - Reveal animations on scroll.
+- **No Empty Voids**: Use subtle SVG patterns (dots/grids) or soft, blurred color orbs in the background to fill empty space without distracting.
