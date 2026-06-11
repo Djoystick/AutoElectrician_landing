@@ -8,32 +8,32 @@ const SERVICES = [
   {
     icon: '🔬',
     name: 'Компьютерная диагностика',
-    desc: 'Считывание ошибок ЭБУ, проверка всех систем — поддержка всех марок и моделей. Точный результат за 30 минут.',
+    desc: 'Считывание ошибок ЭБУ, проверка всех систем — поддержка всех марок. Точный результат за 30 минут.',
   },
   {
     icon: '⚡',
-    name: 'Поиск и устранение неисправностей электропроводки',
-    desc: 'Обрывы, окисления, утечки тока — нахожу причину профессиональным оборудованием. Восстановление с гарантией.',
+    name: 'Ремонт электропроводки',
+    desc: 'Обрывы, окисления, утечки тока — нахожу причину профессиональным оборудованием. Гарантия.',
   },
   {
     icon: '🎵',
-    name: 'Подключение автомагнитол',
-    desc: 'Установка головных устройств, усилителей, сабвуферов и камер. Аккуратный монтаж без повреждения штатной проводки.',
+    name: 'Подключение магнитол',
+    desc: 'Установка головных устройств, усилителей, сабвуферов и камер. Без повреждения проводки.',
   },
   {
     icon: '💡',
     name: 'Ремонт освещения',
-    desc: 'Ремонт и замена фар, LED и ксеноновых ламп, габаритов, стоп-сигналов. Регулировка угла света фар по ГОСТ.',
+    desc: 'Замена фар, LED и ксеноновых ламп, габаритов, стоп-сигналов. Регулировка по ГОСТ.',
   },
   {
     icon: '🛡️',
-    name: 'Устранение коротких замыканий',
-    desc: 'Быстрое нахождение и ликвидация КЗ в любых цепях. Защита от повторного возникновения неисправности.',
+    name: 'Устранение КЗ',
+    desc: 'Быстрое нахождение и ликвидация коротких замыканий в любых цепях. Защита от повтора.',
   },
   {
     icon: '🔋',
-    name: 'Замена аккумуляторов, клемм и предохранителей',
-    desc: 'Подбор АКБ под ваш автомобиль, обслуживание клемм, замена предохранителей. Проверка генератора в подарок.',
+    name: 'Замена АКБ и клемм',
+    desc: 'Подбор аккумулятора, обслуживание клемм, замена предохранителей. Проверка генератора.',
   },
 ];
 
@@ -41,77 +41,27 @@ function ServiceCard({ service, index }) {
   const cardRef = useRef(null);
 
   useEffect(() => {
-    const el = cardRef.current;
-
-    gsap.fromTo(el,
-      { opacity: 0, y: 60, scale: 0.95 },
+    gsap.fromTo(cardRef.current,
+      { opacity: 0, y: 40 },
       {
-        opacity: 1, y: 0, scale: 1,
-        duration: 0.9,
-        ease: 'power3.out',
-        delay: (index % 3) * 0.12,
-        scrollTrigger: {
-          trigger: el,
-          start: 'top 90%',
-          toggleActions: 'play none none none',
-        },
+        opacity: 1, y: 0, duration: 0.7, ease: 'power3.out',
+        delay: (index % 3) * 0.08,
+        scrollTrigger: { trigger: cardRef.current, start: 'top 88%', toggleActions: 'play none none none' },
       }
     );
-
-    const handleMove = (e) => {
-      const rect = el.getBoundingClientRect();
-      const relX = e.clientX - rect.left - rect.width / 2;
-      const relY = e.clientY - rect.top  - rect.height / 2;
-      gsap.to(el, {
-        x: relX * 0.05,
-        y: relY * 0.05,
-        duration: 0.5,
-        ease: 'power2.out',
-      });
-    };
-
-    const handleLeave = () => {
-      gsap.to(el, { x: 0, y: 0, duration: 0.7, ease: 'elastic.out(1,0.4)' });
-    };
-
-    el.addEventListener('mousemove', handleMove);
-    el.addEventListener('mouseleave', handleLeave);
-    return () => {
-      el.removeEventListener('mousemove', handleMove);
-      el.removeEventListener('mouseleave', handleLeave);
-    };
   }, [index]);
 
   return (
     <div className="h-full">
-      <div
-        ref={cardRef}
-        className="glass-card p-8 cursor-none h-full flex flex-col"
-        data-hover
-        style={{ opacity: 0 }}
-      >
-        <span className="service-num">
-          {String(index + 1).padStart(2, '0')}
-        </span>
-
-        <div className="service-icon">
-          <span role="img" aria-label={service.name}>{service.icon}</span>
-        </div>
-
-        <h3 className="service-name">{service.name}</h3>
-        <p className="service-desc flex-grow">{service.desc}</p>
-
-        <div className="service-bottom">
-          <div className="service-bottom-line" />
-          <span className="service-bottom-text">Подробнее</span>
-          <svg
-            className="service-bottom-arrow"
-            width="14" height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-          >
+      <div ref={cardRef} className="card h-full flex flex-col cursor-none" data-hover style={{ opacity: 0 }}>
+        <span className="card-num">{String(index + 1).padStart(2, '0')}</span>
+        <div className="card-icon">{service.icon}</div>
+        <h3 className="card-title">{service.name}</h3>
+        <p className="card-desc flex-grow">{service.desc}</p>
+        <div className="card-bottom">
+          <div className="flex-1 h-px bg-gradient-to-r from-[var(--m-blue-light)] to-transparent opacity-30" />
+          <span className="text-[10px] tracking-[0.15em] uppercase text-[var(--m-blue-light)] font-semibold">Подробнее</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--m-blue-light)" strokeWidth="2">
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>
         </div>
@@ -125,31 +75,29 @@ export default function Services() {
 
   useEffect(() => {
     gsap.fromTo(headerRef.current,
-      { opacity: 0, y: 40 },
-      {
-        opacity: 1, y: 0, duration: 1, ease: 'power3.out',
-        scrollTrigger: {
-          trigger: headerRef.current,
-          start: 'top 85%',
-        },
+      { opacity: 0, y: 30 },
+      { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out',
+        scrollTrigger: { trigger: headerRef.current, start: 'top 85%' }
       }
     );
   }, []);
 
   return (
-    <section className="services-section" id="services">
-      <div ref={headerRef} className="mb-16" style={{ opacity: 0 }}>
-        <p className="section-label mb-6">Что я делаю</p>
-        <h2 className="section-title">
-          Услуги<br />
-          <span className="glow-text">автоэлектрика</span>
-        </h2>
-      </div>
+    <section className="py-24 px-4 md:px-12 relative z-10" id="services">
+      <div className="max-w-6xl mx-auto">
+        <div ref={headerRef} className="mb-12" style={{ opacity: 0 }}>
+          <p className="section-label">Что я делаю</p>
+          <h2 className="section-title">
+            Услуги<br />
+            <span className="shock-glow" style={{ color: 'var(--m-blue-light)' }}>автоэлектрика</span>
+          </h2>
+        </div>
 
-      <div className="services-grid">
-        {SERVICES.map((s, i) => (
-          <ServiceCard key={s.name} service={s} index={i} />
-        ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-[var(--border)]">
+          {SERVICES.map((s, i) => (
+            <ServiceCard key={s.name} service={s} index={i} />
+          ))}
+        </div>
       </div>
     </section>
   );

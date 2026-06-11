@@ -1,16 +1,14 @@
-import ElectricCanvas from './components/ElectricCanvas';
-import CustomCursor   from './components/CustomCursor';
-import Navbar         from './components/Navbar';
-import Hero           from './components/Hero';
-import Services       from './components/Services';
-import Contacts       from './components/Contacts';
-import Footer         from './components/Footer';
+import CustomCursor from './components/CustomCursor';
+import Navbar from './components/Navbar';
+import Hero from './components/Hero';
+import Services from './components/Services';
+import Contacts from './components/Contacts';
+import Footer from './components/Footer';
 import FloatingContact from './components/FloatingContact';
 
 export default function App() {
   return (
     <>
-      <ElectricCanvas />
       <CustomCursor />
       <Navbar />
 
