@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ru" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Автоэлектрик с выездом — Диагностика и ремонт на месте 24/7</title>
+  <meta name="description" content="Выездной автоэлектрик. Компьютерная диагностика, ремонт проводки, сигнализации. Приеду к вашей машине в течение часа. Работаем 24/7." />
+  <meta name="robots" content="index, follow" />
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Автоэлектрик с выездом 24/7" />
+  <meta property="og:description" content="Диагностика и ремонт электрики прямо у вашей машины. Без эвакуатора." />
+  <meta property="og:type" content="website" />
+
+  <!-- Preconnect -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg:      '#111318',
+            surface: '#1C1F27',
+            border:  '#2A2D38',
+            accent:  '#F59E0B',
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Swiper -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/css/style.css" />
+
+  <!-- Lucide -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+</head>
+
+<body class="bg-bg text-gray-100 font-sans antialiased overflow-x-hidden">
+
+  <!-- ─────────────────────────────────────────────
+       STICKY MOBILE CTA — всегда видна на телефоне
+  ───────────────────────────────────────────── -->
+  <div id="sticky-cta"
+       class="fixed bottom-0 left-0 right-0 z-50 p-3 md:hidden
+              bg-bg/90 backdrop-blur border-t border-border">
+    <a id="sticky-call-btn" href="tel:+79991234567"
+       class="flex items-center justify-center gap-2
+              w-full py-4 rounded-2xl bg-accent text-bg
+              font-bold text-lg tracking-wide
+              active:scale-95 transition-transform accent-glow">
+      <i data-lucide="phone-call" class="w-5 h-5"></i>
+      Вызвать мастера
+    </a>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       NAVBAR
+  ───────────────────────────────────────────── -->
+  <nav id="navbar"
+       class="fixed top-0 left-0 right-0 z-40
+              transition-all duration-300 py-4">
+    <div class="container mx-auto px-5 lg:px-10
+                flex items-center justify-between max-w-6xl">
+
+      <!-- Logo -->
+      <a href="#" class="flex items-center gap-2 shrink-0">
+        <i data-lucide="zap" class="w-7 h-7 text-accent"></i>
+        <span class="font-black text-xl text-white uppercase tracking-widest">
+          Auto<span class="text-accent">Electro</span>
+        </span>
+      </a>
+
+      <!-- Desktop nav -->
+      <div class="hidden md:flex items-center gap-7 text-sm font-medium text-gray-400">
+        <a href="#services"    class="hover:text-white transition-colors">Услуги</a>
+        <a href="#how"         class="hover:text-white transition-colors">Как мы работаем</a>
+        <a href="#reviews"     class="hover:text-white transition-colors">Отзывы</a>
+        <a href="#contacts"    class="hover:text-white transition-colors">Контакты</a>
+      </div>
+
+      <!-- Desktop CTA -->
+      <a id="nav-call-btn" href="tel:+79991234567"
+         class="hidden md:flex items-center gap-2
+                bg-accent hover:brightness-110 text-bg
+                px-5 py-2.5 rounded-xl font-bold text-sm
+                transition-all accent-glow">
+        <i data-lucide="phone" class="w-4 h-4"></i>
+        Позвонить
+      </a>
+    </div>
+  </nav>
+
+  <!-- ─────────────────────────────────────────────
+       HERO
+  ───────────────────────────────────────────── -->
+  <section id="hero"
+           class="relative min-h-screen flex items-center pt-20 pb-28 md:pb-20 overflow-hidden">
+
+    <!-- Background image with overlay -->
+    <div class="absolute inset-0 z-0">
+      <img
+        src="https://images.unsplash.com/photo-1599361885446-a2c2b5a4d6e5?auto=format&fit=crop&w=1920&q=80"
+        alt=""
+        class="w-full h-full object-cover opacity-20"
+      />
+      <div class="absolute inset-0
+                  bg-gradient-to-b from-bg/60 via-bg/80 to-bg"></div>
+    </div>
+
+    <!-- Decorative glow blobs -->
+    <div class="absolute top-1/4 right-0 w-96 h-96 rounded-full
+                bg-accent/10 blur-[120px] pointer-events-none"></div>
+    <div class="absolute bottom-0 left-1/4 w-64 h-64 rounded-full
+                bg-accent/5 blur-[80px] pointer-events-none"></div>
+
+    <div class="container mx-auto px-5 lg:px-10 max-w-6xl relative z-10">
+      <div class="max-w-2xl">
+
+        <!-- Online badge -->
+        <div id="hero-badge"
+             class="inline-flex items-center gap-2.5
+                    bg-surface border border-border
+                    px-4 py-2 rounded-full mb-7 text-sm font-medium">
+          <span class="relative flex h-2.5 w-2.5 shrink-0">
+            <span class="pulse-ring absolute inline-flex h-full w-full
+                         rounded-full bg-green-500"></span>
+            <span class="relative inline-flex h-2.5 w-2.5
+                         rounded-full bg-green-500"></span>
+          </span>
+          Мастер сейчас принимает вызовы
+        </div>
+
+        <!-- Title -->
+        <h1 id="hero-title"
+            class="font-black text-4xl sm:text-5xl lg:text-7xl
+                   text-white leading-[1.05] mb-5 uppercase">
+          <!-- JS renders text with accent word wrapped -->
+        </h1>
+
+        <!-- Subtitle -->
+        <p id="hero-subtitle"
+           class="text-gray-300 text-lg sm:text-xl leading-relaxed
+                  mb-9 max-w-xl">
+        </p>
+
+        <!-- CTA buttons -->
+        <div id="hero-btns" class="flex flex-col sm:flex-row gap-4">
+          <a id="hero-call-btn" href="tel:+79991234567"
+             class="flex items-center justify-center gap-2.5
+                    bg-accent hover:brightness-110 text-bg
+                    px-7 py-4 rounded-2xl font-bold text-lg
+                    transition-all accent-glow">
+            <i data-lucide="phone-call" class="w-5 h-5"></i>
+            Вызвать сейчас
+          </a>
+          <a href="#services"
+             class="flex items-center justify-center gap-2
+                    bg-surface hover:bg-border text-white
+                    border border-border
+                    px-7 py-4 rounded-2xl font-semibold text-lg
+                    transition-colors">
+            Посмотреть услуги
+            <i data-lucide="arrow-down" class="w-4 h-4"></i>
+          </a>
+        </div>
+
+        <!-- Trust strip -->
+        <div class="flex flex-wrap gap-6 mt-10 text-sm text-gray-400">
+          <div class="flex items-center gap-2">
+            <i data-lucide="clock" class="w-4 h-4 text-accent shrink-0"></i>
+            Приезжаю за 30–60 мин
+          </div>
+          <div class="flex items-center gap-2">
+            <i data-lucide="shield-check" class="w-4 h-4 text-accent shrink-0"></i>
+            Гарантия на работы
+          </div>
+          <div class="flex items-center gap-2">
+            <i data-lucide="map-pin" class="w-4 h-4 text-accent shrink-0"></i>
+            <span id="hero-city">Выезд по городу и области</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scroll hint (desktop) -->
+    <a href="#how"
+       class="absolute bottom-8 left-1/2 -translate-x-1/2
+              hidden md:flex flex-col items-center gap-2
+              text-gray-500 hover:text-accent transition-colors animate-bounce">
+      <span class="text-xs uppercase tracking-widest">Прокрутите</span>
+      <i data-lucide="chevrons-down" class="w-5 h-5"></i>
+    </a>
+  </section>
+
+  <!-- ─────────────────────────────────────────────
+       HOW IT WORKS
+  ───────────────────────────────────────────── -->
+  <section id="how" class="py-20 md:py-28 border-t border-border">
+    <div class="container mx-auto px-5 lg:px-10 max-w-6xl">
+
+      <div class="text-center mb-14 reveal">
+        <p class="text-accent text-sm font-semibold uppercase tracking-widest mb-3">
+          Просто и быстро
+        </p>
+        <h2 class="font-black text-3xl sm:text-4xl lg:text-5xl text-white uppercase">
+          Как мы работаем
+        </h2>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-6 lg:gap-8">
+
+        <!-- Step cards rendered statically (no data dependency) -->
+        <div class="how-card reveal
+                    bg-surface border border-border rounded-3xl p-8 text-center
+                    card-hover relative">
+          <div class="absolute -top-4 left-1/2 -translate-x-1/2
+                      w-8 h-8 rounded-full bg-accent text-bg
+                      flex items-center justify-center font-black text-sm">
+            1
+          </div>
+          <div class="mt-4 mb-5 mx-auto w-16 h-16 rounded-2xl
+                      bg-accent/10 flex items-center justify-center">
+            <i data-lucide="phone" class="w-7 h-7 text-accent"></i>
+          </div>
+          <h3 class="font-bold text-lg text-white mb-3">Позвоните нам</h3>
+          <p class="text-gray-400 text-sm leading-relaxed">
+            Опишите проблему и назовите адрес — мастер уточнит детали
+            и сразу выдвинется к вам.
+          </p>
+        </div>
+
+        <div class="how-card reveal
+                    bg-surface border border-border rounded-3xl p-8 text-center
+                    card-hover relative">
+          <div class="absolute -top-4 left-1/2 -translate-x-1/2
+                      w-8 h-8 rounded-full bg-accent text-bg
+                      flex items-center justify-center font-black text-sm">
+            2
+          </div>
+          <div class="mt-4 mb-5 mx-auto w-16 h-16 rounded-2xl
+                      bg-accent/10 flex items-center justify-center">
+            <i data-lucide="car" class="w-7 h-7 text-accent"></i>
+          </div>
+          <h3 class="font-bold text-lg text-white mb-3">Мастер приедет к вам</h3>
+          <p class="text-gray-400 text-sm leading-relaxed">
+            Прибываю с профессиональным оборудованием прямо к вашей
+            машине — никаких эвакуаторов и поездок в сервис.
+          </p>
+        </div>
+
+        <div class="how-card reveal
+                    bg-surface border border-border rounded-3xl p-8 text-center
+                    card-hover relative">
+          <div class="absolute -top-4 left-1/2 -translate-x-1/2
+                      w-8 h-8 rounded-full bg-accent text-bg
+                      flex items-center justify-center font-black text-sm">
+            3
+          </div>
+          <div class="mt-4 mb-5 mx-auto w-16 h-16 rounded-2xl
+                      bg-accent/10 flex items-center justify-center">
+            <i data-lucide="wrench" class="w-7 h-7 text-accent"></i>
+          </div>
+          <h3 class="font-bold text-lg text-white mb-3">Диагностика и ремонт</h3>
+          <p class="text-gray-400 text-sm leading-relaxed">
+            Нахожу причину неисправности и устраняю её на месте.
+            Называю стоимость до начала работ — никаких сюрпризов.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────
+       SERVICES
+  ───────────────────────────────────────────── -->
+  <section id="services" class="py-20 md:py-28 bg-surface">
+    <div class="container mx-auto px-5 lg:px-10 max-w-6xl">
+
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12 reveal">
+        <div>
+          <p class="text-accent text-sm font-semibold uppercase tracking-widest mb-3">
+            Чем могу помочь
+          </p>
+          <h2 class="font-black text-3xl sm:text-4xl lg:text-5xl text-white uppercase">
+            Услуги и цены
+          </h2>
+        </div>
+        <a id="services-call-btn" href="tel:+79991234567"
+           class="shrink-0 flex items-center gap-2
+                  bg-accent hover:brightness-110 text-bg
+                  px-6 py-3 rounded-xl font-bold text-sm
+                  transition-all">
+          <i data-lucide="phone" class="w-4 h-4"></i>
+          Вызвать мастера
+        </a>
+      </div>
+
+      <!-- Grid populated by JS -->
+      <div id="services-grid"
+           class="grid md:grid-cols-2 gap-5">
+      </div>
+
+      <p class="text-center text-gray-500 text-sm mt-8 reveal">
+        * Точная стоимость — после диагностики. Диагностика бесплатна при выполнении ремонта.
+      </p>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────
+       REVIEWS
+  ───────────────────────────────────────────── -->
+  <section id="reviews" class="py-20 md:py-28 overflow-hidden">
+    <div class="container mx-auto px-5 lg:px-10 max-w-6xl">
+
+      <div class="text-center mb-14 reveal">
+        <p class="text-accent text-sm font-semibold uppercase tracking-widest mb-3">
+          Реальные истории
+        </p>
+        <h2 class="font-black text-3xl sm:text-4xl lg:text-5xl text-white uppercase">
+          Отзывы клиентов
+        </h2>
+      </div>
+
+      <div class="swiper reviews-swiper pb-14 reveal">
+        <div class="swiper-wrapper" id="reviews-wrapper">
+          <!-- JS renders slides -->
+        </div>
+        <div class="swiper-pagination mt-2"></div>
+        <div class="swiper-button-prev hidden md:flex"></div>
+        <div class="swiper-button-next hidden md:flex"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────
+       CONTACTS
+  ───────────────────────────────────────────── -->
+  <section id="contacts" class="py-20 md:py-28 bg-surface border-t border-border">
+    <div class="container mx-auto px-5 lg:px-10 max-w-4xl">
+
+      <div class="text-center mb-12 reveal">
+        <p class="text-accent text-sm font-semibold uppercase tracking-widest mb-3">
+          Мы всегда на связи
+        </p>
+        <h2 class="font-black text-3xl sm:text-4xl lg:text-5xl text-white uppercase">
+          Связаться с нами
+        </h2>
+      </div>
+
+      <div class="reveal bg-bg border border-border rounded-3xl p-7 md:p-12">
+
+        <!-- Big phone -->
+        <div class="text-center mb-10">
+          <p class="text-gray-400 text-sm mb-2 uppercase tracking-widest">
+            Телефон дежурного мастера
+          </p>
+          <a id="contact-phone" href="tel:+79991234567"
+             class="font-black text-4xl md:text-5xl text-white hover:text-accent transition-colors">
+            +7 (999) 123-45-67
+          </a>
+          <p id="contact-hours"
+             class="text-accent font-semibold mt-2 text-sm uppercase tracking-wider">
+            Круглосуточно, 7 дней в неделю
+          </p>
+        </div>
+
+        <!-- Divider -->
+        <div class="border-t border-border mb-10"></div>
+
+        <!-- Messengers -->
+        <div class="grid sm:grid-cols-3 gap-4 mb-10">
+          <a id="contact-wa" href="#" target="_blank" rel="noopener"
+             class="flex items-center justify-center gap-3
+                    bg-[#25D366]/10 border border-[#25D366]/30
+                    hover:bg-[#25D366]/20 rounded-2xl py-4
+                    font-bold text-[#25D366] transition-colors">
+            <i data-lucide="message-circle" class="w-5 h-5"></i>
+            WhatsApp
+          </a>
+          <a id="contact-tg" href="#" target="_blank" rel="noopener"
+             class="flex items-center justify-center gap-3
+                    bg-[#0088CC]/10 border border-[#0088CC]/30
+                    hover:bg-[#0088CC]/20 rounded-2xl py-4
+                    font-bold text-[#0088CC] transition-colors">
+            <i data-lucide="send" class="w-5 h-5"></i>
+            Telegram
+          </a>
+          <a id="contact-vk" href="#" target="_blank" rel="noopener"
+             class="flex items-center justify-center gap-3
+                    bg-[#4C75A3]/10 border border-[#4C75A3]/30
+                    hover:bg-[#4C75A3]/20 rounded-2xl py-4
+                    font-bold text-[#4C75A3] transition-colors">
+            <i data-lucide="users" class="w-5 h-5"></i>
+            ВКонтакте
+          </a>
+        </div>
+
+        <!-- Info strip -->
+        <div class="grid sm:grid-cols-2 gap-5 text-sm">
+          <div class="flex items-start gap-3">
+            <i data-lucide="map-pin" class="w-5 h-5 text-accent shrink-0 mt-0.5"></i>
+            <div>
+              <p class="text-gray-400 mb-0.5">Зона работы</p>
+              <p id="contact-city" class="text-white font-semibold">
+                По городу и области
+              </p>
+            </div>
+          </div>
+          <div class="flex items-start gap-3">
+            <i data-lucide="clock" class="w-5 h-5 text-accent shrink-0 mt-0.5"></i>
+            <div>
+              <p class="text-gray-400 mb-0.5">Режим работы</p>
+              <p class="text-white font-semibold">Без выходных, 24/7</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Extra bottom padding on mobile so sticky CTA doesn't overlap -->
+      <div class="h-20 md:hidden"></div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────────────────────────
+       FOOTER
+  ───────────────────────────────────────────── -->
+  <footer class="bg-bg border-t border-border py-8">
+    <div class="container mx-auto px-5 lg:px-10 max-w-6xl
+                flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <i data-lucide="zap" class="w-5 h-5 text-accent"></i>
+        <span class="font-black text-sm uppercase tracking-widest text-white">
+          Auto<span class="text-accent">Electro</span>
+        </span>
+      </div>
+      <p class="text-gray-500 text-xs text-center">
+        &copy; <span id="footer-year"></span> AutoElectro. Все права защищены.
+      </p>
+      <a href="/admin.html"
+         class="text-gray-600 hover:text-gray-400 text-xs transition-colors">
+        Вход для администратора
+      </a>
+    </div>
+  </footer>
+
+  <!-- ─────────────────────────────────────────────
+       LIGHTBOX
+  ───────────────────────────────────────────── -->
+  <div id="lightbox"
+       class="fixed inset-0 z-[200] hidden items-center justify-center
+              bg-black/95 opacity-0 transition-opacity duration-300">
+    <button id="lightbox-close"
+            class="absolute top-5 right-5 text-gray-400 hover:text-white transition-colors">
+      <i data-lucide="x" class="w-8 h-8"></i>
+    </button>
+    <img id="lightbox-img" src="" alt=""
+         class="max-h-[90vh] max-w-[90vw] rounded-2xl shadow-2xl object-contain" />
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+  <script src="/js/main.js"></script>
+</body>
+</html>

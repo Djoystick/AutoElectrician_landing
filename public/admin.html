@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Админ-панель — AutoElectro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: {
+        bg: '#111318', surface: '#1C1F27', border: '#2A2D38', accent: '#F59E0B'
+      }}}
+    }
+  </script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .tab-btn.active { background: #F59E0B; color: #111318; }
+    .tab-btn { transition: all .2s; }
+  </style>
+</head>
+<body class="bg-bg text-gray-200 min-h-screen antialiased">
+
+<!-- ═══════════════ LOGIN ═══════════════ -->
+<div id="login-screen"
+     class="min-h-screen flex items-center justify-center p-5">
+  <div class="w-full max-w-sm bg-surface border border-border rounded-3xl p-8">
+    <div class="flex items-center gap-2 justify-center mb-8">
+      <i data-lucide="zap" class="w-6 h-6 text-accent"></i>
+      <span class="font-black text-xl uppercase tracking-widest text-white">
+        Auto<span class="text-accent">Electro</span>
+      </span>
+    </div>
+    <h1 class="text-lg font-bold text-center text-white mb-6">
+      Вход в панель управления
+    </h1>
+    <form id="login-form" class="space-y-4">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
+          Пароль
+        </label>
+        <input id="login-pwd" type="password" required
+               class="w-full bg-bg border border-border rounded-xl px-4 py-3
+                      text-white placeholder-gray-600 focus:outline-none
+                      focus:border-accent transition-colors"
+               placeholder="Введите пароль" />
+      </div>
+      <div id="login-err" class="hidden text-red-400 text-sm text-center">
+        Неверный пароль
+      </div>
+      <button type="submit"
+              class="w-full bg-accent hover:brightness-110 text-bg
+                     font-bold py-3 rounded-xl transition-all">
+        Войти
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════ DASHBOARD ═══════════════ -->
+<div id="dashboard" class="hidden min-h-screen flex-col">
+
+  <!-- Header -->
+  <header class="bg-surface border-b border-border py-4 px-5 sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <i data-lucide="zap" class="w-5 h-5 text-accent"></i>
+        <span class="font-black uppercase tracking-widest text-white text-sm">
+          Auto<span class="text-accent">Electro</span> / Админ
+        </span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="/" target="_blank"
+           class="flex items-center gap-1.5 text-xs text-gray-400
+                  hover:text-white transition-colors">
+          <i data-lucide="external-link" class="w-4 h-4"></i>
+          Открыть сайт
+        </a>
+        <button id="logout-btn"
+                class="flex items-center gap-1.5 text-xs text-red-400
+                       hover:text-red-300 transition-colors">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+          Выйти
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="bg-bg border-b border-border px-5 py-3">
+    <div class="max-w-6xl mx-auto flex gap-2 overflow-x-auto">
+      <button class="tab-btn active whitespace-nowrap px-5 py-2 rounded-xl text-sm font-semibold"
+              data-tab="contacts">Контакты</button>
+      <button class="tab-btn whitespace-nowrap px-5 py-2 rounded-xl text-sm font-semibold
+                     text-gray-400 hover:bg-surface"
+              data-tab="services">Услуги</button>
+      <button class="tab-btn whitespace-nowrap px-5 py-2 rounded-xl text-sm font-semibold
+                     text-gray-400 hover:bg-surface"
+              data-tab="reviews">Отзывы</button>
+      <button class="tab-btn whitespace-nowrap px-5 py-2 rounded-xl text-sm font-semibold
+                     text-gray-400 hover:bg-surface"
+              data-tab="settings">Настройки</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"
+       class="fixed top-5 right-5 z-50 bg-green-600 text-white
+              px-5 py-3 rounded-xl shadow-lg text-sm font-semibold
+              translate-x-[150%] transition-transform duration-300">
+    ✅ Сохранено
+  </div>
+
+  <!-- Main -->
+  <main class="flex-1 p-5 md:p-8">
+    <div class="max-w-4xl mx-auto">
+
+      <!-- ─── TAB: CONTACTS ─── -->
+      <div id="tab-contacts" class="tab-pane">
+        <h2 class="text-2xl font-black text-white mb-6">Контактные данные</h2>
+        <form id="form-contacts"
+              class="bg-surface border border-border rounded-3xl p-6 space-y-4">
+          <div class="grid md:grid-cols-2 gap-4">
+            <div>
+              <label class="label">Телефон</label>
+              <input type="text" name="phone" class="input" />
+            </div>
+            <div>
+              <label class="label">Режим работы</label>
+              <input type="text" name="workingHours" class="input" />
+            </div>
+            <div>
+              <label class="label">Зона выезда (город и область)</label>
+              <input type="text" name="city" class="input"
+                     placeholder="городу и области" />
+            </div>
+            <div>
+              <label class="label">WhatsApp (ссылка)</label>
+              <input type="url" name="whatsapp" class="input" />
+            </div>
+            <div>
+              <label class="label">Telegram (ссылка)</label>
+              <input type="url" name="telegram" class="input" />
+            </div>
+            <div>
+              <label class="label">ВКонтакте (ссылка)</label>
+              <input type="url" name="vk" class="input" />
+            </div>
+          </div>
+          <div class="flex justify-end pt-2">
+            <button type="submit" class="btn-primary">Сохранить контакты</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ─── TAB: SERVICES ─── -->
+      <div id="tab-services" class="tab-pane hidden">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-black text-white">Услуги</h2>
+          <button id="btn-add-service" class="btn-primary flex items-center gap-2">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Добавить услугу
+          </button>
+        </div>
+        <div id="services-admin-list" class="space-y-4"></div>
+      </div>
+
+      <!-- ─── TAB: REVIEWS ─── -->
+      <div id="tab-reviews" class="tab-pane hidden">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-2xl font-black text-white">Фото-отзывы</h2>
+          <button id="btn-add-review" class="btn-primary flex items-center gap-2">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Добавить отзыв
+          </button>
+        </div>
+        <div id="reviews-admin-grid"
+             class="grid md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+      </div>
+
+      <!-- ─── TAB: SETTINGS ─── -->
+      <div id="tab-settings" class="tab-pane hidden">
+        <h2 class="text-2xl font-black text-white mb-6">Общие настройки</h2>
+        <form id="form-settings"
+              class="bg-surface border border-border rounded-3xl p-6 space-y-4">
+          <div>
+            <label class="label">Заголовок главного экрана</label>
+            <input type="text" name="heroTitle" class="input" />
+          </div>
+          <div>
+            <label class="label">Подзаголовок главного экрана</label>
+            <textarea name="heroSubtitle" rows="3" class="input resize-none"></textarea>
+          </div>
+          <div class="border-t border-border pt-4">
+            <label class="label text-red-400">
+              Новый пароль (оставьте пустым, чтобы не менять)
+            </label>
+            <input type="password" name="newPassword" class="input"
+                   placeholder="Новый пароль" />
+          </div>
+          <div class="flex justify-end pt-2">
+            <button type="submit" class="btn-primary">Сохранить настройки</button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- ═══════════════ MODAL: SERVICE ═══════════════ -->
+<div id="modal-service"
+     class="fixed inset-0 z-50 hidden items-center justify-center p-4
+            bg-black/80 backdrop-blur-sm">
+  <div class="w-full max-w-lg bg-surface border border-border rounded-3xl p-7">
+    <h3 id="modal-service-title" class="text-xl font-black text-white mb-6">
+      Новая услуга
+    </h3>
+    <form id="form-service" class="space-y-4">
+      <input type="hidden" name="id" />
+      <div>
+        <label class="label">Название</label>
+        <input type="text" name="title" required class="input" />
+      </div>
+      <div>
+        <label class="label">Описание</label>
+        <textarea name="description" rows="3" required class="input resize-none"></textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="label">Цена (напр: от 2 000 ₽)</label>
+          <input type="text" name="price" required class="input" />
+        </div>
+        <div>
+          <label class="label">Иконка (lucide.dev)</label>
+          <input type="text" name="icon" required class="input"
+                 placeholder="cpu, zap, wrench…" />
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" onclick="closeModal('modal-service')"
+                class="px-5 py-2.5 rounded-xl border border-border
+                       text-gray-400 hover:text-white transition-colors text-sm">
+          Отмена
+        </button>
+        <button type="submit" class="btn-primary">Сохранить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════════ MODAL: REVIEW ═══════════════ -->
+<div id="modal-review"
+     class="fixed inset-0 z-50 hidden items-center justify-center p-4
+            bg-black/80 backdrop-blur-sm">
+  <div class="w-full max-w-lg bg-surface border border-border rounded-3xl p-7">
+    <h3 class="text-xl font-black text-white mb-6">Новый отзыв</h3>
+    <form id="form-review" class="space-y-4" enctype="multipart/form-data">
+      <div>
+        <label class="label">Имя клиента / авто</label>
+        <input type="text" name="name" required class="input"
+               placeholder="Алексей К. (Toyota Camry)" />
+      </div>
+      <div>
+        <label class="label">Текст отзыва</label>
+        <textarea name="text" rows="3" required class="input resize-none"></textarea>
+      </div>
+      <div>
+        <label class="label">Фотография (JPG, PNG, WebP)</label>
+        <input type="file" name="image" accept="image/*" required
+               class="w-full text-sm text-gray-400
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-xl file:border-0
+                      file:bg-accent file:text-bg file:font-bold
+                      hover:file:brightness-110 cursor-pointer" />
+      </div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" onclick="closeModal('modal-review')"
+                class="px-5 py-2.5 rounded-xl border border-border
+                       text-gray-400 hover:text-white transition-colors text-sm">
+          Отмена
+        </button>
+        <button type="submit" class="btn-primary">Загрузить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Shared styles -->
+<style>
+  .label { display:block; font-size:.75rem; color:#6B7280;
+           text-transform:uppercase; letter-spacing:.05em; margin-bottom:.35rem; }
+  .input { width:100%; background:#111318; border:1px solid #2A2D38;
+           border-radius:.875rem; padding:.75rem 1rem; color:#fff;
+           outline:none; font-size:.9rem; transition:border-color .2s; }
+  .input:focus { border-color:#F59E0B; }
+  .btn-primary { background:#F59E0B; color:#111318; font-weight:700;
+                 padding:.6rem 1.4rem; border-radius:.875rem;
+                 font-size:.875rem; transition:filter .2s; border:none; cursor:pointer; }
+  .btn-primary:hover { filter:brightness(1.1); }
+</style>
+
+<script src="/js/admin.js"></script>
+</body>
+</html>

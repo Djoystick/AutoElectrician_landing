@@ -1,0 +1,104 @@
+/* =============================================================================
+   AutoElectro – Custom Styles (Mobile-First)
+   Tailwind v4 @theme tokens + third-party overrides
+============================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+/* ---------- Design Tokens ---------- */
+@theme {
+  --color-bg:      #111318;
+  --color-surface: #1C1F27;
+  --color-border:  #2A2D38;
+  --color-accent:  #F59E0B;
+  --color-text:    #E5E7EB;
+  --color-muted:   #6B7280;
+}
+
+/* ---------- Base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: #111318;
+  color: #E5E7EB;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: #F59E0B;
+  color: #111318;
+}
+
+/* ---------- Scrollbar ---------- */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #111318; }
+::-webkit-scrollbar-thumb { background: #2A2D38; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #F59E0B; }
+
+/* ---------- Utility Classes ---------- */
+.glass {
+  background: rgba(17, 19, 24, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.accent-glow {
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.35);
+}
+
+.card-hover {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,158,11,0.15);
+}
+
+/* ---------- Swiper Overrides ---------- */
+.swiper-pagination-bullet {
+  background: #6B7280 !important;
+  opacity: 1 !important;
+  width: 8px !important;
+  height: 8px !important;
+}
+.swiper-pagination-bullet-active {
+  background: #F59E0B !important;
+  width: 24px !important;
+  border-radius: 4px !important;
+}
+.swiper-button-next,
+.swiper-button-prev {
+  color: #F59E0B !important;
+  background: #1C1F27 !important;
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 50% !important;
+  border: 1px solid #2A2D38 !important;
+}
+.swiper-button-next::after,
+.swiper-button-prev::after {
+  font-size: 14px !important;
+  font-weight: 900 !important;
+}
+
+/* ---------- Pulse animation for hero badge ---------- */
+@keyframes pulse-ring {
+  0%   { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+.pulse-ring {
+  animation: pulse-ring 1.5s ease-out infinite;
+}
+
+/* ---------- Sticky Mobile CTA ---------- */
+#sticky-cta {
+  /* always rendered, visibility toggled via JS on desktop */
+  transition: transform 0.3s ease;
+}
+
+/* ---------- GSAP invisible defaults — only when GSAP is loaded ---------- */
+/* .reveal opacity is controlled entirely by GSAP inline styles, not CSS */
