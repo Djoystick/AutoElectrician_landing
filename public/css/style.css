@@ -10,7 +10,7 @@
   --color-bg:      #111318;
   --color-surface: #1C1F27;
   --color-border:  #2A2D38;
-  --color-accent:  #F59E0B;
+  --color-accent:  #00b4fd;
   --color-text:    #E5E7EB;
   --color-muted:   #6B7280;
 }
@@ -28,7 +28,7 @@ body {
 }
 
 ::selection {
-  background: #F59E0B;
+  background: #00b4fd;
   color: #111318;
 }
 
@@ -36,7 +36,7 @@ body {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #111318; }
 ::-webkit-scrollbar-thumb { background: #2A2D38; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #F59E0B; }
+::-webkit-scrollbar-thumb:hover { background: #00b4fd; }
 
 /* ---------- Utility Classes ---------- */
 .glass {
@@ -47,7 +47,7 @@ body {
 }
 
 .accent-glow {
-  box-shadow: 0 0 24px rgba(245, 158, 11, 0.35);
+  box-shadow: 0 0 24px rgba(0, 180, 253, 0.35);
 }
 
 .card-hover {
@@ -55,7 +55,7 @@ body {
 }
 .card-hover:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(245,158,11,0.15);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(0, 180, 253, 0.15);
 }
 
 /* ---------- Swiper Overrides ---------- */
@@ -66,13 +66,13 @@ body {
   height: 8px !important;
 }
 .swiper-pagination-bullet-active {
-  background: #F59E0B !important;
+  background: #00b4fd !important;
   width: 24px !important;
   border-radius: 4px !important;
 }
 .swiper-button-next,
 .swiper-button-prev {
-  color: #F59E0B !important;
+  color: #00b4fd !important;
   background: #1C1F27 !important;
   width: 44px !important;
   height: 44px !important;
