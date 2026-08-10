@@ -995,8 +995,24 @@ app.get('/api/client/auth/telegram/callback', (req, res) => {
 });
 
 app.post('/api/debug', (req, res) => {
-  console.log('[FRONTEND DEBUG]', req.body);
+  const logStr = `[FRONTEND DEBUG] ${JSON.stringify(req.body)}`;
+  console.log(logStr);
+  memLogs.unshift({ time: new Date().toISOString(), msg: logStr });
+  if (memLogs.length > 100) memLogs.pop();
   res.sendStatus(200);
+});
+
+const memLogs = [];
+const origLog = console.log;
+console.log = function(...args) {
+  origLog.apply(console, args);
+  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+  memLogs.unshift({ time: new Date().toISOString(), msg });
+  if (memLogs.length > 100) memLogs.pop();
+};
+
+app.get('/api/logs', (req, res) => {
+  res.json(memLogs);
 });
 
 /* ══════════════════════════════════════════════════════════
