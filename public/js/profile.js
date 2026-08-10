@@ -394,7 +394,7 @@ function fmtDate(str) {
 /* ══════════════════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════════════════ */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   lucide.createIcons();
 
   // Handle VK OAuth redirect (token in URL params)
@@ -428,8 +428,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Inject Telegram Login Widget
   injectTelegramWidget();
 
+  // Check if we returned from Telegram OAuth redirect (fallback for mobile)
+  if (urlParams.has('hash') && urlParams.has('id')) {
+    const user = Object.fromEntries(urlParams.entries());
+    window.history.replaceState({}, document.title, window.location.pathname); // clear URL
+    await window.onTelegramAuth(user);
+    return;
+  }
+
   if (TOKEN) {
-    loadProfile();
+    await loadProfile();
   } else {
     showLoginScreen();
   }
