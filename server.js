@@ -108,11 +108,14 @@ function setupBotHandlers(bot) {
     bot.sendMessage(chatId, '✅ Вы успешно авторизованы как клиент! Теперь можете вернуться в браузер — страница уже открылась.');
   });
 
-  /* Admin assignment: /admin <password> */
-  bot.onText(/\/admin (.+)/, (msg, match) => {
-    const pwd = match[1].trim();
+  /* Admin assignment: /admin [password] */
+  bot.onText(/\/admin(?: (.+))?/, (msg, match) => {
+    const pwd = match[1] ? match[1].trim() : '';
     const data = readData();
     const storedPwd = data.settings?.password || 'admin';
+    if (!pwd) {
+      return bot.sendMessage(msg.chat.id, 'Использование: /admin <пароль>');
+    }
     if (pwd === storedPwd) {
       data.settings.masterTelegramChatId = msg.chat.id;
       writeData(data);
