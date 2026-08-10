@@ -15,6 +15,7 @@
   <!-- Preconnect -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -29,7 +30,7 @@
             accent:  '#00b4fd',
           },
           fontFamily: {
-            sans: ['Inter', 'sans-serif'],
+            sans: ['Montserrat', 'Inter', 'sans-serif'],
           }
         }
       }
@@ -53,15 +54,25 @@
   ───────────────────────────────────────────── -->
   <div id="sticky-cta"
        class="fixed bottom-0 left-0 right-0 z-50 p-3 md:hidden
-              bg-bg/90 backdrop-blur border-t border-border">
-    <a id="sticky-call-btn" href="tel:+79991234567"
-       class="flex items-center justify-center gap-2
-              w-full py-4 rounded-2xl bg-accent text-bg
-              font-bold text-lg tracking-wide
-              active:scale-95 transition-transform accent-glow">
-      <i data-lucide="phone-call" class="w-5 h-5"></i>
-      Вызвать мастера
-    </a>
+              bg-bg/95 backdrop-blur border-t border-border">
+    <div class="flex gap-2">
+      <a id="sticky-call-btn" href="tel:+79991234567"
+         class="flex-1 flex items-center justify-center gap-2
+                py-3.5 rounded-2xl bg-accent text-bg
+                font-bold text-base tracking-wide
+                active:scale-95 transition-transform accent-glow">
+        <i data-lucide="phone-call" class="w-5 h-5"></i>
+        Вызвать
+      </a>
+      <button id="sticky-request-btn"
+         class="flex-1 flex items-center justify-center gap-2
+                py-3.5 rounded-2xl bg-surface text-white
+                border border-border font-semibold text-base
+                active:scale-95 transition-transform">
+        <i data-lucide="file-text" class="w-5 h-5"></i>
+        Заявка
+      </button>
+    </div>
   </div>
 
   <!-- ─────────────────────────────────────────────
@@ -82,11 +93,14 @@
       </a>
 
       <!-- Desktop nav -->
-      <div class="hidden md:flex items-center gap-7 text-sm font-medium text-gray-400">
+      <div class="hidden md:flex items-center gap-6 text-sm font-medium text-gray-400">
         <a href="#services"    class="hover:text-white transition-colors">Услуги</a>
-        <a href="#how"         class="hover:text-white transition-colors">Как мы работаем</a>
+        <a href="#how"         class="hover:text-white transition-colors">Как работаем</a>
         <a href="#reviews"     class="hover:text-white transition-colors">Отзывы</a>
         <a href="#contacts"    class="hover:text-white transition-colors">Контакты</a>
+        <a href="/profile.html" class="flex items-center gap-1.5 hover:text-accent transition-colors">
+          <i data-lucide="user-circle" class="w-4 h-4"></i> Мой профиль
+        </a>
       </div>
 
       <!-- Desktop CTA -->
@@ -125,71 +139,114 @@
                 bg-accent/5 blur-[80px] pointer-events-none"></div>
 
     <div class="container mx-auto px-5 lg:px-10 max-w-6xl relative z-10">
-      <div class="max-w-2xl">
+      <div class="grid lg:grid-cols-2 gap-10 items-center">
 
-        <!-- Online badge -->
-        <div id="hero-badge"
-             class="inline-flex items-center gap-2.5
-                    bg-surface border border-border
-                    px-4 py-2 rounded-full mb-7 text-sm font-medium">
-          <span class="relative flex h-2.5 w-2.5 shrink-0">
-            <span class="pulse-ring absolute inline-flex h-full w-full
-                         rounded-full bg-green-500"></span>
-            <span class="relative inline-flex h-2.5 w-2.5
-                         rounded-full bg-green-500"></span>
-          </span>
-          Мастер сейчас принимает вызовы
+        <!-- LEFT: text content -->
+        <div>
+          <!-- Online badge -->
+          <div id="hero-badge"
+               class="inline-flex items-center gap-2.5
+                      bg-surface border border-border
+                      px-4 py-2 rounded-full mb-7 text-sm font-medium">
+            <span class="relative flex h-2.5 w-2.5 shrink-0">
+              <span class="pulse-ring absolute inline-flex h-full w-full
+                           rounded-full bg-green-500"></span>
+              <span class="relative inline-flex h-2.5 w-2.5
+                           rounded-full bg-green-500"></span>
+            </span>
+            <span id="hero-accepting-text">Мастер сейчас принимает вызовы</span>
+          </div>
+
+          <!-- Title -->
+          <h1 id="hero-title"
+              class="font-black text-4xl sm:text-5xl lg:text-6xl
+                     text-white leading-[1.05] mb-5 uppercase">
+          </h1>
+
+          <!-- Subtitle -->
+          <p id="hero-subtitle"
+             class="text-gray-300 text-lg leading-relaxed mb-9 max-w-xl">
+          </p>
+
+          <!-- CTA buttons -->
+          <div id="hero-btns" class="flex flex-col sm:flex-row gap-3">
+            <a id="hero-call-btn" href="tel:+79991234567"
+               class="flex items-center justify-center gap-2.5
+                      bg-accent hover:brightness-110 text-bg
+                      px-7 py-4 rounded-2xl font-bold text-lg
+                      transition-all accent-glow">
+              <i data-lucide="phone-call" class="w-5 h-5"></i>
+              Вызвать сейчас
+            </a>
+            <button id="hero-request-btn"
+               class="flex items-center justify-center gap-2.5
+                      bg-surface hover:bg-border text-white
+                      border border-border px-7 py-4 rounded-2xl font-semibold text-lg
+                      transition-colors">
+              <i data-lucide="file-text" class="w-5 h-5"></i>
+              Оставить заявку
+            </button>
+          </div>
+
+          <!-- Trust strip -->
+          <div class="flex flex-wrap gap-5 mt-9 text-sm text-gray-400">
+            <div class="flex items-center gap-2">
+              <i data-lucide="clock" class="w-4 h-4 text-accent shrink-0"></i>
+              Приезжаю за 30–60 мин
+            </div>
+            <div class="flex items-center gap-2">
+              <i data-lucide="shield-check" class="w-4 h-4 text-accent shrink-0"></i>
+              Гарантия на работы
+            </div>
+            <div class="flex items-center gap-2">
+              <i data-lucide="map-pin" class="w-4 h-4 text-accent shrink-0"></i>
+              <span id="hero-city">Выезд по городу и области</span>
+            </div>
+          </div>
         </div>
 
-        <!-- Title -->
-        <h1 id="hero-title"
-            class="font-black text-4xl sm:text-5xl lg:text-7xl
-                   text-white leading-[1.05] mb-5 uppercase">
-          <!-- JS renders text with accent word wrapped -->
-        </h1>
+        <!-- RIGHT: Mascot + floating bubbles -->
+        <div class="relative hidden lg:flex items-center justify-center">
+          <!-- Mascot -->
+          <img src="/mascot.png" alt="Электрон — помощник AutoElectro"
+               class="w-80 h-auto object-contain drop-shadow-2xl
+                      mascot-float z-10 relative" />
 
-        <!-- Subtitle -->
-        <p id="hero-subtitle"
-           class="text-gray-300 text-lg sm:text-xl leading-relaxed
-                  mb-9 max-w-xl">
-        </p>
+          <!-- Floating bubbles -->
+          <div class="bubble-1 absolute top-4 right-4
+                      bg-surface border border-border px-4 py-3 rounded-2xl
+                      flex items-center gap-2.5 shadow-xl text-sm font-semibold text-white">
+            <span class="text-2xl">⚡</span>
+            <div>
+              <div class="text-xs text-gray-400 font-normal">Выезд</div>
+              <div>за 30 минут</div>
+            </div>
+          </div>
 
-        <!-- CTA buttons -->
-        <div id="hero-btns" class="flex flex-col sm:flex-row gap-4">
-          <a id="hero-call-btn" href="tel:+79991234567"
-             class="flex items-center justify-center gap-2.5
-                    bg-accent hover:brightness-110 text-bg
-                    px-7 py-4 rounded-2xl font-bold text-lg
-                    transition-all accent-glow">
-            <i data-lucide="phone-call" class="w-5 h-5"></i>
-            Вызвать сейчас
-          </a>
-          <a href="#services"
-             class="flex items-center justify-center gap-2
-                    bg-surface hover:bg-border text-white
-                    border border-border
-                    px-7 py-4 rounded-2xl font-semibold text-lg
-                    transition-colors">
-            Посмотреть услуги
-            <i data-lucide="arrow-down" class="w-4 h-4"></i>
-          </a>
+          <div class="bubble-2 absolute bottom-12 right-0
+                      bg-surface border border-border px-4 py-3 rounded-2xl
+                      flex items-center gap-2.5 shadow-xl text-sm font-semibold text-white">
+            <span class="text-2xl">🛡️</span>
+            <div>
+              <div class="text-xs text-gray-400 font-normal">Гарантия</div>
+              <div>на все работы</div>
+            </div>
+          </div>
+
+          <div class="bubble-3 absolute bottom-32 left-0
+                      bg-surface border border-border px-4 py-3 rounded-2xl
+                      flex items-center gap-2.5 shadow-xl text-sm font-semibold text-white">
+            <span class="text-2xl">🔍</span>
+            <div>
+              <div class="text-xs text-gray-400 font-normal">Диагностика</div>
+              <div class="text-accent">0 ₽</div>
+            </div>
+          </div>
+
+          <!-- Glow under mascot -->
+          <div class="absolute bottom-0 w-64 h-16 bg-accent/20 blur-3xl rounded-full"></div>
         </div>
 
-        <!-- Trust strip -->
-        <div class="flex flex-wrap gap-6 mt-10 text-sm text-gray-400">
-          <div class="flex items-center gap-2">
-            <i data-lucide="clock" class="w-4 h-4 text-accent shrink-0"></i>
-            Приезжаю за 30–60 мин
-          </div>
-          <div class="flex items-center gap-2">
-            <i data-lucide="shield-check" class="w-4 h-4 text-accent shrink-0"></i>
-            Гарантия на работы
-          </div>
-          <div class="flex items-center gap-2">
-            <i data-lucide="map-pin" class="w-4 h-4 text-accent shrink-0"></i>
-            <span id="hero-city">Выезд по городу и области</span>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -238,6 +295,9 @@
             Опишите проблему и назовите адрес — мастер уточнит детали
             и сразу выдвинется к вам.
           </p>
+          <!-- Connecting line to step 2 -->
+          <div class="hidden md:block absolute top-1/2 -right-4 lg:-right-6 w-8 lg:w-12
+                      h-0.5 bg-gradient-to-r from-accent to-accent/30 z-10"></div>
         </div>
 
         <div class="how-card reveal
@@ -257,6 +317,9 @@
             Прибываю с профессиональным оборудованием прямо к вашей
             машине — никаких эвакуаторов и поездок в сервис.
           </p>
+          <!-- Connecting line -->
+          <div class="hidden md:block absolute top-1/2 -right-4 lg:-right-6 w-8 lg:w-12
+                      h-0.5 bg-gradient-to-r from-accent to-accent/30 z-10"></div>
         </div>
 
         <div class="how-card reveal
@@ -271,10 +334,11 @@
                       bg-accent/10 flex items-center justify-center">
             <i data-lucide="wrench" class="w-7 h-7 text-accent"></i>
           </div>
-          <h3 class="font-bold text-lg text-white mb-3">Диагностика и ремонт</h3>
+          <h3 class="font-bold text-lg text-white mb-3">Ремонт + запись в профиль</h3>
           <p class="text-gray-400 text-sm leading-relaxed">
-            Нахожу причину неисправности и устраняю её на месте.
-            Называю стоимость до начала работ — никаких сюрпризов.
+            Устраняю неисправность на месте. Все работы фиксируются
+            в вашем <a href="/profile.html" class="text-accent hover:underline">личном профиле</a> —
+            история, гарантии и напоминания о плановом ТО.
           </p>
         </div>
 
@@ -450,12 +514,112 @@
       <p class="text-gray-500 text-xs text-center">
         &copy; <span id="footer-year"></span> AutoElectro. Все права защищены.
       </p>
-      <a href="/admin.html"
-         class="text-gray-600 hover:text-gray-400 text-xs transition-colors">
-        Вход для администратора
-      </a>
+      <div class="flex items-center gap-4">
+        <a href="/profile.html"
+           class="text-gray-600 hover:text-accent text-xs transition-colors flex items-center gap-1">
+          <i data-lucide="user-circle" class="w-3.5 h-3.5"></i> Мой профиль
+        </a>
+        <a href="/admin.html"
+           class="text-gray-600 hover:text-gray-400 text-xs transition-colors">
+          Для мастера
+        </a>
+      </div>
     </div>
   </footer>
+
+  <!-- ═══ MODAL: ONLINE REQUEST ═══ -->
+  <div id="modal-request"
+       class="fixed inset-0 z-[100] hidden items-center justify-center p-4
+              bg-black/80 backdrop-blur-sm">
+    <div class="w-full max-w-md bg-surface border border-border rounded-3xl p-8 shadow-2xl">
+      <div class="flex items-center gap-3 mb-6">
+        <img src="/mascot.png" alt="" class="w-12 h-12 object-contain" />
+        <div>
+          <h3 class="text-xl font-black text-white">Оставьте заявку</h3>
+          <p class="text-sm text-gray-400">Мастер свяжется с вами в течение часа</p>
+        </div>
+      </div>
+      <form id="form-public-request" class="space-y-4">
+        <div>
+          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">Имя</label>
+          <input type="text" name="name" placeholder="Как вас зовут?"
+                 class="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white
+                        placeholder:text-gray-600 outline-none focus:border-accent
+                        transition-colors text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">Телефон *</label>
+          <input type="tel" name="phone" required placeholder="+7 (999) 123-45-67"
+                 class="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white
+                        placeholder:text-gray-600 outline-none focus:border-accent
+                        transition-colors text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">Опишите проблему</label>
+          <textarea name="problem" rows="3" placeholder="Не заводится, искрит проводка…"
+                    class="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white
+                           placeholder:text-gray-600 outline-none focus:border-accent
+                           transition-colors text-sm resize-none"></textarea>
+        </div>
+        <div id="req-success" class="hidden text-green-400 text-sm text-center py-2">
+          ✅ Заявка отправлена! Мастер свяжется с вами скоро.
+        </div>
+        <div id="req-error" class="hidden text-red-400 text-sm text-center py-2">
+          Ошибка. Позвоните нам напрямую.
+        </div>
+        <div class="flex gap-3 pt-1">
+          <button type="button" id="close-request-modal"
+                  class="flex-1 bg-border hover:bg-gray-600 text-white py-3 rounded-xl
+                         font-semibold text-sm transition-colors">
+            Отмена
+          </button>
+          <button type="submit"
+                  class="flex-1 bg-accent hover:brightness-110 text-bg py-3 rounded-xl
+                         font-bold text-sm transition-all">
+            Отправить
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ═══ MASCOT ONBOARDING ═══ -->
+  <div id="mascot-onboarding"
+       class="fixed bottom-0 left-0 right-0 z-[90] pointer-events-none">
+    <!-- Floating mascot button (shows after onboarding) -->
+    <button id="mascot-btn"
+            class="fixed bottom-24 md:bottom-6 right-4 z-[90]
+                   w-14 h-14 rounded-full shadow-xl border border-accent/40
+                   bg-surface flex items-center justify-center
+                   hover:scale-110 transition-transform duration-200 hidden
+                   pointer-events-auto">
+      <img src="/mascot.png" alt="Помощь" class="w-10 h-10 object-contain" />
+    </button>
+
+    <!-- Mascot speech bubble (onboarding step) -->
+    <div id="mascot-bubble"
+         class="fixed bottom-24 md:bottom-6 right-20 z-[91]
+                bg-surface border border-accent/30 rounded-2xl p-4 shadow-2xl
+                max-w-xs pointer-events-auto hidden">
+      <p id="mascot-text" class="text-sm text-white leading-relaxed"></p>
+      <div class="flex justify-between items-center mt-3">
+        <span id="mascot-step-indicator" class="text-xs text-gray-500"></span>
+        <button id="mascot-next"
+                class="bg-accent text-bg px-4 py-1.5 rounded-lg text-xs font-bold
+                       hover:brightness-110 transition-all">Далее</button>
+      </div>
+      <!-- Tail -->
+      <div class="absolute right-[-6px] bottom-4 w-3 h-3 bg-surface border-r border-b
+                  border-accent/30 rotate-[-45deg]"></div>
+    </div>
+
+    <!-- Mascot slide-in character (first visit) -->
+    <div id="mascot-character"
+         class="fixed bottom-0 right-6 z-[90] pointer-events-none
+                transition-transform duration-700 translate-y-full hidden">
+      <img src="/mascot.png" alt="Электрон" class="w-28 h-auto object-contain drop-shadow-2xl" />
+    </div>
+  </div>
 
   <!-- ─────────────────────────────────────────────
        LIGHTBOX
@@ -476,5 +640,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
   <script src="/js/main.js"></script>
+  <script src="/js/mascot.js"></script>
 </body>
 </html>

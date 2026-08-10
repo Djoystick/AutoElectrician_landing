@@ -41,31 +41,47 @@ function renderHero() {
   const s = DATA.settings || {};
   const c = DATA.contacts  || {};
 
-  // Title — wrap last word in accent colour
+  // Title — wrap last word in accent colour with gradient
   const titleEl = document.getElementById('hero-title');
   if (s.heroTitle) {
     const words = s.heroTitle.trim().split(' ');
     const last  = words.pop();
     titleEl.innerHTML =
       words.join(' ') + (words.length ? ' ' : '') +
-      `<span class="text-accent">${last}</span>`;
+      `<span class="text-gradient">${last}</span>`;
   }
 
   const subtitleEl = document.getElementById('hero-subtitle');
   if (s.heroSubtitle) subtitleEl.textContent = s.heroSubtitle;
 
+  // Accepting requests badge
+  const badge        = document.getElementById('hero-badge');
+  const acceptingText = document.getElementById('hero-accepting-text');
+  if (badge && acceptingText) {
+    const accepting = s.acceptingRequests !== false;
+    const dot = badge.querySelector('.pulse-ring')?.parentElement;
+    if (!accepting) {
+      badge.classList.add('opacity-60');
+      acceptingText.textContent = 'Сейчас не принимаю вызовы';
+      if (dot) { dot.querySelectorAll('span').forEach(sp => { sp.classList.remove('bg-green-500'); sp.classList.add('bg-gray-500'); }); }
+    } else {
+      acceptingText.textContent = 'Мастер сейчас принимает вызовы';
+    }
+  }
+
   // Phone links
-  const phone    = c.phone || '+7 (999) 123-45-67';
+  const phone     = c.phone || '+7 (999) 123-45-67';
   const phoneHref = 'tel:' + phone.replace(/[^\d+]/g, '');
-  setHref('sticky-call-btn', phoneHref);
-  setHref('nav-call-btn',    phoneHref);
-  setHref('hero-call-btn',   phoneHref);
+  setHref('sticky-call-btn',   phoneHref);
+  setHref('nav-call-btn',      phoneHref);
+  setHref('hero-call-btn',     phoneHref);
   setHref('services-call-btn', phoneHref);
 
   // City
   const cityEl = document.getElementById('hero-city');
   if (cityEl && c.city) cityEl.textContent = 'Выезд ' + c.city;
 }
+
 
 function renderServices() {
   const grid = document.getElementById('services-grid');

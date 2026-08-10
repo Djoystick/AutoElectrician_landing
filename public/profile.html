@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Мой профиль — AutoElectro</title>
+  <meta name="description" content="Личный кабинет клиента AutoElectro. История ремонтов, ваш гараж и напоминания о ТО." />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: {
+        bg: '#0d1117', surface: '#161b22', border: '#30363d',
+        accent: '#00b4fd',
+      }, fontFamily: { sans: ['Montserrat','sans-serif'] } } }
+    }
+  </script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <style>
+    body { background:#0d1117; color:#e6edf3; font-family:'Montserrat',sans-serif; }
+    .input { width:100%; background:#0d1117; border:1px solid #30363d; border-radius:.75rem;
+             padding:.7rem 1rem; color:#e6edf3; outline:none; font-size:.875rem;
+             transition:border-color .2s; }
+    .input:focus { border-color:#00b4fd; box-shadow:0 0 0 3px rgba(0,180,253,.12); }
+    .card { background:#161b22; border:1px solid #30363d; border-radius:1rem; }
+    .btn-primary { background:#00b4fd; color:#0d1117; font-weight:700; padding:.65rem 1.4rem;
+                   border-radius:.75rem; font-size:.875rem; cursor:pointer; border:none;
+                   display:inline-flex; align-items:center; gap:.4rem; transition:filter .2s; }
+    .btn-primary:hover { filter:brightness(1.1); }
+    .btn-ghost { background:transparent; border:1px solid #30363d; color:#7d8590; font-weight:500;
+                 padding:.55rem 1rem; border-radius:.75rem; font-size:.875rem; cursor:pointer;
+                 display:inline-flex; align-items:center; gap:.4rem; transition:all .2s; }
+    .btn-ghost:hover { border-color:#00b4fd; color:#e6edf3; }
+    .label { display:block; font-size:.7rem; color:#7d8590; text-transform:uppercase;
+             letter-spacing:.06em; margin-bottom:.35rem; font-weight:600; }
+    .stat-card { background:linear-gradient(135deg,#161b22 0%,#1c2230 100%);
+                 border:1px solid #30363d; border-radius:1rem; padding:1.25rem; }
+    .timeline-item { position:relative; padding-left:1.5rem; border-left:2px solid #30363d; }
+    .timeline-item::before { content:''; position:absolute; left:-.45rem; top:.5rem;
+      width:.6rem; height:.6rem; border-radius:50%; background:#00b4fd; box-shadow:0 0 8px #00b4fd60; }
+    .level-badge { display:inline-flex; align-items:center; gap:.4rem;
+                   padding:.3rem .85rem; border-radius:2rem; font-size:.75rem; font-weight:700; }
+    .level-newcomer { background:rgba(99,102,241,.15); color:#818cf8; border:1px solid rgba(99,102,241,.3); }
+    .level-regular  { background:rgba(0,180,253,.15);  color:#00b4fd; border:1px solid rgba(0,180,253,.3); }
+    .level-veteran  { background:rgba(245,158,11,.15); color:#f59e0b; border:1px solid rgba(245,158,11,.3); }
+    .progress-bar { height:6px; border-radius:3px; background:#30363d; overflow:hidden; }
+    .progress-fill { height:100%; border-radius:3px; background:linear-gradient(90deg,#00b4fd,#7dd3fc);
+                     transition:width 1s ease; }
+    .type-diag  { background:rgba(0,180,253,.1); color:#00b4fd; }
+    .type-repair{ background:rgba(251,146,60,.1); color:#fb923c; }
+    .type-alarm { background:rgba(167,139,250,.1); color:#a78bfa; }
+    .type-gen   { background:rgba(245,158,11,.1);  color:#f59e0b; }
+    .type-other { background:rgba(107,114,128,.1); color:#9ca3af; }
+    .car-card { background:#0d1117; border:1px solid #30363d; border-radius:.75rem; padding:1rem; cursor:pointer; transition:border-color .2s; }
+    .car-card.active, .car-card:hover { border-color:#00b4fd; }
+    .car-status-ok   { color:#3fb950; }
+    .car-status-warn { color:#f59e0b; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    .fade-in { animation:fadeIn .4s ease forwards; }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+    .mascot-float { animation:float 3.5s ease-in-out infinite; }
+  </style>
+</head>
+<body class="min-h-screen antialiased">
+
+<!-- ═══ LOGIN SCREEN ═══ -->
+<div id="login-screen" class="min-h-screen flex items-center justify-center p-5">
+  <div class="w-full max-w-sm card p-8 fade-in">
+
+    <!-- Mascot + header -->
+    <div class="flex flex-col items-center mb-7">
+      <img src="/mascot.png" alt="Электрон" class="w-20 h-20 object-contain mascot-float mb-4" />
+      <div class="flex items-center gap-2">
+        <img src="/logo.png" alt="AutoElectro" class="h-7 w-auto object-contain">
+        <span class="font-black text-base uppercase tracking-widest text-white">
+          Auto<span class="text-accent">Electro</span>
+        </span>
+      </div>
+      <h1 class="text-xl font-black text-white mt-3 text-center">Личный кабинет</h1>
+      <p class="text-sm text-gray-400 text-center mt-1">Введите номер телефона для входа</p>
+    </div>
+
+    <!-- Step 1: Phone -->
+    <div id="step-phone">
+      <div class="mb-4">
+        <label class="label">Номер телефона</label>
+        <input id="input-phone" type="tel" class="input" placeholder="+7 (999) 123-45-67"
+               autocomplete="tel" inputmode="tel" />
+      </div>
+      <div id="phone-error" class="hidden text-red-400 text-sm mb-3 text-center"></div>
+      <button id="btn-send-code" class="btn-primary w-full justify-center py-3">
+        <i data-lucide="send" class="w-4 h-4"></i> Получить код
+      </button>
+      <p class="text-xs text-gray-600 text-center mt-4">
+        Код придёт в Telegram. Если не привязан — попросите у мастера.
+      </p>
+    </div>
+
+    <!-- Step 2: OTP -->
+    <div id="step-otp" class="hidden">
+      <p id="otp-hint" class="text-sm text-gray-400 text-center mb-4"></p>
+      <div class="mb-4">
+        <label class="label">Код подтверждения</label>
+        <input id="input-code" type="text" class="input text-center text-2xl tracking-[.5em] font-black"
+               placeholder="000000" maxlength="6" inputmode="numeric" autocomplete="one-time-code" />
+      </div>
+      <div id="otp-error" class="hidden text-red-400 text-sm mb-3 text-center"></div>
+      <!-- Manual code display if no Telegram -->
+      <div id="manual-code-box" class="hidden bg-accent/10 border border-accent/30 rounded-xl p-4 mb-4 text-center">
+        <p class="text-xs text-gray-400 mb-1">Ваш код (нет Telegram):</p>
+        <p id="manual-code-val" class="text-3xl font-black text-accent tracking-[.4em]"></p>
+        <p class="text-xs text-gray-500 mt-1">Действителен 10 минут</p>
+      </div>
+      <button id="btn-verify-code" class="btn-primary w-full justify-center py-3">
+        <i data-lucide="log-in" class="w-4 h-4"></i> Войти
+      </button>
+      <button id="btn-back-phone" class="btn-ghost w-full justify-center py-2 mt-2">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Назад
+      </button>
+    </div>
+
+    <div class="mt-6 text-center">
+      <a href="/" class="text-xs text-gray-600 hover:text-gray-400 transition-colors">← На главную</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PROFILE SCREEN ═══ -->
+<div id="profile-screen" class="hidden min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-surface border-b border-border py-3 px-5 sticky top-0 z-30">
+    <div class="max-w-3xl mx-auto flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2">
+        <img src="/logo.png" alt="AutoElectro" class="h-7 w-auto object-contain">
+        <span class="font-black text-sm uppercase tracking-widest text-white">
+          Auto<span class="text-accent">Electro</span>
+        </span>
+      </a>
+      <div class="flex items-center gap-3">
+        <span id="header-name" class="text-sm text-gray-400 hidden sm:block"></span>
+        <button id="logout-btn" class="btn-ghost text-xs text-red-400 border-red-900 hover:border-red-400">
+          <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Выйти
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-4 py-6 space-y-5 pb-24">
+
+    <!-- Greeting + mascot -->
+    <div class="flex items-center gap-4 fade-in">
+      <img src="/mascot.png" alt="" class="w-14 h-14 object-contain mascot-float shrink-0" />
+      <div>
+        <h1 class="text-2xl font-black text-white" id="greeting"></h1>
+        <div id="level-badge-el" class="mt-1"></div>
+      </div>
+    </div>
+
+    <!-- Progress to next level -->
+    <div id="level-progress-section" class="card p-4 fade-in hidden">
+      <div class="flex justify-between text-xs text-gray-500 mb-2">
+        <span id="level-progress-label"></span>
+        <span id="level-progress-val"></span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="level-progress-fill" style="width:0%"></div></div>
+    </div>
+
+    <!-- Stat cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 fade-in">
+      <div class="stat-card">
+        <p class="label">Обращений</p>
+        <p class="text-2xl font-black text-white" id="stat-visits">—</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">Сумма работ</p>
+        <p class="text-2xl font-black text-white" id="stat-total">—</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">Средний чек</p>
+        <p class="text-2xl font-black text-white" id="stat-avg">—</p>
+      </div>
+      <div class="stat-card">
+        <p class="label">Дней с визита</p>
+        <p class="text-2xl font-black text-white" id="stat-days">—</p>
+      </div>
+    </div>
+
+    <!-- Reminders -->
+    <div id="reminders-section" class="hidden fade-in">
+      <h2 class="text-sm font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2">
+        <i data-lucide="bell" class="w-4 h-4 text-yellow-400"></i>
+        Напоминания
+      </h2>
+      <div id="reminders-list" class="space-y-2"></div>
+    </div>
+
+    <!-- Cars (Гараж) -->
+    <div class="fade-in">
+      <h2 class="text-sm font-bold text-white uppercase tracking-wider mb-3 flex items-center gap-2">
+        <i data-lucide="car" class="w-4 h-4 text-accent"></i>
+        Мой гараж
+      </h2>
+      <div id="cars-list" class="grid sm:grid-cols-2 gap-3"></div>
+    </div>
+
+    <!-- Repair history -->
+    <div class="fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+          <i data-lucide="clipboard-list" class="w-4 h-4 text-accent"></i>
+          История ремонтов
+        </h2>
+        <span id="repair-count-badge" class="text-xs text-gray-500"></span>
+      </div>
+      <div id="repairs-timeline" class="space-y-5"></div>
+    </div>
+
+    <!-- Master info -->
+    <div class="card p-5 fade-in">
+      <h2 class="text-sm font-bold text-white uppercase tracking-wider mb-4 flex items-center gap-2">
+        <i data-lucide="wrench" class="w-4 h-4 text-accent"></i>
+        Мой мастер
+      </h2>
+      <div class="flex items-start gap-4">
+        <div class="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center shrink-0">
+          <i data-lucide="user" class="w-6 h-6 text-accent"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="font-bold text-white" id="master-name">Мастер</p>
+          <p class="text-sm text-gray-400" id="master-phone">+7 (999) 123-45-67</p>
+          <div class="flex flex-wrap gap-2 mt-3">
+            <a id="master-call" href="#" class="btn-primary text-xs py-2">
+              <i data-lucide="phone" class="w-3.5 h-3.5"></i> Позвонить
+            </a>
+            <a id="master-tg" href="#" target="_blank" class="btn-ghost text-xs py-2">
+              <i data-lucide="send" class="w-3.5 h-3.5"></i> Telegram
+            </a>
+            <a id="master-wa" href="#" target="_blank" class="btn-ghost text-xs py-2">
+              <i data-lucide="message-circle" class="w-3.5 h-3.5"></i> WhatsApp
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leave new request -->
+      <div class="mt-5 pt-4 border-t border-border">
+        <button id="btn-new-request" class="btn-primary w-full justify-center">
+          <i data-lucide="file-plus" class="w-4 h-4"></i> Оставить новую заявку
+        </button>
+      </div>
+    </div>
+
+    <!-- Mascot tip -->
+    <div id="mascot-tip" class="flex items-start gap-3 bg-accent/5 border border-accent/20 rounded-2xl p-4 fade-in">
+      <img src="/mascot.png" alt="" class="w-10 h-10 object-contain shrink-0" />
+      <p id="mascot-tip-text" class="text-sm text-gray-300 leading-relaxed"></p>
+    </div>
+
+  </main>
+</div>
+
+<!-- ═══ INLINE REQUEST MODAL ═══ -->
+<div id="profile-request-modal"
+     class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+  <div class="w-full max-w-sm card p-6">
+    <h3 class="font-black text-lg text-white mb-4">Новая заявка</h3>
+    <form id="form-profile-request" class="space-y-3">
+      <div>
+        <label class="label">Опишите проблему</label>
+        <textarea name="problem" rows="3" required
+                  class="input resize-none" placeholder="Что случилось с автомобилем?"></textarea>
+      </div>
+      <div id="preq-ok"  class="hidden text-green-400 text-sm text-center">✅ Отправлено!</div>
+      <div id="preq-err" class="hidden text-red-400 text-sm text-center">Ошибка. Позвоните мастеру.</div>
+      <div class="flex gap-3">
+        <button type="button" id="close-profile-modal"
+                class="flex-1 btn-ghost justify-center">Отмена</button>
+        <button type="submit" class="flex-1 btn-primary justify-center">Отправить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/js/profile.js"></script>
+</body>
+</html>

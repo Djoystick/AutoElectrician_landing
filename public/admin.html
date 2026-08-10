@@ -3,149 +3,294 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Админ-панель — AutoElectro</title>
+  <title>Панель мастера — AutoElectro</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: { extend: { colors: {
-        bg: '#111318', surface: '#1C1F27', border: '#2A2D38', accent: '#00b4fd'
+        bg: '#0d1117', surface: '#161b22', border: '#30363d',
+        accent: '#00b4fd', accentDim: '#0a84b8',
       }}}
     }
   </script>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <link rel="stylesheet" href="/css/style.css" />
   <style>
-    body { font-family: 'Inter', sans-serif; }
-    .tab-btn.active { background: #00b4fd; color: #111318; }
-    .tab-btn { transition: all .2s; }
+    body { font-family: 'Inter', sans-serif; background:#0d1117; color:#e6edf3; }
+    .tab-btn.active { background:#00b4fd; color:#0d1117; font-weight:700; }
+    .tab-btn { transition:all .2s; border-radius:.75rem; }
+    .label { display:block; font-size:.7rem; color:#7d8590; text-transform:uppercase;
+             letter-spacing:.06em; margin-bottom:.35rem; font-weight:600; }
+    .input { width:100%; background:#0d1117; border:1px solid #30363d; border-radius:.75rem;
+             padding:.65rem 1rem; color:#e6edf3; outline:none; font-size:.875rem;
+             transition:border-color .2s; }
+    .input:focus { border-color:#00b4fd; box-shadow:0 0 0 3px rgba(0,180,253,.12); }
+    .btn-primary { background:#00b4fd; color:#0d1117; font-weight:700; padding:.6rem 1.4rem;
+                   border-radius:.75rem; font-size:.875rem; transition:filter .2s;
+                   border:none; cursor:pointer; display:inline-flex; align-items:center; gap:.4rem; }
+    .btn-primary:hover { filter:brightness(1.1); }
+    .btn-ghost { background:transparent; border:1px solid #30363d; color:#7d8590;
+                 font-weight:500; padding:.5rem 1rem; border-radius:.75rem;
+                 font-size:.875rem; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:.4rem; }
+    .btn-ghost:hover { border-color:#00b4fd; color:#e6edf3; }
+    .btn-danger { background:transparent; border:1px solid #f85149; color:#f85149;
+                  font-weight:500; padding:.4rem .8rem; border-radius:.75rem;
+                  font-size:.8rem; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:.3rem; }
+    .btn-danger:hover { background:#f85149; color:#fff; }
+    .card { background:#161b22; border:1px solid #30363d; border-radius:1rem; }
+    .status-new    { background:rgba(0,180,253,.15); color:#00b4fd; }
+    .status-work   { background:rgba(245,158,11,.15); color:#f59e0b; }
+    .status-done   { background:rgba(63,185,80,.15); color:#3fb950; }
+    .status-cancel { background:rgba(248,81,73,.15); color:#f85149; }
+    .retention-green  { border-left:3px solid #3fb950; }
+    .retention-yellow { border-left:3px solid #f59e0b; }
+    .retention-red    { border-left:3px solid #f85149; }
+    .retention-none   { border-left:3px solid #30363d; }
+    .modal-overlay { background:rgba(0,0,0,.8); backdrop-filter:blur(4px); }
+    .pulse { animation: pulse-dot 2s ease-in-out infinite; }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .timeline-item::before { content:''; position:absolute; left:-1.15rem; top:.4rem;
+      width:.55rem; height:.55rem; border-radius:50%; background:#00b4fd; }
+    .timeline-item { position:relative; padding-left:1rem; border-left:2px solid #30363d; }
   </style>
 </head>
-<body class="bg-bg text-gray-200 min-h-screen antialiased">
+<body class="min-h-screen antialiased overflow-x-hidden">
 
-<!-- ═══════════════ LOGIN ═══════════════ -->
-<div id="login-screen"
-     class="min-h-screen flex items-center justify-center p-5">
-  <div class="w-full max-w-sm bg-surface border border-border rounded-3xl p-8">
+<!-- ═══════════ LOGIN ═══════════ -->
+<div id="login-screen" class="min-h-screen flex items-center justify-center p-5">
+  <div class="w-full max-w-sm card p-8">
     <div class="flex items-center gap-3 justify-center mb-8">
-      <img src="/logo.png" alt="AutoElectro" class="h-8 w-auto object-contain">
+      <img src="/logo.png" alt="AutoElectro" class="h-9 w-auto object-contain">
       <span class="font-black text-xl uppercase tracking-widest text-white">
         Auto<span class="text-accent">Electro</span>
       </span>
     </div>
-    <h1 class="text-lg font-bold text-center text-white mb-6">
-      Вход в панель управления
-    </h1>
+    <h1 class="text-lg font-bold text-center text-white mb-6">Вход в панель мастера</h1>
     <form id="login-form" class="space-y-4">
       <div>
-        <label class="block text-xs text-gray-400 mb-1 uppercase tracking-wider">
-          Пароль
-        </label>
-        <input id="login-pwd" type="password" required
-               class="w-full bg-bg border border-border rounded-xl px-4 py-3
-                      text-white placeholder-gray-600 focus:outline-none
-                      focus:border-accent transition-colors"
-               placeholder="Введите пароль" />
+        <label class="label">Пароль</label>
+        <input id="login-pwd" type="password" required class="input" placeholder="Введите пароль" />
       </div>
-      <div id="login-err" class="hidden text-red-400 text-sm text-center">
-        Неверный пароль
-      </div>
-      <button type="submit"
-              class="w-full bg-accent hover:brightness-110 text-bg
-                     font-bold py-3 rounded-xl transition-all">
-        Войти
-      </button>
+      <div id="login-err" class="hidden text-red-400 text-sm text-center">Неверный пароль</div>
+      <button type="submit" class="btn-primary w-full justify-center py-3">Войти</button>
     </form>
   </div>
 </div>
 
-<!-- ═══════════════ DASHBOARD ═══════════════ -->
+<!-- ═══════════ DASHBOARD ═══════════ -->
 <div id="dashboard" class="hidden min-h-screen flex-col">
 
   <!-- Header -->
-  <header class="bg-surface border-b border-border py-4 px-5 sticky top-0 z-30">
-    <div class="max-w-6xl mx-auto flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <img src="/logo.png" alt="AutoElectro" class="h-6 w-auto object-contain">
+  <header class="bg-surface border-b border-border py-3 px-5 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <img src="/logo.png" alt="AutoElectro" class="h-7 w-auto object-contain">
         <span class="font-black uppercase tracking-widest text-white text-sm">
-          Auto<span class="text-accent">Electro</span> / Админ
+          Auto<span class="text-accent">Electro</span>
+          <span class="text-border mx-1">/</span>
+          <span class="text-gray-400 font-medium normal-case tracking-normal">Панель мастера</span>
         </span>
       </div>
-      <div class="flex items-center gap-4">
-        <a href="/" target="_blank"
-           class="flex items-center gap-1.5 text-xs text-gray-400
-                  hover:text-white transition-colors">
-          <i data-lucide="external-link" class="w-4 h-4"></i>
-          Открыть сайт
+      <div class="flex items-center gap-3">
+        <a href="/" target="_blank" class="btn-ghost text-xs">
+          <i data-lucide="external-link" class="w-3.5 h-3.5"></i> Сайт
         </a>
-        <button id="logout-btn"
-                class="flex items-center gap-1.5 text-xs text-red-400
-                       hover:text-red-300 transition-colors">
-          <i data-lucide="log-out" class="w-4 h-4"></i>
-          Выйти
+        <button id="logout-btn" class="btn-ghost text-xs text-red-400 border-red-900 hover:border-red-400 hover:text-red-300">
+          <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Выйти
         </button>
       </div>
     </div>
   </header>
 
   <!-- Tabs -->
-  <div class="bg-bg border-b border-border px-5 py-3">
-    <div class="max-w-6xl mx-auto flex gap-2 overflow-x-auto">
-      <button class="tab-btn active whitespace-nowrap px-5 py-2 rounded-xl text-sm font-semibold"
-              data-tab="contacts">Контакты</button>
-      <button class="tab-btn whitespace-nowrap px-5 py-2 rounded-xl text-sm font-semibold
-                     text-gray-400 hover:bg-surface"
-              data-tab="services">Услуги</button>
-      <button class="tab-btn whitespace-nowrap px-5 py-2 rounded-xl text-sm font-semibold
-                     text-gray-400 hover:bg-surface"
-              data-tab="reviews">Отзывы</button>
-      <button class="tab-btn whitespace-nowrap px-5 py-2 rounded-xl text-sm font-semibold
-                     text-gray-400 hover:bg-surface"
-              data-tab="settings">Настройки</button>
+  <div class="bg-bg border-b border-border px-5 py-2">
+    <div class="max-w-7xl mx-auto flex gap-1.5 overflow-x-auto">
+      <button class="tab-btn active whitespace-nowrap px-4 py-2 text-sm" data-tab="overview">
+        <i data-lucide="layout-dashboard" class="w-4 h-4 inline -mt-0.5 mr-1"></i>Обзор
+      </button>
+      <button class="tab-btn whitespace-nowrap px-4 py-2 text-sm text-gray-400 hover:bg-surface" data-tab="requests">
+        <i data-lucide="inbox" class="w-4 h-4 inline -mt-0.5 mr-1"></i>Заявки
+        <span id="new-requests-badge" class="hidden ml-1 px-1.5 py-0.5 rounded-full text-xs bg-accent text-bg font-bold pulse"></span>
+      </button>
+      <button class="tab-btn whitespace-nowrap px-4 py-2 text-sm text-gray-400 hover:bg-surface" data-tab="clients">
+        <i data-lucide="users" class="w-4 h-4 inline -mt-0.5 mr-1"></i>Клиенты
+      </button>
+      <button class="tab-btn whitespace-nowrap px-4 py-2 text-sm text-gray-400 hover:bg-surface" data-tab="analytics">
+        <i data-lucide="bar-chart-2" class="w-4 h-4 inline -mt-0.5 mr-1"></i>Аналитика
+      </button>
+      <button class="tab-btn whitespace-nowrap px-4 py-2 text-sm text-gray-400 hover:bg-surface" data-tab="contacts">
+        <i data-lucide="phone" class="w-4 h-4 inline -mt-0.5 mr-1"></i>Контакты
+      </button>
+      <button class="tab-btn whitespace-nowrap px-4 py-2 text-sm text-gray-400 hover:bg-surface" data-tab="services">
+        <i data-lucide="wrench" class="w-4 h-4 inline -mt-0.5 mr-1"></i>Услуги
+      </button>
+      <button class="tab-btn whitespace-nowrap px-4 py-2 text-sm text-gray-400 hover:bg-surface" data-tab="reviews">
+        <i data-lucide="star" class="w-4 h-4 inline -mt-0.5 mr-1"></i>Отзывы
+      </button>
+      <button class="tab-btn whitespace-nowrap px-4 py-2 text-sm text-gray-400 hover:bg-surface" data-tab="settings">
+        <i data-lucide="settings" class="w-4 h-4 inline -mt-0.5 mr-1"></i>Настройки
+      </button>
     </div>
   </div>
 
   <!-- Toast -->
-  <div id="toast"
-       class="fixed top-5 right-5 z-50 bg-green-600 text-white
-              px-5 py-3 rounded-xl shadow-lg text-sm font-semibold
-              translate-x-[150%] transition-transform duration-300">
-    ✅ Сохранено
-  </div>
+  <div id="toast" class="fixed top-4 right-4 z-50 bg-green-600 text-white
+       px-5 py-3 rounded-xl shadow-xl text-sm font-semibold
+       translate-x-[150%] transition-transform duration-300">✅ Сохранено</div>
 
-  <!-- Main -->
-  <main class="flex-1 p-5 md:p-8">
-    <div class="max-w-4xl mx-auto">
+  <!-- Main content -->
+  <main class="flex-1 p-4 md:p-6">
+    <div class="max-w-7xl mx-auto">
+
+      <!-- ─── TAB: OVERVIEW ─── -->
+      <div id="tab-overview" class="tab-pane space-y-6">
+        <h2 class="text-2xl font-black text-white">Обзор</h2>
+
+        <!-- KPI widgets -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div id="kpi-requests" class="card p-5 cursor-pointer hover:border-accent transition-colors group" data-goto="requests">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs text-gray-400 uppercase tracking-wider">Новые заявки</span>
+              <div class="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center group-hover:bg-accent/20 transition-colors">
+                <i data-lucide="inbox" class="w-4 h-4 text-accent"></i>
+              </div>
+            </div>
+            <div id="kpi-requests-val" class="text-3xl font-black text-white">—</div>
+          </div>
+          <div id="kpi-clients" class="card p-5 cursor-pointer hover:border-accent transition-colors group" data-goto="clients">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs text-gray-400 uppercase tracking-wider">Всего клиентов</span>
+              <div class="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center group-hover:bg-accent/20 transition-colors">
+                <i data-lucide="users" class="w-4 h-4 text-accent"></i>
+              </div>
+            </div>
+            <div id="kpi-clients-val" class="text-3xl font-black text-white">—</div>
+          </div>
+          <div id="kpi-visits" class="card p-5 cursor-pointer hover:border-accent transition-colors group" data-goto="analytics">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs text-gray-400 uppercase tracking-wider">Визиты в этом месяце</span>
+              <div class="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center group-hover:bg-accent/20 transition-colors">
+                <i data-lucide="calendar-check" class="w-4 h-4 text-accent"></i>
+              </div>
+            </div>
+            <div id="kpi-visits-val" class="text-3xl font-black text-white">—</div>
+          </div>
+          <div id="kpi-churn" class="card p-5 cursor-pointer hover:border-red-500 transition-colors group" data-goto="analytics">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-xs text-gray-400 uppercase tracking-wider">Отток (6+ мес)</span>
+              <div class="w-9 h-9 rounded-xl bg-red-500/10 flex items-center justify-center group-hover:bg-red-500/20 transition-colors">
+                <i data-lucide="alert-triangle" class="w-4 h-4 text-red-400"></i>
+              </div>
+            </div>
+            <div id="kpi-churn-val" class="text-3xl font-black text-white">—</div>
+          </div>
+        </div>
+
+        <!-- Recent requests -->
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-white">Последние заявки</h3>
+            <button class="text-xs text-accent hover:underline" data-goto="requests">Все заявки →</button>
+          </div>
+          <div id="overview-recent-requests" class="space-y-2 text-sm text-gray-400">Загрузка...</div>
+        </div>
+
+        <!-- Churn clients -->
+        <div class="card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-white flex items-center gap-2">
+              <i data-lucide="alert-triangle" class="w-4 h-4 text-red-400"></i>
+              Клиенты в зоне оттока
+            </h3>
+            <span class="text-xs text-gray-500">Не обращались более 6 месяцев</span>
+          </div>
+          <div id="overview-churn" class="space-y-2 text-sm text-gray-400">Загрузка...</div>
+        </div>
+      </div>
+
+      <!-- ─── TAB: REQUESTS ─── -->
+      <div id="tab-requests" class="tab-pane hidden space-y-5">
+        <div class="flex items-center justify-between">
+          <h2 class="text-2xl font-black text-white">Заявки</h2>
+          <button id="btn-add-manual-request" class="btn-primary">
+            <i data-lucide="plus" class="w-4 h-4"></i> Добавить вручную
+          </button>
+        </div>
+        <div id="requests-list" class="space-y-3"></div>
+      </div>
+
+      <!-- ─── TAB: CLIENTS ─── -->
+      <div id="tab-clients" class="tab-pane hidden space-y-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h2 class="text-2xl font-black text-white">Клиенты</h2>
+          <div class="flex gap-2">
+            <input id="clients-search" type="text" placeholder="Поиск по имени, телефону, авто…"
+                   class="input w-full sm:w-64 text-sm py-2" />
+            <button id="btn-add-client" class="btn-primary shrink-0">
+              <i data-lucide="user-plus" class="w-4 h-4"></i> Новый
+            </button>
+          </div>
+        </div>
+        <!-- Legend -->
+        <div class="flex gap-4 text-xs text-gray-500">
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>До 3 мес</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-yellow-500 inline-block"></span>3–6 мес</span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-red-500 inline-block"></span>Отток 6+ мес</span>
+        </div>
+        <div id="clients-list" class="space-y-3"></div>
+      </div>
+
+      <!-- ─── TAB: ANALYTICS ─── -->
+      <div id="tab-analytics" class="tab-pane hidden space-y-5">
+        <h2 class="text-2xl font-black text-white">Аналитика</h2>
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="card p-5">
+            <p class="label">Выручка / мес</p>
+            <p id="an-revenue" class="text-2xl font-black text-white">—</p>
+          </div>
+          <div class="card p-5">
+            <p class="label">Средний чек</p>
+            <p id="an-avgcheck" class="text-2xl font-black text-white">—</p>
+          </div>
+          <div class="card p-5">
+            <p class="label">Визиты / мес</p>
+            <p id="an-visits" class="text-2xl font-black text-white">—</p>
+          </div>
+          <div class="card p-5">
+            <p class="label">Всего клиентов</p>
+            <p id="an-total" class="text-2xl font-black text-white">—</p>
+          </div>
+        </div>
+        <div class="grid lg:grid-cols-2 gap-5">
+          <div class="card p-5">
+            <h3 class="font-bold text-white mb-4">Визиты по месяцам</h3>
+            <canvas id="chart-visits" height="160"></canvas>
+          </div>
+          <div class="card p-5">
+            <h3 class="font-bold text-white mb-4">Популярные услуги</h3>
+            <div id="service-freq" class="space-y-3"></div>
+          </div>
+        </div>
+        <div class="card p-5">
+          <h3 class="font-bold text-white mb-4 flex items-center gap-2">
+            <i data-lucide="alert-triangle" class="w-4 h-4 text-red-400"></i>
+            Клиенты в зоне оттока
+          </h3>
+          <div id="an-churn-list" class="space-y-2"></div>
+        </div>
+      </div>
 
       <!-- ─── TAB: CONTACTS ─── -->
-      <div id="tab-contacts" class="tab-pane">
+      <div id="tab-contacts" class="tab-pane hidden">
         <h2 class="text-2xl font-black text-white mb-6">Контактные данные</h2>
-        <form id="form-contacts"
-              class="bg-surface border border-border rounded-3xl p-6 space-y-4">
+        <form id="form-contacts" class="card p-6 space-y-4">
           <div class="grid md:grid-cols-2 gap-4">
-            <div>
-              <label class="label">Телефон</label>
-              <input type="text" name="phone" class="input" />
-            </div>
-            <div>
-              <label class="label">Режим работы</label>
-              <input type="text" name="workingHours" class="input" />
-            </div>
-            <div>
-              <label class="label">Зона выезда (город и область)</label>
-              <input type="text" name="city" class="input"
-                     placeholder="городу и области" />
-            </div>
-            <div>
-              <label class="label">WhatsApp (ссылка)</label>
-              <input type="url" name="whatsapp" class="input" />
-            </div>
-            <div>
-              <label class="label">Telegram (ссылка)</label>
-              <input type="url" name="telegram" class="input" />
-            </div>
-            <div>
-              <label class="label">ВКонтакте (ссылка)</label>
-              <input type="url" name="vk" class="input" />
-            </div>
+            <div><label class="label">Телефон</label><input type="text" name="phone" class="input" /></div>
+            <div><label class="label">Режим работы</label><input type="text" name="workingHours" class="input" /></div>
+            <div><label class="label">Зона выезда</label><input type="text" name="city" class="input" placeholder="по городу и области" /></div>
+            <div><label class="label">WhatsApp (ссылка)</label><input type="url" name="whatsapp" class="input" /></div>
+            <div><label class="label">Telegram (ссылка)</label><input type="url" name="telegram" class="input" /></div>
+            <div><label class="label">ВКонтакте (ссылка)</label><input type="url" name="vk" class="input" /></div>
           </div>
           <div class="flex justify-end pt-2">
             <button type="submit" class="btn-primary">Сохранить контакты</button>
@@ -157,46 +302,60 @@
       <div id="tab-services" class="tab-pane hidden">
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-2xl font-black text-white">Услуги</h2>
-          <button id="btn-add-service" class="btn-primary flex items-center gap-2">
-            <i data-lucide="plus" class="w-4 h-4"></i>
-            Добавить услугу
+          <button id="btn-add-service" class="btn-primary">
+            <i data-lucide="plus" class="w-4 h-4"></i> Добавить
           </button>
         </div>
-        <div id="services-admin-list" class="space-y-4"></div>
+        <p class="text-xs text-gray-500 mb-4">Перетащите карточки для изменения порядка на сайте</p>
+        <div id="services-admin-list" class="space-y-3"></div>
       </div>
 
       <!-- ─── TAB: REVIEWS ─── -->
       <div id="tab-reviews" class="tab-pane hidden">
         <div class="flex items-center justify-between mb-6">
-          <h2 class="text-2xl font-black text-white">Фото-отзывы</h2>
-          <button id="btn-add-review" class="btn-primary flex items-center gap-2">
-            <i data-lucide="plus" class="w-4 h-4"></i>
-            Добавить отзыв
+          <h2 class="text-2xl font-black text-white">Отзывы</h2>
+          <button id="btn-add-review" class="btn-primary">
+            <i data-lucide="plus" class="w-4 h-4"></i> Добавить
           </button>
         </div>
-        <div id="reviews-admin-grid"
-             class="grid md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+        <div id="reviews-admin-grid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
       </div>
 
       <!-- ─── TAB: SETTINGS ─── -->
       <div id="tab-settings" class="tab-pane hidden">
-        <h2 class="text-2xl font-black text-white mb-6">Общие настройки</h2>
-        <form id="form-settings"
-              class="bg-surface border border-border rounded-3xl p-6 space-y-4">
-          <div>
-            <label class="label">Заголовок главного экрана</label>
-            <input type="text" name="heroTitle" class="input" />
+        <h2 class="text-2xl font-black text-white mb-6">Настройки</h2>
+        <form id="form-settings" class="card p-6 space-y-4">
+          <div><label class="label">Имя мастера (отображается в профиле клиента)</label><input type="text" name="masterName" class="input" /></div>
+          <div><label class="label">Заголовок главного экрана</label><input type="text" name="heroTitle" class="input" /></div>
+          <div><label class="label">Подзаголовок главного экрана</label><textarea name="heroSubtitle" rows="3" class="input resize-none"></textarea></div>
+          <div class="flex items-center gap-3 py-2">
+            <input type="checkbox" name="acceptingRequests" id="cb-accepting" class="w-5 h-5 accent-accent cursor-pointer" />
+            <label for="cb-accepting" class="text-sm text-white cursor-pointer">Принимаю заявки (зелёный статус на сайте)</label>
           </div>
-          <div>
-            <label class="label">Подзаголовок главного экрана</label>
-            <textarea name="heroSubtitle" rows="3" class="input resize-none"></textarea>
+          <div class="border-t border-border pt-4 space-y-3">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <i data-lucide="bot" class="w-4 h-4 text-accent"></i>
+              Telegram-бот (для отправки кодов клиентам)
+            </h3>
+            <div>
+              <label class="label">Bot Token (от @BotFather)</label>
+              <input type="password" name="telegramBotToken" class="input" placeholder="1234567890:AAH..." autocomplete="off" />
+              <p class="text-xs text-gray-500 mt-1">
+                Создайте бота через <a href="https://t.me/botfather" target="_blank" class="text-accent hover:underline">@BotFather</a>,
+                вставьте токен. Клиенты пишут /start боту → вводят номер телефона → привязка установлена.
+              </p>
+            </div>
+            <div>
+              <label class="label">Ваш Telegram Chat ID (для уведомлений о заявках)</label>
+              <input type="text" name="masterTelegramChatId" class="input" placeholder="123456789" />
+              <p class="text-xs text-gray-500 mt-1">
+                Напишите <a href="https://t.me/userinfobot" target="_blank" class="text-accent hover:underline">@userinfobot</a> — он пришлёт ваш Chat ID.
+              </p>
+            </div>
           </div>
           <div class="border-t border-border pt-4">
-            <label class="label text-red-400">
-              Новый пароль (оставьте пустым, чтобы не менять)
-            </label>
-            <input type="password" name="newPassword" class="input"
-                   placeholder="Новый пароль" />
+            <label class="label text-red-400">Новый пароль (оставьте пустым, чтобы не менять)</label>
+            <input type="password" name="newPassword" class="input" placeholder="Новый пароль" autocomplete="new-password" />
           </div>
           <div class="flex justify-end pt-2">
             <button type="submit" class="btn-primary">Сохранить настройки</button>
@@ -208,97 +367,153 @@
   </main>
 </div>
 
-<!-- ═══════════════ MODAL: SERVICE ═══════════════ -->
-<div id="modal-service"
-     class="fixed inset-0 z-50 hidden items-center justify-center p-4
-            bg-black/80 backdrop-blur-sm">
-  <div class="w-full max-w-lg bg-surface border border-border rounded-3xl p-7">
-    <h3 id="modal-service-title" class="text-xl font-black text-white mb-6">
-      Новая услуга
-    </h3>
+<!-- ═══ MODAL: SERVICE ═══ -->
+<div id="modal-service" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-overlay">
+  <div class="w-full max-w-lg card p-7">
+    <h3 id="modal-service-title" class="text-xl font-black text-white mb-6">Новая услуга</h3>
     <form id="form-service" class="space-y-4">
       <input type="hidden" name="id" />
-      <div>
-        <label class="label">Название</label>
-        <input type="text" name="title" required class="input" />
-      </div>
-      <div>
-        <label class="label">Описание</label>
-        <textarea name="description" rows="3" required class="input resize-none"></textarea>
-      </div>
+      <div><label class="label">Название</label><input type="text" name="title" required class="input" /></div>
+      <div><label class="label">Описание</label><textarea name="description" rows="3" required class="input resize-none"></textarea></div>
       <div class="grid grid-cols-2 gap-4">
+        <div><label class="label">Цена (напр: от 2 000 ₽)</label><input type="text" name="price" required class="input" /></div>
         <div>
-          <label class="label">Цена (напр: от 2 000 ₽)</label>
-          <input type="text" name="price" required class="input" />
+          <label class="label">Иконка <a href="https://lucide.dev/icons/" target="_blank" class="text-accent hover:underline text-xs">(lucide.dev)</a></label>
+          <div class="flex gap-2">
+            <input type="text" name="icon" required class="input" placeholder="cpu, zap, wrench…" id="icon-input" />
+            <div id="icon-preview" class="w-10 h-10 shrink-0 rounded-xl bg-accent/10 flex items-center justify-center">
+              <i data-lucide="help-circle" class="w-5 h-5 text-accent" id="icon-preview-el"></i>
+            </div>
+          </div>
         </div>
-        <div>
-          <label class="label">Иконка (lucide.dev)</label>
-          <input type="text" name="icon" required class="input"
-                 placeholder="cpu, zap, wrench…" />
-        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="checkbox" name="active" id="svc-active" class="w-4 h-4 accent-accent" checked />
+        <label for="svc-active" class="text-sm text-white">Услуга активна (отображается на сайте)</label>
       </div>
       <div class="flex justify-end gap-3 pt-2">
-        <button type="button" onclick="closeModal('modal-service')"
-                class="px-5 py-2.5 rounded-xl border border-border
-                       text-gray-400 hover:text-white transition-colors text-sm">
-          Отмена
-        </button>
+        <button type="button" onclick="closeModal('modal-service')" class="btn-ghost">Отмена</button>
         <button type="submit" class="btn-primary">Сохранить</button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- ═══════════════ MODAL: REVIEW ═══════════════ -->
-<div id="modal-review"
-     class="fixed inset-0 z-50 hidden items-center justify-center p-4
-            bg-black/80 backdrop-blur-sm">
-  <div class="w-full max-w-lg bg-surface border border-border rounded-3xl p-7">
-    <h3 class="text-xl font-black text-white mb-6">Новый отзыв</h3>
+<!-- ═══ MODAL: REVIEW ═══ -->
+<div id="modal-review" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-overlay">
+  <div class="w-full max-w-lg card p-7">
+    <h3 id="modal-review-title" class="text-xl font-black text-white mb-6">Новый отзыв</h3>
     <form id="form-review" class="space-y-4" enctype="multipart/form-data">
-      <div>
-        <label class="label">Имя клиента / авто</label>
-        <input type="text" name="name" required class="input"
-               placeholder="Алексей К. (Toyota Camry)" />
-      </div>
-      <div>
-        <label class="label">Текст отзыва</label>
-        <textarea name="text" rows="3" required class="input resize-none"></textarea>
-      </div>
-      <div>
+      <input type="hidden" name="reviewId" />
+      <div><label class="label">Имя клиента / авто</label><input type="text" name="name" required class="input" placeholder="Алексей К. (Toyota Camry)" /></div>
+      <div><label class="label">Текст отзыва</label><textarea name="text" rows="3" required class="input resize-none"></textarea></div>
+      <div id="review-image-section">
         <label class="label">Фотография (JPG, PNG, WebP)</label>
-        <input type="file" name="image" accept="image/*" required
-               class="w-full text-sm text-gray-400
-                      file:mr-4 file:py-2 file:px-4
-                      file:rounded-xl file:border-0
-                      file:bg-accent file:text-bg file:font-bold
-                      hover:file:brightness-110 cursor-pointer" />
+        <input type="file" name="image" accept="image/*" class="w-full text-sm text-gray-400
+               file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0
+               file:bg-accent file:text-bg file:font-bold hover:file:brightness-110 cursor-pointer" />
       </div>
       <div class="flex justify-end gap-3 pt-2">
-        <button type="button" onclick="closeModal('modal-review')"
-                class="px-5 py-2.5 rounded-xl border border-border
-                       text-gray-400 hover:text-white transition-colors text-sm">
-          Отмена
-        </button>
-        <button type="submit" class="btn-primary">Загрузить</button>
+        <button type="button" onclick="closeModal('modal-review')" class="btn-ghost">Отмена</button>
+        <button type="submit" class="btn-primary">Сохранить</button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- Shared styles -->
-<style>
-  .label { display:block; font-size:.75rem; color:#6B7280;
-           text-transform:uppercase; letter-spacing:.05em; margin-bottom:.35rem; }
-  .input { width:100%; background:#111318; border:1px solid #2A2D38;
-           border-radius:.875rem; padding:.75rem 1rem; color:#fff;
-           outline:none; font-size:.9rem; transition:border-color .2s; }
-  .input:focus { border-color:#00b4fd; }
-  .btn-primary { background:#00b4fd; color:#111318; font-weight:700;
-                 padding:.6rem 1.4rem; border-radius:.875rem;
-                 font-size:.875rem; transition:filter .2s; border:none; cursor:pointer; }
-  .btn-primary:hover { filter:brightness(1.1); }
-</style>
+<!-- ═══ MODAL: NEW CLIENT ═══ -->
+<div id="modal-client" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-overlay">
+  <div class="w-full max-w-md card p-7">
+    <h3 class="text-xl font-black text-white mb-6">Новый клиент</h3>
+    <form id="form-client" class="space-y-4">
+      <div><label class="label">Имя и фамилия</label><input type="text" name="name" required class="input" placeholder="Алексей Петров" /></div>
+      <div><label class="label">Телефон</label><input type="tel" name="phone" required class="input" placeholder="+79991234567" /></div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" onclick="closeModal('modal-client')" class="btn-ghost">Отмена</button>
+        <button type="submit" class="btn-primary">Создать</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ MODAL: MANUAL REQUEST ═══ -->
+<div id="modal-manual-request" class="fixed inset-0 z-50 hidden items-center justify-center p-4 modal-overlay">
+  <div class="w-full max-w-md card p-7">
+    <h3 class="text-xl font-black text-white mb-6">Заявка от звонка</h3>
+    <form id="form-manual-request" class="space-y-4">
+      <div><label class="label">Имя</label><input type="text" name="name" class="input" placeholder="Иван" /></div>
+      <div><label class="label">Телефон</label><input type="tel" name="phone" required class="input" placeholder="+79991234567" /></div>
+      <div><label class="label">Описание проблемы</label><textarea name="problem" rows="2" class="input resize-none" placeholder="Не заводится, искрит…"></textarea></div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" onclick="closeModal('modal-manual-request')" class="btn-ghost">Отмена</button>
+        <button type="submit" class="btn-primary">Добавить</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ MODAL: CLIENT DETAIL ═══ -->
+<div id="modal-client-detail" class="fixed inset-0 z-50 hidden items-start justify-center p-4 modal-overlay overflow-y-auto">
+  <div class="w-full max-w-2xl card p-7 my-8">
+    <div class="flex items-center justify-between mb-6">
+      <h3 id="client-detail-name" class="text-xl font-black text-white">Клиент</h3>
+      <button onclick="closeModal('modal-client-detail')" class="btn-ghost p-2"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <div id="client-detail-content"></div>
+  </div>
+</div>
+
+<!-- ═══ MODAL: ADD REPAIR ═══ -->
+<div id="modal-repair" class="fixed inset-0 z-50 hidden items-start justify-center p-4 modal-overlay overflow-y-auto">
+  <div class="w-full max-w-lg card p-7 my-8">
+    <h3 class="text-xl font-black text-white mb-6">Запись о ремонте</h3>
+    <form id="form-repair" class="space-y-4" enctype="multipart/form-data">
+      <input type="hidden" name="clientId" id="repair-client-id" />
+      <div>
+        <label class="label">Автомобиль</label>
+        <select name="carId" id="repair-car-select" class="input">
+          <option value="">— Без привязки к авто —</option>
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="label">Дата</label>
+          <input type="date" name="date" class="input" id="repair-date" />
+        </div>
+        <div>
+          <label class="label">Тип работ</label>
+          <select name="type" class="input">
+            <option>Диагностика</option>
+            <option>Ремонт проводки</option>
+            <option>Сигнализация</option>
+            <option>Стартер / Генератор</option>
+            <option>Аккумулятор</option>
+            <option>Другое</option>
+          </select>
+        </div>
+      </div>
+      <div><label class="label">Описание работ</label><textarea name="description" rows="3" required class="input resize-none" placeholder="Что именно было сделано…"></textarea></div>
+      <div><label class="label">Стоимость (₽)</label><input type="number" name="cost" class="input" placeholder="2500" min="0" /></div>
+      <div>
+        <label class="label">Фото до/после (до 5 фото)</label>
+        <input type="file" name="photos" accept="image/*" multiple class="w-full text-sm text-gray-400
+               file:mr-4 file:py-2 file:px-3 file:rounded-xl file:border-0
+               file:bg-accent/20 file:text-accent file:font-bold hover:file:bg-accent/30 cursor-pointer" />
+      </div>
+      <div class="border-t border-border pt-4">
+        <h4 class="text-sm font-bold text-white mb-3">Напоминание для клиента (необязательно)</h4>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="label">Дата</label><input type="date" name="reminderDate" class="input" /></div>
+          <div><label class="label">Текст</label><input type="text" name="reminderText" class="input" placeholder="Заменить ремень ГРМ" /></div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3 pt-2">
+        <button type="button" onclick="closeModal('modal-repair')" class="btn-ghost">Отмена</button>
+        <button type="submit" class="btn-primary">Сохранить запись</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <script src="/js/admin.js"></script>
 </body>
