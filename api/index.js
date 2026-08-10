@@ -201,19 +201,8 @@ const upload = multer({
   },
 });
 
-/* ── CORS whitelist ── */
-const ALLOWED_ORIGINS = [
-  'http://localhost:3000',
-  'https://autoelectricianlanding-production.up.railway.app',
-  process.env.SITE_URL,
-].filter(Boolean);
-
 app.use(cors({
-  origin: (origin, cb) => {
-    // Allow same-origin (no Origin header) and whitelisted origins
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    cb(new Error('Not allowed by CORS'));
-  },
+  origin: (origin, cb) => cb(null, true),
   credentials: true,
 }));
 
