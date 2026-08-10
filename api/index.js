@@ -75,9 +75,7 @@ async function getBot() {
     if (!tgBot) {
       if (!token) return null;
       tgBot = new TelegramBot(token);
-      if (process.env.SITE_URL) {
-        tgBot.setWebHook(process.env.SITE_URL + '/api/telegram-webhook').catch(e => console.error(e));
-      }
+      tgBot.setWebHook('https://auto-electrician-landing.vercel.app/api/telegram-webhook').catch(e => console.error('Webhook set error:', e));
       setupBotHandlers(tgBot);
     }
     return tgBot;
@@ -244,6 +242,16 @@ const limiterPublic = rateLimit({
 });
 
 /* ── Data helpers ── */
+
+app.post('/api/telegram-webhook', async (req, res) => {
+  try {
+    const bot = await getBot();
+    if (bot) bot.processUpdate(req.body);
+  } catch (err) {
+    console.error('Webhook error:', err);
+  }
+  res.sendStatus(200);
+});
 
 /* ── Init bot on startup if token is already saved ── */
 (async () => {
