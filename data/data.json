@@ -7,7 +7,10 @@
     "telegramBotToken": "8227351240:AAGw-trrfL3PckYd8aG5cL-BDnLgzaR9D64",
     "telegramBotUsername": "AutoElectricalENC_bot",
     "masterName": "Мастер",
-    "masterPhoto": ""
+    "masterPhoto": "",
+    "masterTelegramChatIds": [
+      6208918931
+    ]
   },
   "contacts": {
     "phone": "+7 (999) 123-45-67",
@@ -72,5 +75,15 @@
     }
   ],
   "clients": [],
-  "requests": []
+  "requests": [
+    {
+      "id": "057c2bb2456425f9",
+      "name": "Test",
+      "phone": "+79991234567",
+      "problem": "Engine broken",
+      "createdAt": "2026-08-10T18:40:14.743Z",
+      "status": "new",
+      "clientId": null
+    }
+  ]
 }

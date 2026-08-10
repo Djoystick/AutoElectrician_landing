@@ -601,7 +601,42 @@ function populateSettings() {
   if (form.elements.heroSubtitle) form.elements.heroSubtitle.value = s.heroSubtitle || '';
   if (form.elements.masterName)   form.elements.masterName.value   = s.masterName   || '';
   document.getElementById('cb-accepting').checked = s.acceptingRequests !== false;
+
+  const tgList = document.getElementById('master-tg-list');
+  if (tgList) {
+    const ids = s.masterTelegramChatIds || [];
+    if (ids.length === 0) {
+      tgList.innerHTML = '<span class="text-sm text-gray-400">Нет подключенных мастеров</span>';
+    } else {
+      tgList.innerHTML = ids.map(id => `
+        <div class="flex items-center justify-between bg-card p-2 rounded border border-border">
+          <span class="text-sm">Chat ID: <b>${id}</b></span>
+          <button type="button" class="text-red-400 hover:text-red-300 transition-colors" onclick="removeMasterId('${id}')">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+      `).join('');
+      if (window.lucide) lucide.createIcons();
+    }
+  }
 }
+
+async function removeMasterId(id) {
+  if (!confirm('Отключить уведомления для Chat ID ' + id + '?')) return;
+  const s = DATA.settings || {};
+  const ids = s.masterTelegramChatIds || [];
+  const newIds = ids.filter(x => x !== id);
+  const res = await api('PUT', '/api/settings', { masterTelegramChatIds: newIds });
+  if (res.ok) {
+    DATA.settings.masterTelegramChatIds = newIds;
+    populateSettings();
+    toast('Мастер удален');
+  } else {
+    toast('Ошибка удаления', 'error');
+  }
+}
+window.removeMasterId = removeMasterId;
+
 
 /* ══════════════════════════════════════════════════════════
    SERVICES (with drag-and-drop + active toggle)

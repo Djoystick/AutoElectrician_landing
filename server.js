@@ -791,7 +791,7 @@ app.get('/api/client/me', clientAuth, (req, res) => {
   safeClient.level  = loyaltyLevel(repairCount);
 
   // Include master info
-  const { password, telegramBotToken, masterTelegramChatId, ...safeSettings } = data.settings || {};
+  const { password, telegramBotToken, masterTelegramChatIds, ...safeSettings } = data.settings || {};
   res.json({ ok: true, client: safeClient, masterInfo: { ...safeSettings, contacts: data.contacts } });
 });
 

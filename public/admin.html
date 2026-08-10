@@ -346,10 +346,12 @@
               </p>
             </div>
             <div>
-              <label class="label">Ваш Telegram Chat ID (для уведомлений о заявках)</label>
-              <input type="text" name="masterTelegramChatId" class="input" placeholder="123456789" />
+              <label class="label">Telegram-уведомления (Мастера)</label>
+              <div id="master-tg-list" class="flex flex-col gap-2 mb-2">
+                <!-- Отрисовывается через JS -->
+              </div>
               <p class="text-xs text-gray-500 mt-1">
-                Напишите <a href="https://t.me/userinfobot" target="_blank" class="text-accent hover:underline">@userinfobot</a> — он пришлёт ваш Chat ID.
+                Чтобы добавить мастера, отправьте боту команду <code>/admin пароль_админки</code> с того Telegram-аккаунта, куда должны приходить уведомления. Для отключения отправьте <code>/unadmin</code>.
               </p>
             </div>
           </div>
