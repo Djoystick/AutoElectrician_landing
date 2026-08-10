@@ -105,7 +105,21 @@ function setupBotHandlers(bot) {
     s.status = 'success';
     s.token = createSession(client.id);
 
-    bot.sendMessage(chatId, '✅ Вы успешно авторизованы! Теперь можете вернуться в браузер — страница уже открылась.');
+    bot.sendMessage(chatId, '✅ Вы успешно авторизованы как клиент! Теперь можете вернуться в браузер — страница уже открылась.');
+  });
+
+  /* Admin assignment: /admin <password> */
+  bot.onText(/\/admin (.+)/, (msg, match) => {
+    const pwd = match[1].trim();
+    const data = readData();
+    const storedPwd = data.settings?.password || 'admin';
+    if (pwd === storedPwd) {
+      data.settings.masterTelegramChatId = msg.chat.id;
+      writeData(data);
+      bot.sendMessage(msg.chat.id, '👨‍🔧 <b>Вы успешно назначены Мастером!</b>\n\nТеперь сюда будут приходить все уведомления о новых заявках с сайта.', { parse_mode: 'HTML' });
+    } else {
+      bot.sendMessage(msg.chat.id, '❌ Неверный пароль администратора.');
+    }
   });
 
   /* Any text message that looks like a phone — register chatId */
