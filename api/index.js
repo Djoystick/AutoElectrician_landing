@@ -239,14 +239,12 @@ app.use(express.static(PUBLIC_DIR));
 const limiterOtpRequest = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
   max: 5,
-  keyGenerator: req => req.body?.phone || req.ip?.replace(/:\d+[^:]*$/, '') || 'unknown',
   message: { ok: false, error: 'too_many_requests' },
   standardHeaders: true, legacyHeaders: false,
 });
 const limiterOtpVerify = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 min
   max: 10,
-  keyGenerator: req => req.body?.phone || req.ip?.replace(/:\d+[^:]*$/, '') || 'unknown',
   message: { ok: false, error: 'too_many_requests' },
 });
 const limiterAdmin = rateLimit({
