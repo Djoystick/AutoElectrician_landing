@@ -4,6 +4,13 @@
 ============================================================ */
 'use strict';
 
+window.onerror = function(msg, url, lineNo, columnNo, error) {
+  fetch('/api/debug', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'onerror', msg, url, lineNo, columnNo, stack: error?.stack }) });
+};
+window.addEventListener("unhandledrejection", function(event) {
+  fetch('/api/debug', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'unhandledrejection', msg: event.reason }) });
+});
+
 const TOKEN_KEY = 'ae_client_token';
 let CLIENT = null;
 let MASTER  = null;

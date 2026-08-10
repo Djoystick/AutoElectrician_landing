@@ -449,6 +449,7 @@ app.delete('/api/requests/:id', authCheck, (req, res) => {
 
 /* Step 1 — request OTP code */
 app.post('/api/client/auth/request', limiterOtpRequest, (req, res) => {
+  console.log('[DEBUG] POST /api/client/auth/request received:', req.body);
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'phone required' });
 
@@ -938,8 +939,10 @@ app.post('/api/clients/:id/reminders', authCheck, (req, res) => {
 
 /* ── TELEGRAM AUTH REDIRECT (MOBILE FRIENDLY) ── */
 app.get('/api/client/auth/telegram/callback', (req, res) => {
+  console.log('[DEBUG] GET /api/client/auth/telegram/callback received:', req.query);
   const authData = req.query;
   if (!authData || !authData.hash || !authData.id) {
+    console.log('[DEBUG] GET Telegram Auth failed: Invalid data');
     return res.status(400).send('Invalid data');
   }
 
@@ -974,6 +977,8 @@ app.get('/api/client/auth/telegram/callback', (req, res) => {
 
   const token = createSession(client.id);
   
+  console.log('[DEBUG] Telegram Auth successful, generated token for client:', client.id);
+
   // Return an HTML page that stores the token and redirects
   res.send(`
     <!DOCTYPE html>
@@ -987,6 +992,11 @@ app.get('/api/client/auth/telegram/callback', (req, res) => {
     </body>
     </html>
   `);
+});
+
+app.post('/api/debug', (req, res) => {
+  console.log('[FRONTEND DEBUG]', req.body);
+  res.sendStatus(200);
 });
 
 /* ══════════════════════════════════════════════════════════
