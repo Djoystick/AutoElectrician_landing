@@ -297,14 +297,22 @@ const authCheck = async (req, res, next) => {
 
 // 2. /api/data (Public)
 app.get('/api/data', async (req, res) => {
-  if (!supabase) return res.json({ settings: {}, services: [] });
-  const [settingsReq, servicesReq] = await Promise.all([
+  if (!supabase) return res.json({ settings: {}, services: [], reviews: [], contacts: {} });
+  const [settingsReq, servicesReq, reviewsReq, contactsReq] = await Promise.all([
     supabase.from('settings').select('*').maybeSingle(),
-    supabase.from('services').select('*').eq('active', true).order('sort_order', { ascending: true })
+    supabase.from('services').select('*').eq('active', true).order('sort_order', { ascending: true }),
+    supabase.from('reviews').select('*').order('sort_order', { ascending: true }),
+    supabase.from('contacts').select('*').maybeSingle()
   ]);
   const settings = settingsReq.data?.data || {};
-  const { password, telegramBotToken, ...safeSettings } = settings;
-  res.json({ settings: safeSettings, services: servicesReq.data || [] });
+  const { password, telegramBotToken, masterTelegramChatIds, ...safeSettings } = settings;
+  const contacts = contactsReq.data?.data || {};
+  res.json({ 
+    settings: safeSettings, 
+    services: servicesReq.data || [],
+    reviews: reviewsReq.data || [],
+    contacts: contacts
+  });
 });
 
 app.post('/api/auth', limiterAdmin, async (req, res) => {
@@ -742,6 +750,167 @@ app.get('/api/analytics', authCheck, async (req, res) => {
     }
   });
 });
+
+app.post('/api/client/auth/request', limiterOtpRequest, async (req, res) => {
+  console.log('[DEBUG] POST /api/client/auth/request received:', req.body);
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+
+  if (!supabase) return res.status(500).json({ ok: false, error: 'DB not connected' });
+  const { data: client } = await supabase.from('clients').select('*').eq('phone', phone).maybeSingle();
+  if (!client) return res.status(404).json({ ok: false, error: 'client_not_found' });
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  await supabase.from('auth_otps').upsert({ phone, code, expires_at: expiresAt });
+
+  const bot        = getBot();
+  const chatId     = client.telegram_chat_id;
+  let   deliveryMode = 'manual';
+
+  if (bot && chatId) {
+    try {
+      bot.sendMessage(chatId,
+        `🔐 <b>Код входа в AutoElectro:</b> <code>${code}</code>\n\nКод действителен 10 минут.`,
+        { parse_mode: 'HTML' }
+      );
+      deliveryMode = 'telegram';
+    } catch (e) {
+      console.error('Telegram send error:', e.message);
+    }
+  }
+
+  const exposeCode = deliveryMode === 'manual' && process.env.NODE_ENV !== 'production';
+  res.json({
+    ok:           true,
+    deliveryMode,
+    ...(exposeCode && { code }),
+    telegramLinked: !!(chatId),
+    clientName:   client.name,
+  });
+});
+
+app.post('/api/client/auth', limiterOtpVerify, async (req, res) => {
+  const { phone, code } = req.body;
+  if (!phone || !code) return res.status(400).json({ error: 'phone and code required' });
+
+  if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
+  const { data: otpRow } = await supabase.from('auth_otps').select('*').eq('phone', phone).maybeSingle();
+  if (!otpRow) return res.status(400).json({ ok: false, error: 'code_expired' });
+  if (new Date(otpRow.expires_at).getTime() < Date.now()) {
+    await supabase.from('auth_otps').delete().eq('phone', phone);
+    return res.status(401).json({ ok: false, error: 'code_expired' });
+  }
+  if (String(otpRow.code) !== String(code)) {
+    return res.status(401).json({ ok: false, error: 'wrong_code' });
+  }
+
+  await supabase.from('auth_otps').delete().eq('phone', phone);
+
+  const { data: client } = await supabase.from('clients').select('*').eq('phone', phone).maybeSingle();
+  if (!client) return res.status(404).json({ ok: false, error: 'client_not_found' });
+
+  const token = await createSession(client.id);
+  res.json({ ok: true, token, clientId: client.id, name: client.name });
+});
+
+app.get('/api/client/auth/telegram/magic/status', async (req, res) => {
+  const { session } = req.query;
+  if (!supabase) return res.json({ status: 'pending' });
+
+  const { data: s } = await supabase.from('auth_magic_links').select('*').eq('session_id', session).maybeSingle();
+  if (!s) return res.json({ status: 'expired' });
+  
+  if (s.status === 'approved') {
+    const { data: client } = await supabase.from('clients').select('*').eq('id', s.client_id).maybeSingle();
+    if (!client) return res.json({ status: 'expired' });
+
+    await supabase.from('auth_magic_links').delete().eq('session_id', session);
+
+    const token = await createSession(client.id);
+    return res.json({ status: 'success', token });
+  }
+  res.json({ status: 'pending' });
+});
+
+app.get('/api/client/auth/vk/callback', async (req, res) => {
+  const { code } = req.query;
+  if (!code) return res.redirect('/profile.html');
+
+  try {
+    const tokenUrl = `https://oauth.vk.com/access_token?client_id=${process.env.VK_APP_ID || VK_APP_ID}&client_secret=${process.env.VK_APP_SECRET || VK_APP_SECRET}&redirect_uri=${process.env.VK_REDIRECT_URI || VK_REDIRECT_URI}&code=${code}`;
+    const tokenResponse = await new Promise((resolve, reject) => {
+      https.get(tokenUrl, r => {
+        let d = '';
+        r.on('data', chunk => d += chunk);
+        r.on('end', () => resolve(JSON.parse(d)));
+      }).on('error', reject);
+    });
+
+    if (tokenResponse.error) {
+      console.error('VK Token Error:', tokenResponse.error_description);
+      return res.redirect('/profile.html?error=vk_token');
+    }
+
+    const { access_token, user_id, email } = tokenResponse;
+    const vkId = String(user_id);
+
+    const apiReqUrl = `https://api.vk.com/method/users.get?user_ids=${vkId}&fields=photo_100,contacts&access_token=${access_token}&v=5.199`;
+    const apiResponse = await new Promise((resolve, reject) => {
+      https.get(apiReqUrl, r => {
+        let d = '';
+        r.on('data', chunk => d += chunk);
+        r.on('end', () => resolve(JSON.parse(d)));
+      }).on('error', reject);
+    });
+
+    const user = apiResponse.response?.[0];
+    if (!user) return res.redirect('/profile.html?error=vk_api');
+
+    if (!supabase) return res.redirect('/profile.html?error=db');
+    let { data: client } = await supabase.from('clients').select('*').eq('vk_id', vkId).maybeSingle();
+
+    if (!client) {
+      const name = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+      client = {
+        id: crypto.randomUUID(),
+        name: name || 'VK Пользователь',
+        phone: user.mobile_phone || user.home_phone || '',
+        email: email || '',
+        vk_id: vkId,
+        telegram_id: '',
+        telegram_username: '',
+        telegram_chat_id: '',
+        cars: [],
+        repairs: [],
+        created_at: new Date().toISOString()
+      };
+      await supabase.from('clients').insert(client);
+    }
+
+    const token = await createSession(client.id);
+    res.redirect(`/profile.html?auth=vk&token=${token}&name=${encodeURIComponent(client.name)}`);
+
+  } catch (err) {
+    console.error('VK Callback Error:', err);
+    res.redirect('/profile.html?error=internal');
+  }
+});
+
+const clientAuth = async (req, res, next) => {
+  const token = req.headers['x-client-token'];
+  if (!token) return res.status(401).json({ error: 'No token' });
+  if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
+  
+  const { data: session } = await supabase.from('auth_sessions').select('*').eq('token', token).maybeSingle();
+  if (!session || new Date(session.expires_at).getTime() < Date.now()) {
+    if (session) await supabase.from('auth_sessions').delete().eq('token', token);
+    return res.status(401).json({ error: 'Session expired' });
+  }
+  
+  req.clientId = session.client_id;
+  next();
+};
 
 module.exports = app;
 
