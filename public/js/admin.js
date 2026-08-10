@@ -20,15 +20,17 @@ document.addEventListener('DOMContentLoaded', () => {
 /* ══════════════════════════════════════════════════════════
    AUTH
 ══════════════════════════════════════════════════════════ */
-document.getElementById('login-form').addEventListener('submit', async e => {
-  e.preventDefault();
-  const pwd = document.getElementById('login-pwd').value.trim();
-  const err = document.getElementById('login-err');
-  err.classList.add('hidden');
+document.getElementById('auth-btn').addEventListener('click', async () => {
+  const user = document.getElementById('auth-username').value;
+  const pwd = document.getElementById('auth-password').value;
+  const err = document.getElementById('auth-error');
+  if (!user || !pwd) return;
   try {
-    const res  = await fetch('/api/auth', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pwd }) });
+    const res = await fetch('/api/auth', {
+      method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: user, password: pwd })
+    });
     const json = await res.json();
-    if (json.ok) { TOKEN = pwd; localStorage.setItem('ae_admin_token', TOKEN); loadAndShow(); }
+    if (json.ok) { TOKEN = user + ':' + pwd; localStorage.setItem('ae_admin_token', TOKEN); loadAndShow(); }
     else err.classList.remove('hidden');
   } catch { err.textContent = 'Ошибка соединения'; err.classList.remove('hidden'); }
 });

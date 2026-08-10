@@ -252,26 +252,24 @@ try {
 /* ── ID generator ── */
 const uid = () => crypto.randomBytes(8).toString('hex');
 
-/* ── Admin auth middleware (supports plain text + bcrypt hash) ── */
-// 1. authCheck (Admin Auth)
+/* ── Middleware: Admin Auth Check ── */
 const authCheck = async (req, res, next) => {
-  const pwd  = req.headers['x-admin-password'] || req.body?.password;
-  if (!pwd) return res.status(401).json({ error: 'Unauthorized' });
-  if (!supabase) return res.status(500).json({ error: 'DB error' });
-
-  const { data: masters } = await supabase.from('masters').select('*');
-  let ok = false;
-  for (const master of (masters || [])) {
-    const isHash = master.password.startsWith('$2');
-    if (isHash ? bcrypt.compareSync(pwd, master.password) : (pwd === master.password)) {
-      ok = true;
-      req.master = master;
-      break;
-    }
-  }
+  const token = req.headers['x-admin-password'];
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
   
-  if (ok) return next();
-  res.status(401).json({ error: 'Unauthorized' });
+  const [username, ...pwdParts] = token.split(':');
+  const pwd = pwdParts.join(':');
+  if (!username || !pwd) return res.status(401).json({ error: 'Unauthorized' });
+
+  const { data: m } = await supabase.from('masters').select('*').eq('username', username).maybeSingle();
+  if (!m) return res.status(401).json({ error: 'Unauthorized' });
+  
+  const isHash = m.password.startsWith('$2');
+  const ok = isHash ? bcrypt.compareSync(pwd, m.password) : pwd === m.password;
+  if (!ok) return res.status(401).json({ error: 'Unauthorized' });
+  
+  req.master = m;
+  next();
 };
 
 // 2. /api/data (Public)
@@ -295,18 +293,16 @@ app.get('/api/data', async (req, res) => {
 });
 
 app.post('/api/auth', limiterAdmin, async (req, res) => {
-  const pwd = req.body.password;
+  const { username, password } = req.body;
   if (!supabase) return res.status(500).json({ ok: false });
-  const { data: masters } = await supabase.from('masters').select('*');
-  let ok = false;
-  for (const master of (masters || [])) {
-    const isHash = master.password.startsWith('$2');
-    if (isHash ? bcrypt.compareSync(pwd, master.password) : (pwd === master.password)) {
-      ok = true; break;
-    }
-  }
+  const { data: master } = await supabase.from('masters').select('*').eq('username', username).maybeSingle();
+  if (!master) return res.status(401).json({ ok: false, error: 'Неверный логин или пароль' });
+  
+  const isHash = master.password.startsWith('$2');
+  const ok = isHash ? bcrypt.compareSync(password, master.password) : (password === master.password);
+  
   if (ok) res.json({ ok: true });
-  else res.status(401).json({ ok: false, error: 'Неверный пароль' });
+  else res.status(401).json({ ok: false, error: 'Неверный логин или пароль' });
 });
 
 /* ── Masters Management ── */
