@@ -1,0 +1,179 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" fill="none" role="img" aria-label="Электрон — маскот AutoElectro">
+  <defs>
+    <!-- Electric blue glow filter -->
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-sm" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="glow-eye" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Shadow under robot -->
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#00b4fd" flood-opacity="0.25"/>
+    </filter>
+    <!-- Gradient fills -->
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1e2535"/>
+      <stop offset="100%" stop-color="#141924"/>
+    </linearGradient>
+    <linearGradient id="headGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#232d40"/>
+      <stop offset="100%" stop-color="#161d2c"/>
+    </linearGradient>
+    <linearGradient id="armGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1c2535"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <radialGradient id="eyeGrad" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#7ee8ff"/>
+      <stop offset="100%" stop-color="#00b4fd"/>
+    </radialGradient>
+    <linearGradient id="chestGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d3d57"/>
+      <stop offset="100%" stop-color="#041a25"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ═══ BODY GROUP — animated float ═══ -->
+  <g class="mascot-body" filter="url(#shadow)">
+
+    <!-- Legs -->
+    <rect x="72" y="210" width="22" height="32" rx="8" fill="url(#armGrad)" stroke="#00b4fd" stroke-width="0.8" opacity="0.9"/>
+    <rect x="106" y="210" width="22" height="32" rx="8" fill="url(#armGrad)" stroke="#00b4fd" stroke-width="0.8" opacity="0.9"/>
+    <!-- Feet -->
+    <rect x="68" y="234" width="30" height="12" rx="6" fill="#0f1624" stroke="#00b4fd" stroke-width="0.6"/>
+    <rect x="102" y="234" width="30" height="12" rx="6" fill="#0f1624" stroke="#00b4fd" stroke-width="0.6"/>
+    <!-- Feet glow line -->
+    <line x1="72" y1="244" x2="94" y2="244" stroke="#00b4fd" stroke-width="1.5" stroke-linecap="round" opacity="0.5" filter="url(#glow-sm)"/>
+    <line x1="106" y1="244" x2="128" y2="244" stroke="#00b4fd" stroke-width="1.5" stroke-linecap="round" opacity="0.5" filter="url(#glow-sm)"/>
+
+    <!-- ── TORSO ── -->
+    <rect x="55" y="138" width="90" height="76" rx="16" fill="url(#bodyGrad)" stroke="#1e2d44" stroke-width="1.5"/>
+    <!-- Torso accent lines -->
+    <line x1="65" y1="152" x2="135" y2="152" stroke="#00b4fd" stroke-width="0.6" opacity="0.4"/>
+    <line x1="65" y1="200" x2="135" y2="200" stroke="#00b4fd" stroke-width="0.6" opacity="0.4"/>
+
+    <!-- Chest panel -->
+    <rect x="68" y="155" width="64" height="48" rx="10" fill="url(#chestGrad)" stroke="#00b4fd" stroke-width="1" opacity="0.9"/>
+    <!-- Chest screen scanlines -->
+    <line x1="73" y1="163" x2="127" y2="163" stroke="#00b4fd" stroke-width="0.5" opacity="0.3"/>
+    <line x1="73" y1="169" x2="127" y2="169" stroke="#00b4fd" stroke-width="0.5" opacity="0.3"/>
+    <line x1="73" y1="175" x2="127" y2="175" stroke="#00b4fd" stroke-width="0.5" opacity="0.3"/>
+    <!-- Chest lightning bolt icon -->
+    <path d="M98 161 L92 175 L98 175 L94 190 L108 172 L101 172 L106 161 Z" fill="#00b4fd" opacity="0.9" filter="url(#glow-sm)"/>
+    <!-- Chest indicator dots -->
+    <circle cx="76" cy="193" r="3" fill="#00b4fd" opacity="0.9" filter="url(#glow-sm)"/>
+    <circle cx="85" cy="193" r="3" fill="#3fb950" opacity="0.9"/>
+    <circle cx="94" cy="193" r="3" fill="#f59e0b" opacity="0.9"/>
+
+    <!-- Circuit traces on torso -->
+    <path d="M60 162 L60 170 L55 170" stroke="#00b4fd" stroke-width="0.8" opacity="0.3" fill="none" stroke-linecap="round"/>
+    <path d="M140 162 L140 170 L145 170" stroke="#00b4fd" stroke-width="0.8" opacity="0.3" fill="none" stroke-linecap="round"/>
+    <circle cx="55" cy="170" r="1.5" fill="#00b4fd" opacity="0.3"/>
+    <circle cx="145" cy="170" r="1.5" fill="#00b4fd" opacity="0.3"/>
+
+    <!-- Waist connector -->
+    <rect x="75" y="210" width="50" height="6" rx="3" fill="#0d1a28" stroke="#00b4fd" stroke-width="0.6" opacity="0.7"/>
+
+    <!-- ── LEFT ARM (raised, holding multimeter) ── -->
+    <rect x="22" y="142" width="18" height="54" rx="9" fill="url(#armGrad)" stroke="#1e2d44" stroke-width="1" transform="rotate(-15 31 169)"/>
+    <!-- Left shoulder joint -->
+    <circle cx="52" cy="146" r="9" fill="#1a2535" stroke="#00b4fd" stroke-width="1" filter="url(#glow-sm)"/>
+    <!-- Left hand -->
+    <rect x="18" y="185" width="22" height="16" rx="7" fill="#141d2c" stroke="#00b4fd" stroke-width="0.8" transform="rotate(-10 29 193)"/>
+
+    <!-- Multimeter in left hand -->
+    <g transform="translate(4, 178) rotate(-10)">
+      <rect x="0" y="0" width="28" height="36" rx="4" fill="#0a1520" stroke="#00b4fd" stroke-width="1.5"/>
+      <rect x="3" y="3" width="22" height="16" rx="2" fill="#051018" stroke="#00b4fd" stroke-width="0.8"/>
+      <!-- Screen sine wave -->
+      <path d="M5 11 Q8 6 11 11 Q14 16 17 11 Q20 6 23 11" stroke="#00b4fd" stroke-width="1.2" fill="none" stroke-linecap="round" filter="url(#glow-sm)"/>
+      <!-- Dial knob -->
+      <circle cx="14" cy="26" r="5" fill="#0d1d2e" stroke="#00b4fd" stroke-width="1"/>
+      <line x1="14" y1="26" x2="17" y2="22" stroke="#00b4fd" stroke-width="1.2" stroke-linecap="round"/>
+      <!-- Probe wires -->
+      <line x1="6" y1="36" x2="0" y2="48" stroke="#f85149" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="14" y1="36" x2="8" y2="50" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="0" cy="50" r="2" fill="#f85149"/>
+      <circle cx="8" cy="52" r="2" fill="#333"/>
+    </g>
+
+    <!-- ── RIGHT ARM ── -->
+    <rect x="160" y="142" width="18" height="50" rx="9" fill="url(#armGrad)" stroke="#1e2d44" stroke-width="1" transform="rotate(12 169 167)"/>
+    <!-- Right shoulder joint -->
+    <circle cx="148" cy="146" r="9" fill="#1a2535" stroke="#00b4fd" stroke-width="1" filter="url(#glow-sm)"/>
+    <!-- Right hand (relaxed/open) -->
+    <rect x="158" y="185" width="22" height="16" rx="7" fill="#141d2c" stroke="#00b4fd" stroke-width="0.8" transform="rotate(8 169 193)"/>
+
+    <!-- ── NECK ── -->
+    <rect x="87" y="124" width="26" height="16" rx="5" fill="#151f30" stroke="#1e2d44" stroke-width="1"/>
+    <line x1="92" y1="128" x2="108" y2="128" stroke="#00b4fd" stroke-width="0.8" opacity="0.4"/>
+    <line x1="92" y1="134" x2="108" y2="134" stroke="#00b4fd" stroke-width="0.8" opacity="0.4"/>
+
+    <!-- ── HEAD ── -->
+    <rect x="50" y="52" width="100" height="76" rx="22" fill="url(#headGrad)" stroke="#1e2d44" stroke-width="1.5"/>
+
+    <!-- Head top antenna -->
+    <rect x="97" y="38" width="6" height="18" rx="3" fill="#1e2d44"/>
+    <circle cx="100" cy="35" r="5" fill="#00b4fd" filter="url(#glow-sm)" opacity="0.9"/>
+    <circle cx="100" cy="35" r="2.5" fill="#7ee8ff"/>
+
+    <!-- Head ear sensors -->
+    <rect x="40" y="76" width="12" height="20" rx="6" fill="#141d2c" stroke="#00b4fd" stroke-width="0.8"/>
+    <rect x="148" y="76" width="12" height="20" rx="6" fill="#141d2c" stroke="#00b4fd" stroke-width="0.8"/>
+    <circle cx="46" cy="86" r="3" fill="#00b4fd" opacity="0.7" filter="url(#glow-sm)"/>
+    <circle cx="154" cy="86" r="3" fill="#00b4fd" opacity="0.7" filter="url(#glow-sm)"/>
+
+    <!-- Head circuit traces -->
+    <path d="M60 60 L60 68 L72 68" stroke="#00b4fd" stroke-width="0.7" opacity="0.25" fill="none" stroke-linecap="round"/>
+    <path d="M140 60 L140 68 L128 68" stroke="#00b4fd" stroke-width="0.7" opacity="0.25" fill="none" stroke-linecap="round"/>
+
+    <!-- ── EYES ── -->
+    <!-- Left eye -->
+    <ellipse cx="78" cy="90" rx="14" ry="13" fill="#041018" stroke="#00b4fd" stroke-width="1.5"/>
+    <ellipse cx="78" cy="90" rx="10" ry="9" fill="url(#eyeGrad)" filter="url(#glow-eye)" opacity="0.95"/>
+    <ellipse cx="78" cy="90" rx="10" ry="9" fill="url(#eyeGrad)" opacity="0.9"/>
+    <ellipse cx="75" cy="87" rx="3" ry="2.5" fill="#d0f5ff" opacity="0.8"/>
+    <!-- Left eye scan line (animated) -->
+    <line x1="64" y1="90" x2="92" y2="90" stroke="#7ee8ff" stroke-width="1" opacity="0.4" stroke-linecap="round">
+      <animateTransform attributeName="transform" type="translate" values="0,-8;0,8;0,-8" dur="2s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.6;0.1;0.6" dur="2s" repeatCount="indefinite"/>
+    </line>
+
+    <!-- Right eye -->
+    <ellipse cx="122" cy="90" rx="14" ry="13" fill="#041018" stroke="#00b4fd" stroke-width="1.5"/>
+    <ellipse cx="122" cy="90" rx="10" ry="9" fill="url(#eyeGrad)" filter="url(#glow-eye)" opacity="0.95"/>
+    <ellipse cx="122" cy="90" rx="10" ry="9" fill="url(#eyeGrad)" opacity="0.9"/>
+    <ellipse cx="119" cy="87" rx="3" ry="2.5" fill="#d0f5ff" opacity="0.8"/>
+    <line x1="108" y1="90" x2="136" y2="90" stroke="#7ee8ff" stroke-width="1" opacity="0.4" stroke-linecap="round">
+      <animateTransform attributeName="transform" type="translate" values="0,-8;0,8;0,-8" dur="2s" begin="0.3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.6;0.1;0.6" dur="2s" begin="0.3s" repeatCount="indefinite"/>
+    </line>
+
+    <!-- ── MOUTH / SPEAKER ── -->
+    <rect x="78" y="110" width="44" height="10" rx="5" fill="#041018" stroke="#00b4fd" stroke-width="1"/>
+    <!-- Speaker grid -->
+    <line x1="84" y1="113" x2="84" y2="117" stroke="#00b4fd" stroke-width="1" opacity="0.5"/>
+    <line x1="90" y1="113" x2="90" y2="117" stroke="#00b4fd" stroke-width="1" opacity="0.5"/>
+    <line x1="96" y1="113" x2="96" y2="117" stroke="#00b4fd" stroke-width="1" opacity="0.5"/>
+    <line x1="102" y1="113" x2="102" y2="117" stroke="#00b4fd" stroke-width="1" opacity="0.5"/>
+    <line x1="108" y1="113" x2="108" y2="117" stroke="#00b4fd" stroke-width="1" opacity="0.5"/>
+    <line x1="114" y1="113" x2="114" y2="117" stroke="#00b4fd" stroke-width="1" opacity="0.5"/>
+
+    <!-- Antenna pulse animation -->
+    <circle cx="100" cy="35" r="8" fill="none" stroke="#00b4fd" stroke-width="1" opacity="0">
+      <animate attributeName="r" values="5;14;5" dur="2.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.7;0;0.7" dur="2.5s" repeatCount="indefinite"/>
+    </circle>
+
+  </g>
+
+  <!-- Ground shadow ellipse -->
+  <ellipse cx="100" cy="256" rx="42" ry="6" fill="#00b4fd" opacity="0.08"/>
+</svg>
