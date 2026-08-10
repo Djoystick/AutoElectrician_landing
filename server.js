@@ -936,6 +936,59 @@ app.post('/api/clients/:id/reminders', authCheck, (req, res) => {
   res.json({ ok: true, reminder });
 });
 
+/* ── TELEGRAM AUTH REDIRECT (MOBILE FRIENDLY) ── */
+app.get('/api/client/auth/telegram/callback', (req, res) => {
+  const authData = req.query;
+  if (!authData || !authData.hash || !authData.id) {
+    return res.status(400).send('Invalid data');
+  }
+
+  if (!verifyTelegramAuth(authData)) {
+    return res.status(401).send('Invalid hash');
+  }
+
+  const data   = readData();
+  let   client = (data.clients || []).find(c => String(c.telegramId) === String(authData.id));
+
+  if (!client) {
+    client = (data.clients || []).find(c => String(c.telegramChatId) === String(authData.id));
+  }
+
+  if (!client) {
+    if (!data.clients) data.clients = [];
+    client = {
+      id:         uid(),
+      name:       [authData.first_name, authData.last_name].filter(Boolean).join(' '),
+      phone:      '',
+      telegramId: authData.id,
+      telegramUsername: authData.username || '',
+      cars:       [],
+      repairs:    [],
+      createdAt:  new Date().toISOString(),
+      status:     'newcomer',
+      balance:    0
+    };
+    data.clients.push(client);
+    writeData(data);
+  }
+
+  const token = generateToken(client.id);
+  
+  // Return an HTML page that stores the token and redirects
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head><title>Авторизация...</title></head>
+    <body>
+      <script>
+        localStorage.setItem('__autoElectro_client_token', '${token}');
+        window.location.href = '/profile.html';
+      </script>
+    </body>
+    </html>
+  `);
+});
+
 /* ══════════════════════════════════════════════════════════
    ░░ ADMIN: ANALYTICS ░░
 ══════════════════════════════════════════════════════════ */
