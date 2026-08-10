@@ -453,7 +453,8 @@ function injectTelegramWidget() {
       script.src = 'https://telegram.org/js/telegram-widget.js?22';
       script.setAttribute('data-telegram-login',   botName);
       script.setAttribute('data-size',             'large');
-      script.setAttribute('data-auth-url',         window.location.origin + '/api/client/auth/telegram/callback');
+      script.setAttribute('data-radius',           '12');
+      script.setAttribute('data-onauth',           'onTelegramAuth(user)');
       script.setAttribute('data-request-access',   'write');
       wrap.innerHTML = '';
       wrap.appendChild(script);
@@ -464,22 +465,25 @@ function injectTelegramWidget() {
 /* Called by Telegram Widget after user auth */
 window.onTelegramAuth = async function(user) {
   try {
+    fetch('/api/debug', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'onauth_triggered', user: user.id }) }).catch(()=>{});
+    
     const res  = await fetch('/api/client/auth/telegram', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(user),
     });
     const json = await res.json();
+    
+    fetch('/api/debug', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'onauth_response', ok: json.ok }) }).catch(()=>{});
+
     if (json.ok) {
       TOKEN = json.token;
       localStorage.setItem(TOKEN_KEY, TOKEN);
       await loadProfile();
     } else {
-      phoneErr.textContent = 'Ошибка Telegram авторизации. Попробуйте войти по номеру.';
-      phoneErr.classList.remove('hidden');
+      alert('Ошибка авторизации: ' + (json.error || ''));
     }
-  } catch {
-    phoneErr.textContent = 'Ошибка соединения.';
-    phoneErr.classList.remove('hidden');
+  } catch (e) {
+    alert('Ошибка соединения: ' + e.message);
   }
 };
