@@ -982,7 +982,7 @@ app.get('/api/client/auth/telegram/callback', (req, res) => {
     <body>
       <script>
         localStorage.setItem('ae_client_token', '${token}');
-        window.location.href = '/profile.html';
+        window.top.location.href = '/profile.html';
       </script>
     </body>
     </html>
