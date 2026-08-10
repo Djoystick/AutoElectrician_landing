@@ -19,6 +19,25 @@ const rateLimit   = require('express-rate-limit');
 const bcrypt      = require('bcryptjs');
 const https       = require('https');
 
+/* ── In-memory logs (limit to 100) ── */
+const memLogs = [];
+const addLog = (msg) => {
+  memLogs.unshift({ time: new Date().toISOString(), msg });
+  if (memLogs.length > 100) memLogs.pop();
+};
+const origLog = console.log;
+const origErr = console.error;
+console.log = (...args) => {
+  const msg = args.join(' ');
+  origLog(...args);
+  addLog(msg);
+};
+console.error = (...args) => {
+  origErr(...args);
+  addLog('ERROR: ' + args.join(' '));
+};
+
+
 /* ── Optional Telegram Bot ── */
 let TelegramBot = null;
 try { const pkg = require('node-telegram-bot-api'); TelegramBot = pkg.default || pkg; } catch {}
@@ -158,13 +177,7 @@ function setupBotHandlers(bot) {
   });
 }
 
-/* ── Init bot on startup if token is already saved ── */
-try {
-  getBot();
-} catch (err) {
-  addLog(`[TG] Bot Init Error: ${err.stack || err}`);
-  console.error('Bot Init Error:', err);
-}
+
 
 /* ── Multer storage ── */
 const storage = multer.diskStorage({
@@ -238,6 +251,14 @@ const limiterPublic = rateLimit({
 /* ── Data helpers ── */
 const readData  = () => JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
 const writeData = data => fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+
+/* ── Init bot on startup if token is already saved ── */
+try {
+  getBot();
+} catch (err) {
+  addLog(`[TG] Bot Init Error: ${err.stack || err}`);
+  console.error('Bot Init Error:', err);
+}
 
 /* ── ID generator ── */
 const uid = () => crypto.randomBytes(8).toString('hex');
@@ -1010,14 +1031,7 @@ app.post('/api/debug', (req, res) => {
   res.sendStatus(200);
 });
 
-const memLogs = [];
-const origLog = console.log; const origErr = console.error; console.error = (...args) => { origErr(...args); addLog('ERROR: ' + args.join(' ')); };
-console.log = function(...args) {
-  origLog.apply(console, args);
-  const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
-  memLogs.unshift({ time: new Date().toISOString(), msg });
-  if (memLogs.length > 100) memLogs.pop();
-};
+
 
 app.get('/api/logs', (req, res) => {
   res.json(memLogs);
