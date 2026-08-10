@@ -76,7 +76,7 @@ async function getBot() {
       if (!token) return null;
       tgBot = new TelegramBot(token);
       tgBot.setWebHook('https://auto-electrician-landing.vercel.app/api/telegram-webhook').catch(e => console.error('Webhook set error:', e));
-      setupBotHandlers(tgBot);
+      // Handlers are executed synchronously in the webhook for Vercel
     }
     return tgBot;
   } else {
@@ -246,7 +246,96 @@ const limiterPublic = rateLimit({
 app.post('/api/telegram-webhook', async (req, res) => {
   try {
     const bot = await getBot();
-    if (bot) bot.processUpdate(req.body);
+    if (!bot) return res.sendStatus(200);
+
+    const update = req.body;
+    if (update.message && update.message.text) {
+      const msg = update.message;
+      const text = msg.text;
+      const chatId = msg.chat.id;
+
+      if (text.startsWith('/start auth_')) {
+        const sessionId = text.replace('/start auth_', '').trim();
+        
+        if (!supabase) {
+          await bot.sendMessage(chatId, '❌ Ошибка сервера: база данных не подключена.');
+          return res.sendStatus(200);
+        }
+
+        const { data: s } = await supabase.from('auth_magic_links').select('*').eq('session_id', sessionId).maybeSingle();
+        
+        if (!s || s.status !== 'pending') {
+          await bot.sendMessage(chatId, '❌ Ссылка устарела или недействительна. Вернитесь на сайт и нажмите кнопку входа еще раз.');
+        } else {
+          const { data: clients } = await supabase.from('clients').select('*');
+          let client = (clients || []).find(c => String(c.telegram_id) === String(msg.from.id) || String(c.telegram_chat_id) === String(chatId));
+          
+          if (!client) {
+            client = {
+              id: crypto.randomUUID(),
+              name: msg.from.first_name + (msg.from.last_name ? ' ' + msg.from.last_name : ''),
+              phone: '',
+              email: '',
+              vk_id: '',
+              cars: [],
+              repairs: [],
+              telegram_id: String(msg.from.id),
+              telegram_username: msg.from.username || '',
+              telegram_chat_id: String(chatId),
+              created_at: new Date().toISOString()
+            };
+            await supabase.from('clients').insert(client);
+          } else {
+            let updated = {};
+            if (!client.telegram_id) updated.telegram_id = String(msg.from.id);
+            if (!client.telegram_chat_id) updated.telegram_chat_id = String(chatId);
+            if (Object.keys(updated).length > 0) await supabase.from('clients').update(updated).eq('id', client.id);
+          }
+
+          await supabase.from('auth_magic_links').update({ status: 'approved', client_id: client.id }).eq('session_id', sessionId);
+          
+          const { data: adminSettings } = await supabase.from('settings').select('*').maybeSingle();
+          if (adminSettings && adminSettings.data && Array.isArray(adminSettings.data.masterTelegramChatIds)) {
+            for (const adminChatId of adminSettings.data.masterTelegramChatIds) {
+              await bot.sendMessage(adminChatId, `🟢 Авторизован новый клиент:\nИмя: ${client.name}\nTG: @${client.telegram_username}`).catch(() => {});
+            }
+          }
+          
+          await bot.sendMessage(chatId, '✅ Вы успешно авторизовались в личном кабинете AutoElectro! Возвращайтесь на сайт.');
+        }
+      } else if (text === '/start') {
+        await bot.sendMessage(chatId, '👋 Привет! Я бот для входа в личный кабинет клиента AutoElectro.\n\nОтправьте ваш номер телефона в формате +79991234567, чтобы привязать аккаунт.');
+      } else {
+        // Fallback for regular text messages
+        if (!supabase) return res.sendStatus(200);
+        
+        let clientMatch = null;
+        const { data: allClients } = await supabase.from('clients').select('*');
+        if (allClients) {
+          clientMatch = allClients.find(c => String(c.telegram_chat_id) === String(chatId) || String(c.telegram_id) === String(msg.from.id));
+        }
+
+        if (!clientMatch) {
+          const phoneRegex = /^(\+)?(7|8)?\s?\(?\d{3}\)?\s?\d{3}-?\d{2}-?\d{2}$/;
+          if (phoneRegex.test(text)) {
+            const cleanPhone = text.replace(/\D/g, '');
+            if (allClients) {
+              const byPhone = allClients.find(c => c.phone.replace(/\D/g, '') === cleanPhone);
+              if (byPhone) {
+                await supabase.from('clients').update({
+                  telegram_id: String(msg.from.id),
+                  telegram_username: msg.from.username || '',
+                  telegram_chat_id: String(chatId)
+                }).eq('id', byPhone.id);
+                await bot.sendMessage(chatId, '✅ Аккаунт успешно привязан по номеру телефона!');
+              } else {
+                await bot.sendMessage(chatId, '❌ Номер телефона не найден в базе.');
+              }
+            }
+          }
+        }
+      }
+    }
   } catch (err) {
     console.error('Webhook error:', err);
   }
