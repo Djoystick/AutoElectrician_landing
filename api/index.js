@@ -18,7 +18,11 @@ const helmet      = require('helmet');
 const rateLimit   = require('express-rate-limit');
 const bcrypt      = require('bcryptjs');
 const https       = require('https');
+const { createClient } = require('@supabase/supabase-js');
 
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 /* ── In-memory logs (limit to 100) ── */
 const memLogs = [];
 const addLog = (msg) => {
@@ -103,10 +107,15 @@ async function setupBotHandlers(bot) {
   /* Magic Link Auth: /start auth_<session_id> */
   bot.onText(/\/start auth_(.+)/, async (msg, match) => {
     const sessionId = match[1];
-    const s = magicSessions[sessionId];
     const chatId = msg.chat.id;
 
-    if (!s) {
+    if (!supabase) {
+      return bot.sendMessage(chatId, '❌ Ошибка сервера: база данных не подключена.');
+    }
+
+    const { data: s } = await supabase.from('auth_magic_links').select('*').eq('session_id', sessionId).maybeSingle();
+
+    if (!s || s.status !== 'pending') {
       return bot.sendMessage(chatId, '❌ Ссылка устарела или недействительна. Вернитесь на сайт и нажмите кнопку входа еще раз.');
     }
 
@@ -126,15 +135,18 @@ async function setupBotHandlers(bot) {
       };
       data.clients = data.clients || [];
       data.clients.push(client);
+      await writeData(data);
     } else {
-      client.telegramId = msg.from.id;
-      client.telegramUsername = msg.from.username || '';
-      client.telegramChatId = chatId;
+      let updated = false;
+      if (!client.telegramId) { client.telegramId = msg.from.id; updated = true; }
+      if (!client.telegramChatId) { client.telegramChatId = chatId; updated = true; }
+      if (updated) await writeData(data);
     }
     
-    await writeData(data);
-    s.status = 'success';
-    s.token = createSession(client.id);
+    await supabase.from('auth_magic_links').update({
+      status: 'approved',
+      client_id: client.id
+    }).eq('session_id', sessionId);
 
     bot.sendMessage(chatId, '✅ Вы успешно авторизованы как клиент! Теперь можете вернуться в браузер — страница уже открылась.');
   });
@@ -184,14 +196,7 @@ async function setupBotHandlers(bot) {
 
 
 /* ── Multer storage ── */
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename:    (req, file, cb) => {
-    const ext    = path.extname(file.originalname).toLowerCase();
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e6);
-    cb(null, unique + ext);
-  },
-});
+const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -284,12 +289,15 @@ const authCheck = async (req, res, next) => {
 const clientAuth = async (req, res, next) => {
   const token = req.headers['x-client-token'];
   if (!token) return res.status(401).json({ error: 'No token' });
-  const session = sessionStore.get(token);
-  if (!session || session.expiresAt < Date.now()) {
-    sessionStore.delete(token);
+  if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
+  
+  const { data: session } = await supabase.from('auth_sessions').select('*').eq('token', token).maybeSingle();
+  if (!session || new Date(session.expires_at).getTime() < Date.now()) {
+    if (session) await supabase.from('auth_sessions').delete().eq('token', token);
     return res.status(401).json({ error: 'Session expired' });
   }
-  req.clientId = session.clientId;
+  
+  req.clientId = session.client_id;
   next();
 };
 
@@ -310,12 +318,15 @@ async function verifyTelegramAuth(authData) {
 }
 
 /* ── Helper: create client session ── */
-function createSession(clientId) {
-  const token = crypto.randomBytes(32).toString('hex');
-  sessionStore.set(token, {
-    clientId,
-    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-  });
+async function createSession(clientId) {
+  const token = crypto.randomUUID();
+  if (supabase) {
+    await supabase.from('auth_sessions').insert({
+      token,
+      client_id: clientId,
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    });
+  }
   return token;
 }
 
@@ -557,11 +568,12 @@ app.post('/api/client/auth/request', limiterOtpRequest, async (req, res) => {
   const client = (data.clients || []).find(c => c.phone === phone);
   if (!client) return res.status(404).json({ ok: false, error: 'client_not_found' });
 
-  // Generate 6-digit OTP, valid 10 minutes
   const code = String(Math.floor(100000 + Math.random() * 900000));
-  otpStore.set(phone, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  if (supabase) {
+    await supabase.from('auth_otps').upsert({ phone, code, expires_at: expiresAt });
+  }
 
-  // Try sending via Telegram bot
   const bot        = getBot();
   const chatId     = client.telegramChatId;
   let   deliveryMode = 'manual';
@@ -578,8 +590,6 @@ app.post('/api/client/auth/request', limiterOtpRequest, async (req, res) => {
     }
   }
 
-  // SECURITY: Only return code if NO Telegram configured (manual master-share fallback)
-  // Never expose code if Telegram delivery was successful
   const exposeCode = deliveryMode === 'manual' && process.env.NODE_ENV !== 'production';
   res.json({
     ok:           true,
@@ -595,22 +605,24 @@ app.post('/api/client/auth', limiterOtpVerify, async (req, res) => {
   const { phone, code } = req.body;
   if (!phone || !code) return res.status(400).json({ error: 'phone and code required' });
 
-  const otp = otpStore.get(phone);
-  if (!otp || otp.expiresAt < Date.now()) {
-    otpStore.delete(phone);
+  if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
+  const { data: otpRow } = await supabase.from('auth_otps').select('*').eq('phone', phone).maybeSingle();
+  if (!otpRow) return res.status(400).json({ ok: false, error: 'code_expired' });
+  if (new Date(otpRow.expires_at).getTime() < Date.now()) {
+    await supabase.from('auth_otps').delete().eq('phone', phone);
     return res.status(401).json({ ok: false, error: 'code_expired' });
   }
-  if (otp.code !== String(code)) {
+  if (String(otpRow.code) !== String(code)) {
     return res.status(401).json({ ok: false, error: 'wrong_code' });
   }
 
-  otpStore.delete(phone);
+  await supabase.from('auth_otps').delete().eq('phone', phone);
 
   const data   = await readData();
   const client = (data.clients || []).find(c => c.phone === phone);
   if (!client) return res.status(404).json({ ok: false, error: 'client_not_found' });
 
-  const token = createSession(client.id);
+  const token = await createSession(client.id);
   res.json({ ok: true, token, clientId: client.id, name: client.name });
 });
 
@@ -631,12 +643,8 @@ app.get('/api/client/auth/telegram/magic', async (req, res) => {
   }
 
   const sessionId = crypto.randomUUID();
-  magicSessions[sessionId] = { status: 'pending', created: Date.now() };
-  
-  // Cleanup old sessions
-  const now = Date.now();
-  for (const sid in magicSessions) {
-    if (now - magicSessions[sid].created > 10 * 60 * 1000) delete magicSessions[sid];
+  if (supabase) {
+    await supabase.from('auth_magic_links').insert({ session_id: sessionId, status: 'pending' });
   }
 
   res.json({ sessionId, botUsername: cachedBotUsername });
@@ -644,14 +652,28 @@ app.get('/api/client/auth/telegram/magic', async (req, res) => {
 
 app.get('/api/client/auth/telegram/magic/status', async (req, res) => {
   const { session } = req.query;
-  const s = magicSessions[session];
+  if (!supabase) return res.json({ status: 'pending' });
+
+  const { data: s } = await supabase.from('auth_magic_links').select('*').eq('session_id', session).maybeSingle();
   if (!s) return res.json({ status: 'expired' });
-  if (s.status === 'success') {
-    const token = s.token;
-    delete magicSessions[session];
+  
+  if (s.status === 'approved') {
+    const data = await readData();
+    const client = (data.clients || []).find(c => c.id === s.client_id);
+    if (!client) return res.json({ status: 'expired' });
+
+    await supabase.from('auth_magic_links').delete().eq('session_id', session);
+
+    const token = await createSession(client.id);
     return res.json({ status: 'success', token });
   }
   res.json({ status: 'pending' });
+});
+
+app.post('/api/client/logout', async (req, res) => {
+  const token = req.headers['x-client-token'];
+  if (token && supabase) await supabase.from('auth_sessions').delete().eq('token', token);
+  res.json({ ok: true });
 });
 
 /* ══════════════════════════════════════════════════════════
@@ -747,7 +769,7 @@ app.get('/api/client/auth/vk/callback', async (req, res) => {
     }
 
     await writeData(dbData);
-    const token = createSession(client.id);
+    const token = await createSession(client.id);
     // Redirect back to profile with token in URL hash (client stores it)
     res.redirect(`/profile.html?auth=vk&token=${token}&name=${encodeURIComponent(client.name)}`);
 
