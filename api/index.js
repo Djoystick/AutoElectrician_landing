@@ -309,6 +309,32 @@ app.post('/api/auth', limiterAdmin, async (req, res) => {
   else res.status(401).json({ ok: false, error: 'Неверный пароль' });
 });
 
+/* ── Masters Management ── */
+app.get('/api/masters', authCheck, async (req, res) => {
+  if (!supabase) return res.json({ ok: true, masters: [] });
+  const { data } = await supabase.from('masters').select('id, name, username, telegram_chat_id, created_at');
+  res.json({ ok: true, masters: data || [] });
+});
+
+app.post('/api/masters', authCheck, async (req, res) => {
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { name, username, password } = req.body;
+  if (!name || !username || !password) return res.status(400).json({ ok: false, error: 'Missing fields' });
+  const hashedPassword = bcrypt.hashSync(password, 10);
+  const { data, error } = await supabase.from('masters').insert({
+    name, username, password: hashedPassword
+  }).select('id, name, username, telegram_chat_id, created_at').single();
+  if (error) return res.status(500).json({ ok: false, error: error.message });
+  res.json({ ok: true, master: data });
+});
+
+app.delete('/api/masters/:id', authCheck, async (req, res) => {
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { error } = await supabase.from('masters').delete().eq('id', req.params.id);
+  if (error) return res.status(500).json({ ok: false, error: error.message });
+  res.json({ ok: true });
+});
+
 app.put('/api/settings', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   const { data: sRow } = await supabase.from('settings').select('*').maybeSingle();
