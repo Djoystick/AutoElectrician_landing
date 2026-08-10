@@ -48,7 +48,7 @@ function renderHero() {
     const last  = words.pop();
     titleEl.innerHTML =
       words.join(' ') + (words.length ? ' ' : '') +
-      `<span class="text-gradient">${last}</span>`;
+      `<span class="text-accent">${last}</span>`;
   }
 
   const subtitleEl = document.getElementById('hero-subtitle');
