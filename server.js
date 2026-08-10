@@ -972,7 +972,7 @@ app.get('/api/client/auth/telegram/callback', (req, res) => {
     writeData(data);
   }
 
-  const token = generateToken(client.id);
+  const token = createSession(client.id);
   
   // Return an HTML page that stores the token and redirects
   res.send(`
