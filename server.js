@@ -58,10 +58,12 @@ function getBot() {
     
     // Prevent polling conflicts from crashing the server during rolling deploys
     tgBot.on('polling_error', (error) => {
+      addLog(`[TG] Polling error: ${error.message || error}`);
       console.error('Telegram polling error:', error.message || error);
     });
     
     setupBotHandlers(tgBot);
+    addLog('[TG] Bot initialized and polling started');
   }
   return tgBot;
 }
@@ -157,7 +159,12 @@ function setupBotHandlers(bot) {
 }
 
 /* ── Init bot on startup if token is already saved ── */
-try { getBot(); } catch {}
+try {
+  getBot();
+} catch (err) {
+  addLog(`[TG] Bot Init Error: ${err.stack || err}`);
+  console.error('Bot Init Error:', err);
+}
 
 /* ── Multer storage ── */
 const storage = multer.diskStorage({
