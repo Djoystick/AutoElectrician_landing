@@ -133,6 +133,7 @@ function setupBotHandlers(bot) {
 
   /* Any text message that looks like a phone — register chatId */
   bot.on('message', (msg) => {
+    addLog(`[TG] Received message: ${msg.text} from ${msg.chat.id}`);
     const text = (msg.text || '').trim().replace(/[\s\-()]/g, '');
     if (/^\+7\d{10}$/.test(text) || /^8\d{10}$/.test(text)) {
       // Normalise to +7 format
