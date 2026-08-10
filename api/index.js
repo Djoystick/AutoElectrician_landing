@@ -64,10 +64,15 @@ const sessionStore = new Map();
 /* ── Telegram bot instance (initialised lazily when token is saved) ── */
 let tgBot = null;
 
-function getBot() {
+async function getBot() {
+  let token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token && supabase) {
+    const { data: sRow } = await supabase.from('settings').select('data').maybeSingle();
+    if (sRow && sRow.data && sRow.data.telegramBotToken) token = sRow.data.telegramBotToken;
+  }
+  
   if (process.env.VERCEL) {
     if (!tgBot) {
-      const token = process.env.TELEGRAM_BOT_TOKEN;
       if (!token) return null;
       tgBot = new TelegramBot(token);
       if (process.env.SITE_URL) {
@@ -78,7 +83,6 @@ function getBot() {
     return tgBot;
   } else {
     if (!tgBot) {
-      const token = process.env.TELEGRAM_BOT_TOKEN;
       if (!token) return null;
       tgBot = new TelegramBot(token, { polling: true });
       setupBotHandlers(tgBot);
@@ -242,12 +246,14 @@ const limiterPublic = rateLimit({
 /* ── Data helpers ── */
 
 /* ── Init bot on startup if token is already saved ── */
-try {
-  getBot();
-} catch (err) {
-  addLog(`[TG] Bot Init Error: ${err.stack || err}`);
-  console.error('Bot Init Error:', err);
-}
+(async () => {
+  try {
+    await getBot();
+  } catch (err) {
+    addLog(`[TG] Bot Init Error: ${err.stack || err}`);
+    console.error('Bot Init Error:', err);
+  }
+})();
 
 /* ── ID generator ── */
 const uid = () => crypto.randomBytes(8).toString('hex');
@@ -342,7 +348,7 @@ app.put('/api/settings', authCheck, async (req, res) => {
   if (newToken !== undefined) {
     currentSettings.telegramBotToken = newToken;
     if (tgBot) { try { tgBot.stopPolling(); } catch {} tgBot = null; }
-    if (newToken) setTimeout(() => { try { getBot(); } catch {} }, 500);
+    if (newToken) setTimeout(async () => { try { await getBot(); } catch {} }, 500);
   }
   
   if (sRow) await supabase.from('settings').update({ data: currentSettings }).eq('id', sRow.id);
@@ -472,7 +478,7 @@ app.post('/api/requests', async (req, res) => {
   await supabase.from('requests').insert(payload);
 
   try {
-    const bot = getBot();
+    const bot = await getBot();
     if (bot) {
       const { data: masters } = await supabase.from('masters').select('telegram_chat_id');
       for (const m of (masters || [])) {
@@ -765,7 +771,7 @@ app.post('/api/client/auth/request', limiterOtpRequest, async (req, res) => {
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   await supabase.from('auth_otps').upsert({ phone, code, expires_at: expiresAt });
 
-  const bot        = getBot();
+  const bot        = await getBot();
   const chatId     = client.telegram_chat_id;
   let   deliveryMode = 'manual';
 
@@ -817,7 +823,7 @@ app.post('/api/client/auth', limiterOtpVerify, async (req, res) => {
 
 app.get('/api/client/auth/telegram/magic', async (req, res) => {
   if (!supabase) return res.status(500).json({ error: 'DB not configured' });
-  const bot = getBot();
+  const bot = await getBot();
   if (!bot) return res.status(500).json({ error: 'Telegram bot not configured' });
   
   if (!cachedBotUsername) {
