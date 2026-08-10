@@ -815,6 +815,27 @@ app.post('/api/client/auth', limiterOtpVerify, async (req, res) => {
   res.json({ ok: true, token, clientId: client.id, name: client.name });
 });
 
+app.get('/api/client/auth/telegram/magic', async (req, res) => {
+  if (!supabase) return res.status(500).json({ error: 'DB not configured' });
+  const bot = getBot();
+  if (!bot) return res.status(500).json({ error: 'Telegram bot not configured' });
+  
+  if (!cachedBotUsername) {
+    try {
+      const me = await bot.getMe();
+      cachedBotUsername = me.username;
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to fetch bot username' });
+    }
+  }
+
+  const sessionId = crypto.randomBytes(16).toString('hex');
+  const { error } = await supabase.from('auth_magic_links').insert({ session_id: sessionId, status: 'pending' });
+  if (error) return res.status(500).json({ error: 'DB Error' });
+  
+  res.json({ sessionId, botUsername: cachedBotUsername });
+});
+
 app.get('/api/client/auth/telegram/magic/status', async (req, res) => {
   const { session } = req.query;
   if (!supabase) return res.json({ status: 'pending' });
