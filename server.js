@@ -40,6 +40,10 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 const otpStore = new Map();
 
 /* ── In-memory session store { token: { clientId, expiresAt } } ── */
+// Magic Link Auth Sessions
+const magicSessions = {};
+let cachedBotUsername = '';
+
 const sessionStore = new Map();
 
 /* ── Telegram bot instance (initialised lazily when token is saved) ── */
@@ -58,11 +62,50 @@ function getBot() {
 
 function setupBotHandlers(bot) {
   /* /start — register chat ID by phone number */
-  bot.onText(/\/start/, (msg) => {
+  bot.onText(/\/start$/, (msg) => {
     bot.sendMessage(msg.chat.id,
       '👋 Привет! Я бот для входа в личный кабинет клиента AutoElectro.\n\n' +
       'Отправьте ваш номер телефона в формате +79991234567, чтобы привязать аккаунт.'
     );
+  });
+
+  /* Magic Link Auth: /start auth_<session_id> */
+  bot.onText(/\/start auth_(.+)/, (msg, match) => {
+    const sessionId = match[1];
+    const s = magicSessions[sessionId];
+    const chatId = msg.chat.id;
+
+    if (!s) {
+      return bot.sendMessage(chatId, '❌ Ссылка устарела или недействительна. Вернитесь на сайт и нажмите кнопку входа еще раз.');
+    }
+
+    const data = readData();
+    let client = (data.clients || []).find(c => String(c.telegramId) === String(msg.from.id) || String(c.telegramChatId) === String(chatId));
+    
+    if (!client) {
+      client = {
+        id: crypto.randomUUID(),
+        name: msg.from.first_name + (msg.from.last_name ? ' ' + msg.from.last_name : ''),
+        phone: '',
+        cars: [],
+        telegramId: msg.from.id,
+        telegramUsername: msg.from.username || '',
+        telegramChatId: chatId,
+        createdAt: new Date().toISOString()
+      };
+      data.clients = data.clients || [];
+      data.clients.push(client);
+    } else {
+      client.telegramId = msg.from.id;
+      client.telegramUsername = msg.from.username || '';
+      client.telegramChatId = chatId;
+    }
+    
+    writeData(data);
+    s.status = 'success';
+    s.token = createSession(client.id);
+
+    bot.sendMessage(chatId, '✅ Вы успешно авторизованы! Теперь можете вернуться в браузер — страница уже открылась.');
   });
 
   /* Any text message that looks like a phone — register chatId */
@@ -516,53 +559,43 @@ app.post('/api/client/auth', limiterOtpVerify, (req, res) => {
 });
 
 /* ══════════════════════════════════════════════════════════
-   ░░ TELEGRAM LOGIN WIDGET AUTH ░░
-   POST /api/client/auth/telegram
-   Body: { id, first_name, last_name, username, photo_url, auth_date, hash }
+   ░░ TELEGRAM MAGIC LINK AUTH (NATIVE DEEP LINK) ░░
 ══════════════════════════════════════════════════════════ */
-app.post('/api/client/auth/telegram', limiterOtpVerify, (req, res) => {
-  const authData = req.body;
-  if (!authData || !authData.hash || !authData.id) {
-    return res.status(400).json({ ok: false, error: 'invalid_data' });
-  }
-
-  if (!verifyTelegramAuth(authData)) {
-    return res.status(401).json({ ok: false, error: 'invalid_hash' });
-  }
-
-  const data   = readData();
-  let   client = (data.clients || []).find(c => String(c.telegramId) === String(authData.id));
-
-  if (!client) {
-    // Try to find by linked chatId
-    client = (data.clients || []).find(c => String(c.telegramChatId) === String(authData.id));
-  }
-
-  if (!client) {
-    // Auto-create guest client profile
-    if (!data.clients) data.clients = [];
-    client = {
-      id:         uid(),
-      name:       [authData.first_name, authData.last_name].filter(Boolean).join(' '),
-      phone:      '',
-      telegramId: authData.id,
-      telegramUsername: authData.username || '',
-      cars:       [],
-      repairs:    [],
-      createdAt:  new Date().toISOString(),
-    };
-    data.clients.push(client);
-  } else {
-    // Update telegramId if missing
-    if (!client.telegramId) {
-      client.telegramId = authData.id;
-      client.telegramUsername = authData.username || '';
+app.get('/api/client/auth/telegram/magic', async (req, res) => {
+  const bot = getBot();
+  if (!bot) return res.status(500).json({ error: 'Telegram bot not configured' });
+  
+  if (!cachedBotUsername) {
+    try {
+      const me = await bot.getMe();
+      cachedBotUsername = me.username;
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to fetch bot username' });
     }
   }
 
-  writeData(data);
-  const token = createSession(client.id);
-  res.json({ ok: true, token, clientId: client.id, name: client.name });
+  const sessionId = crypto.randomUUID();
+  magicSessions[sessionId] = { status: 'pending', created: Date.now() };
+  
+  // Cleanup old sessions
+  const now = Date.now();
+  for (const sid in magicSessions) {
+    if (now - magicSessions[sid].created > 10 * 60 * 1000) delete magicSessions[sid];
+  }
+
+  res.json({ sessionId, botUsername: cachedBotUsername });
+});
+
+app.get('/api/client/auth/telegram/magic/status', (req, res) => {
+  const { session } = req.query;
+  const s = magicSessions[session];
+  if (!s) return res.json({ status: 'expired' });
+  if (s.status === 'success') {
+    const token = s.token;
+    delete magicSessions[session];
+    return res.json({ status: 'success', token });
+  }
+  res.json({ status: 'pending' });
 });
 
 /* ══════════════════════════════════════════════════════════
@@ -936,63 +969,6 @@ app.post('/api/clients/:id/reminders', authCheck, (req, res) => {
   client.repairs.push(reminder);
   writeData(data);
   res.json({ ok: true, reminder });
-});
-
-/* ── TELEGRAM AUTH REDIRECT (MOBILE FRIENDLY) ── */
-app.all('/api/client/auth/telegram/callback', (req, res) => {
-  const authData = Object.keys(req.body || {}).length > 0 ? req.body : req.query;
-  console.log('[DEBUG] ANY /api/client/auth/telegram/callback received:', authData);
-  if (!authData || !authData.hash || !authData.id) {
-    console.log('[DEBUG] Telegram Auth failed: Invalid data');
-    return res.status(400).send('Invalid data');
-  }
-
-  if (!verifyTelegramAuth(authData)) {
-    return res.status(401).send('Invalid hash');
-  }
-
-  const data   = readData();
-  let   client = (data.clients || []).find(c => String(c.telegramId) === String(authData.id));
-
-  if (!client) {
-    client = (data.clients || []).find(c => String(c.telegramChatId) === String(authData.id));
-  }
-
-  if (!client) {
-    if (!data.clients) data.clients = [];
-    client = {
-      id:         uid(),
-      name:       [authData.first_name, authData.last_name].filter(Boolean).join(' '),
-      phone:      '',
-      telegramId: authData.id,
-      telegramUsername: authData.username || '',
-      cars:       [],
-      repairs:    [],
-      createdAt:  new Date().toISOString(),
-      status:     'newcomer',
-      balance:    0
-    };
-    data.clients.push(client);
-    writeData(data);
-  }
-
-  const token = createSession(client.id);
-  
-  console.log('[DEBUG] Telegram Auth successful, generated token for client:', client.id);
-
-  // Return an HTML page that stores the token and redirects
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head><title>Авторизация...</title></head>
-    <body>
-      <script>
-        localStorage.setItem('ae_client_token', '${token}');
-        window.top.location.href = '/profile.html';
-      </script>
-    </body>
-    </html>
-  `);
 });
 
 app.post('/api/debug', (req, res) => {

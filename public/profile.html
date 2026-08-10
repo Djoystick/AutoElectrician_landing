@@ -91,7 +91,7 @@
     <!-- OAuth buttons -->
     <div class="space-y-3 mb-5">
       <!-- Standard OAuth Link -->
-      <a href="https://oauth.telegram.org/auth?bot_id=8227351240&origin=https%3A%2F%2Fautoelectricianlanding-production.up.railway.app&embed=0&request_access=write&return_to=https%3A%2F%2Fautoelectricianlanding-production.up.railway.app%2Fapi%2Fclient%2Fauth%2Ftelegram%2Fcallback" 
+      <a id="tg-login-btn" href="#" 
          class="w-full flex items-center justify-center gap-3 py-3 rounded-xl
                 bg-[#0088CC]/10 border border-[#0088CC]/40 text-[#0088CC]
                 hover:bg-[#0088CC]/20 transition-colors font-semibold text-sm">
@@ -100,6 +100,7 @@
         </svg>
         Войти через Telegram
       </a>
+
 
       <!-- VK OAuth (Stub for now) -->
       <a href="#" onclick="alert('Авторизация через ВКонтакте будет доступна в ближайшее время.'); return false;"

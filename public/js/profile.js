@@ -429,8 +429,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadProfile();
   } else {
     showLoginScreen();
+    initTelegramMagicLink();
   }
 });
+
+/* ══════════════════════════════════════════════════════════
+   TELEGRAM MAGIC LINK INITIATION & POLLING
+══════════════════════════════════════════════════════════ */
+let magicPollInterval = null;
+
+async function initTelegramMagicLink() {
+  try {
+    const res = await fetch('/api/client/auth/telegram/magic');
+    const data = await res.json();
+    if (!data.sessionId || !data.botUsername) return;
+
+    const tgBtn = document.getElementById('tg-login-btn');
+    if (tgBtn) {
+      tgBtn.href = `tg://resolve?domain=${data.botUsername}&start=auth_${data.sessionId}`;
+      
+      // Start polling
+      if (magicPollInterval) clearInterval(magicPollInterval);
+      magicPollInterval = setInterval(async () => {
+        try {
+          const pRes = await fetch(`/api/client/auth/telegram/magic/status?session=${data.sessionId}`);
+          const pData = await pRes.json();
+          if (pData.status === 'success') {
+            clearInterval(magicPollInterval);
+            TOKEN = pData.token;
+            localStorage.setItem(TOKEN_KEY, TOKEN);
+            await loadProfile();
+          } else if (pData.status === 'expired') {
+            clearInterval(magicPollInterval);
+            initTelegramMagicLink(); // Generate new session
+          }
+        } catch (e) {
+          // Ignore polling errors
+        }
+      }, 2000);
+    }
+  } catch (e) {
+    console.error('Failed to init Telegram magic link', e);
+  }
+}
 
 /* ── Telegram Login Widget ── */
 function injectTelegramWidget() {
