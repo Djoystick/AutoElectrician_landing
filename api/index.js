@@ -49,15 +49,7 @@ try { const pkg = require('node-telegram-bot-api'); TelegramBot = pkg.default ||
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-/* ── Paths ── */
-const DATA_FILE  = path.join(__dirname, 'data', 'data.json');
-const UPLOAD_DIR = path.join(__dirname, 'public', 'uploads');
-const PUBLIC_DIR = path.join(__dirname, 'public');
-
-/* ── Ensure directories exist ── */
-[path.join(__dirname, 'data'), UPLOAD_DIR].forEach(dir => {
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-});
+const PUBLIC_DIR = path.join(__dirname, '../public');
 
 /* ── In-memory OTP store { phone: { code, expiresAt } } ── */
 const otpStore = new Map();
