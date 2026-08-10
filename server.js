@@ -133,6 +133,7 @@ app.use(helmet({
 }));
 
 app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static(PUBLIC_DIR));
 
 /* ── Rate limiters ── */
@@ -938,11 +939,11 @@ app.post('/api/clients/:id/reminders', authCheck, (req, res) => {
 });
 
 /* ── TELEGRAM AUTH REDIRECT (MOBILE FRIENDLY) ── */
-app.get('/api/client/auth/telegram/callback', (req, res) => {
-  console.log('[DEBUG] GET /api/client/auth/telegram/callback received:', req.query);
-  const authData = req.query;
+app.all('/api/client/auth/telegram/callback', (req, res) => {
+  const authData = Object.keys(req.body || {}).length > 0 ? req.body : req.query;
+  console.log('[DEBUG] ANY /api/client/auth/telegram/callback received:', authData);
   if (!authData || !authData.hash || !authData.id) {
-    console.log('[DEBUG] GET Telegram Auth failed: Invalid data');
+    console.log('[DEBUG] Telegram Auth failed: Invalid data');
     return res.status(400).send('Invalid data');
   }
 
