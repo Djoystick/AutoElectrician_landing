@@ -108,7 +108,10 @@ function bindEvents() {
     rest.acceptingRequests = document.getElementById('cb-accepting').checked;
     if (newPassword) { rest.password = newPassword; TOKEN = newPassword; localStorage.setItem('ae_admin_token', TOKEN); }
     const res = await api('PUT', '/api/settings', rest);
-    if (res.ok) toast('Настройки сохранены');
+    if (res.ok) {
+      toast('Настройки сохранены!');
+      loadAndShow();
+    } else toast('Ошибка сохранения', 'error');
   });
 }
 
@@ -602,40 +605,77 @@ function populateSettings() {
   if (form.elements.masterName)   form.elements.masterName.value   = s.masterName   || '';
   document.getElementById('cb-accepting').checked = s.acceptingRequests !== false;
 
-  const tgList = document.getElementById('master-tg-list');
-  if (tgList) {
-    const ids = s.masterTelegramChatIds || [];
-    if (ids.length === 0) {
-      tgList.innerHTML = '<span class="text-sm text-gray-400">Нет подключенных мастеров</span>';
-    } else {
-      tgList.innerHTML = ids.map(id => `
-        <div class="flex items-center justify-between bg-card p-2 rounded border border-border">
-          <span class="text-sm">Chat ID: <b>${id}</b></span>
-          <button type="button" class="text-red-400 hover:text-red-300 transition-colors" onclick="removeMasterId('${id}')">
-            <i data-lucide="trash-2" class="w-4 h-4"></i>
-          </button>
-        </div>
-      `).join('');
-      if (window.lucide) lucide.createIcons();
-    }
-  }
+  fetchMasters();
 }
 
-async function removeMasterId(id) {
-  if (!confirm('Отключить уведомления для Chat ID ' + id + '?')) return;
-  const s = DATA.settings || {};
-  const ids = s.masterTelegramChatIds || [];
-  const newIds = ids.filter(x => x !== id);
-  const res = await api('PUT', '/api/settings', { masterTelegramChatIds: newIds });
+async function fetchMasters() {
+  const tbody = document.getElementById('masters-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="3" class="px-4 py-3 text-center text-gray-500">Загрузка...</td></tr>';
+  
+  const res = await api('GET', '/api/masters');
+  if (!res.ok || !res.masters) {
+    tbody.innerHTML = '<tr><td colspan="3" class="px-4 py-3 text-center text-red-500">Ошибка загрузки</td></tr>';
+    return;
+  }
+  
+  if (res.masters.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" class="px-4 py-3 text-center text-gray-500">Нет мастеров</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = res.masters.map(m => `
+    <tr class="hover:bg-white/[0.02] transition-colors">
+      <td class="px-4 py-3 align-middle">
+        <div class="font-bold text-white">${escapeHtml(m.name)}</div>
+        <div class="text-xs text-gray-400">@${escapeHtml(m.username)}</div>
+      </td>
+      <td class="px-4 py-3 align-middle">
+        ${m.telegram_chat_id ? `<span class="text-green-400 text-xs flex items-center gap-1"><i data-lucide="check-circle-2" class="w-3 h-3"></i> Подключен (${m.telegram_chat_id})</span>` : '<span class="text-gray-500 text-xs">Не привязан</span>'}
+      </td>
+      <td class="px-4 py-3 text-right align-middle">
+        <button type="button" class="btn-ghost text-red-400 hover:text-red-300 p-2" onclick="deleteMaster('${m.id}')" title="Удалить">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+  if (window.lucide) lucide.createIcons();
+}
+
+function openMasterModal() {
+  document.getElementById('form-master').reset();
+  openModal('modal-master');
+}
+window.openMasterModal = openMasterModal;
+
+document.getElementById('form-master').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = formToObj(e.target);
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  const res = await api('POST', '/api/masters', body);
+  btn.disabled = false;
   if (res.ok) {
-    DATA.settings.masterTelegramChatIds = newIds;
-    populateSettings();
-    toast('Мастер удален');
+    toast('Мастер успешно добавлен');
+    closeModal('modal-master');
+    fetchMasters();
   } else {
-    toast('Ошибка удаления', 'error');
+    toast(res.error || 'Ошибка добавления', 'error');
+  }
+});
+
+async function deleteMaster(id) {
+  if (!confirm('Точно удалить этого мастера?')) return;
+  const res = await api('DELETE', `/api/masters/${id}`);
+  if (res.ok) {
+    toast('Мастер удален');
+    fetchMasters();
+  } else {
+    toast(res.error || 'Ошибка удаления', 'error');
   }
 }
-window.removeMasterId = removeMasterId;
+window.deleteMaster = deleteMaster;
 
 
 /* ══════════════════════════════════════════════════════════
