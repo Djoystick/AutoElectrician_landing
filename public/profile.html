@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
@@ -77,46 +77,35 @@
         </span>
       </div>
       <h1 class="text-xl font-black text-white mt-3 text-center">Личный кабинет</h1>
-      <p class="text-sm text-gray-400 text-center mt-1">Введите номер телефона для входа</p>
+      <p class="text-sm text-gray-400 text-center mt-1">Войдите удобным способом</p>
     </div>
 
-    <!-- Step 1: Phone -->
-    <div id="step-phone">
-      <div class="mb-4">
-        <label class="label">Номер телефона</label>
-        <input id="input-phone" type="tel" class="input" placeholder="+7 (999) 123-45-67"
-               autocomplete="tel" inputmode="tel" />
+    <!-- OAuth buttons -->
+    <div class="space-y-3 mb-5">
+      <!-- Telegram Login Widget container -->
+      <div id="tg-widget-wrap" class="flex justify-center">
+        <!-- Widget injected by JS once bot_name is known -->
+        <button id="btn-tg-fallback"
+                class="w-full flex items-center justify-center gap-3 py-3 rounded-xl
+                       bg-[#0088CC]/10 border border-[#0088CC]/40 text-[#0088CC]
+                       font-semibold text-sm hover:bg-[#0088CC]/20 transition-colors">
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/>
+          </svg>
+          Войти через Telegram
+        </button>
       </div>
-      <div id="phone-error" class="hidden text-red-400 text-sm mb-3 text-center"></div>
-      <button id="btn-send-code" class="btn-primary w-full justify-center py-3">
-        <i data-lucide="send" class="w-4 h-4"></i> Получить код
-      </button>
-      <p class="text-xs text-gray-600 text-center mt-4">
-        Код придёт в Telegram. Если не привязан — попросите у мастера.
-      </p>
-    </div>
 
-    <!-- Step 2: OTP -->
-    <div id="step-otp" class="hidden">
-      <p id="otp-hint" class="text-sm text-gray-400 text-center mb-4"></p>
-      <div class="mb-4">
-        <label class="label">Код подтверждения</label>
-        <input id="input-code" type="text" class="input text-center text-2xl tracking-[.5em] font-black"
-               placeholder="000000" maxlength="6" inputmode="numeric" autocomplete="one-time-code" />
-      </div>
-      <div id="otp-error" class="hidden text-red-400 text-sm mb-3 text-center"></div>
-      <!-- Manual code display if no Telegram -->
-      <div id="manual-code-box" class="hidden bg-accent/10 border border-accent/30 rounded-xl p-4 mb-4 text-center">
-        <p class="text-xs text-gray-400 mb-1">Ваш код (нет Telegram):</p>
-        <p id="manual-code-val" class="text-3xl font-black text-accent tracking-[.4em]"></p>
-        <p class="text-xs text-gray-500 mt-1">Действителен 10 минут</p>
-      </div>
-      <button id="btn-verify-code" class="btn-primary w-full justify-center py-3">
-        <i data-lucide="log-in" class="w-4 h-4"></i> Войти
-      </button>
-      <button id="btn-back-phone" class="btn-ghost w-full justify-center py-2 mt-2">
-        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Назад
-      </button>
+      <!-- VK OAuth (Stub for now) -->
+      <a href="#" onclick="alert('Авторизация через ВКонтакте будет доступна в ближайшее время.'); return false;"
+         class="w-full flex items-center justify-center gap-3 py-3 rounded-xl
+                bg-[#4C75A3]/10 border border-[#4C75A3]/40 text-[#4C75A3]
+                font-semibold text-sm hover:bg-[#4C75A3]/20 transition-colors">
+        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M15.684 0H8.316C1.592 0 0 1.592 0 8.316v7.368C0 22.408 1.592 24 8.316 24h7.368C22.408 24 24 22.408 24 15.684V8.316C24 1.592 22.408 0 15.684 0zm3.692 17.123h-1.744c-.66 0-.862-.523-2.049-1.714-1.033-1.01-1.49-.85-1.49.505v1.21c0 .376-.12.6-1.102.6-1.626 0-3.43-1.002-4.698-2.86-1.91-2.697-2.434-4.714-2.434-5.125 0-.205.08-.398.396-.398h1.744c.295 0 .408.132.522.44.574 1.663 1.536 3.12 1.93 3.12.148 0 .216-.068.216-.44V9.655c-.044-.79-.462-.858-.462-1.138 0-.176.147-.353.383-.353h2.742c.25 0 .338.132.338.42v3.77c0 .25.11.338.178.338.148 0 .274-.088.549-.362.847-.956 1.45-2.426 1.45-2.426.08-.176.245-.34.54-.34h1.744c.524 0 .637.27.524.638-.22.979-2.354 4.036-2.354 4.036-.186.294-.25.43 0 .758.185.25 1.79 1.74 1.79 1.74.528.586.594 1.038.594 1.038z"/>
+        </svg>
+        Войти через ВКонтакте
+      </a>
     </div>
 
     <div class="mt-6 text-center">
@@ -148,6 +137,25 @@
 
   <main class="max-w-3xl mx-auto px-4 py-6 space-y-5 pb-24">
 
+    <!-- Phone Missing Banner -->
+    <div id="phone-missing-banner" class="hidden bg-yellow-500/10 border border-yellow-500/30 rounded-3xl p-5 fade-in">
+      <div class="flex items-start gap-3">
+        <i data-lucide="alert-triangle" class="w-6 h-6 text-yellow-500 shrink-0 mt-0.5"></i>
+        <div class="flex-1">
+          <h3 class="text-yellow-500 font-bold mb-1">Укажите контактный номер</h3>
+          <p class="text-sm text-gray-300 mb-3 leading-relaxed">
+            Ваш профиль успешно создан! Пожалуйста, укажите ваш номер телефона, чтобы мы могли связываться с вами.
+          </p>
+          <div class="flex gap-2">
+            <input id="missing-phone-input" type="tel" class="input py-2 text-sm flex-1" placeholder="+7 (999) 000-00-00">
+            <button id="btn-save-phone" class="btn-primary py-2 px-4 whitespace-nowrap text-sm">
+              Сохранить
+            </button>
+          </div>
+          <p id="missing-phone-error" class="hidden text-red-400 text-xs mt-2"></p>
+        </div>
+      </div>
+    </div>
     <!-- Greeting + mascot -->
     <div class="flex items-center gap-4 fade-in">
       <img src="/mascot.svg" alt="" class="w-12 h-12 object-contain mascot-float shrink-0" />

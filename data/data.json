@@ -4,7 +4,8 @@
     "heroTitle": "Автоэлектрик с выездом",
     "heroSubtitle": "Диагностика, ремонт проводки, сигнализации — приеду к вашей машине в течение часа. Работаем 24/7.",
     "acceptingRequests": true,
-    "telegramBotToken": "",
+    "telegramBotToken": "8227351240:AAGw-trrfL3PckYd8aG5cL-BDnLgzaR9D64",
+    "telegramBotUsername": "AutoElectricalENC_bot",
     "masterName": "Мастер",
     "masterPhoto": ""
   },

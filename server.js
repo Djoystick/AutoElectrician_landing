@@ -1,20 +1,25 @@
 /* ============================================================
-   server.js — AutoElectro Backend v2.0
+   server.js — AutoElectro Backend v2.1
    Express 5 · JSON flat-file DB · Multer uploads
    + CRM: clients, requests, repairs
-   + Telegram OTP auth for clients
+   + Telegram OTP + Telegram Login Widget + VK OAuth
+   + helmet · rate-limit · bcrypt · CORS whitelist
 ============================================================ */
 
 'use strict';
 
-const express  = require('express');
-const fs       = require('fs');
-const path     = require('path');
-const cors     = require('cors');
-const multer   = require('multer');
-const crypto   = require('crypto');
+const express     = require('express');
+const fs          = require('fs');
+const path        = require('path');
+const cors        = require('cors');
+const multer      = require('multer');
+const crypto      = require('crypto');
+const helmet      = require('helmet');
+const rateLimit   = require('express-rate-limit');
+const bcrypt      = require('bcryptjs');
+const https       = require('https');
 
-/* ── Optional Telegram Bot (loaded only if token is set at runtime) ── */
+/* ── Optional Telegram Bot ── */
 let TelegramBot = null;
 try { TelegramBot = require('node-telegram-bot-api'); } catch {}
 
@@ -105,10 +110,55 @@ const upload = multer({
   },
 });
 
-/* ── Middleware ── */
-app.use(cors());
-app.use(express.json());
+/* ── CORS whitelist ── */
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'https://autoelectricianlanding-production.up.railway.app',
+  process.env.SITE_URL,
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, cb) => {
+    // Allow same-origin (no Origin header) and whitelisted origins
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
+
+/* ── Helmet (secure HTTP headers) ── */
+app.use(helmet({
+  contentSecurityPolicy: false, // Tailwind CDN needs this off
+  crossOriginEmbedderPolicy: false,
+}));
+
+app.use(express.json({ limit: '1mb' }));
 app.use(express.static(PUBLIC_DIR));
+
+/* ── Rate limiters ── */
+const limiterOtpRequest = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 5,
+  keyGenerator: req => req.body?.phone || req.ip?.replace(/:\d+[^:]*$/, '') || 'unknown',
+  message: { ok: false, error: 'too_many_requests' },
+  standardHeaders: true, legacyHeaders: false,
+});
+const limiterOtpVerify = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 min
+  max: 10,
+  keyGenerator: req => req.body?.phone || req.ip?.replace(/:\d+[^:]*$/, '') || 'unknown',
+  message: { ok: false, error: 'too_many_requests' },
+});
+const limiterAdmin = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { ok: false, error: 'too_many_requests' },
+});
+const limiterPublic = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { ok: false, error: 'too_many_requests' },
+});
 
 /* ── Data helpers ── */
 const readData  = () => JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
@@ -117,11 +167,16 @@ const writeData = data => fs.writeFileSync(DATA_FILE, JSON.stringify(data, null,
 /* ── ID generator ── */
 const uid = () => crypto.randomBytes(8).toString('hex');
 
-/* ── Admin auth middleware ── */
+/* ── Admin auth middleware (supports plain text + bcrypt hash) ── */
 const authCheck = (req, res, next) => {
   const pwd  = req.headers['x-admin-password'] || req.body?.password;
   const data = readData();
-  if (pwd && pwd === data.settings?.password) return next();
+  const stored = data.settings?.password || '';
+  if (!pwd) return res.status(401).json({ error: 'Unauthorized' });
+  // Support legacy plain-text AND bcrypt hash
+  const isHash = stored.startsWith('$2');
+  const ok = isHash ? bcrypt.compareSync(pwd, stored) : (pwd === stored);
+  if (ok) return next();
   res.status(401).json({ error: 'Unauthorized' });
 };
 
@@ -137,6 +192,32 @@ const clientAuth = (req, res, next) => {
   req.clientId = session.clientId;
   next();
 };
+
+/* ── Helper: verify Telegram Login Widget data ── */
+function verifyTelegramAuth(authData) {
+  const data    = readData();
+  const botToken = process.env.TELEGRAM_BOT_TOKEN || data.settings?.telegramBotToken;
+  if (!botToken) return false;
+  const { hash, ...fields } = authData;
+  const checkStr = Object.keys(fields).sort()
+    .map(k => `${k}=${fields[k]}`).join('\n');
+  const secret  = crypto.createHash('sha256').update(botToken).digest();
+  const hmac    = crypto.createHmac('sha256', secret).update(checkStr).digest('hex');
+  if (hmac !== hash) return false;
+  // Auth date must be within 24 h
+  if (Date.now() / 1000 - Number(authData.auth_date) > 86400) return false;
+  return true;
+}
+
+/* ── Helper: create client session ── */
+function createSession(clientId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  sessionStore.set(token, {
+    clientId,
+    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+  });
+  return token;
+}
 
 /* ── Compute client retention status ── */
 function retentionStatus(client) {
@@ -173,7 +254,7 @@ app.get('/api/data', (req, res) => {
    ░░ ADMIN AUTH (unchanged) ░░
 ══════════════════════════════════════════════════════════ */
 
-app.post('/api/auth', (req, res) => {
+app.post('/api/auth', limiterAdmin, (req, res) => {
   const data = readData();
   if (req.body.password === data.settings?.password) {
     res.json({ ok: true });
@@ -367,7 +448,7 @@ app.delete('/api/requests/:id', authCheck, (req, res) => {
 ══════════════════════════════════════════════════════════ */
 
 /* Step 1 — request OTP code */
-app.post('/api/client/auth/request', (req, res) => {
+app.post('/api/client/auth/request', limiterOtpRequest, (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'phone required' });
 
@@ -396,19 +477,20 @@ app.post('/api/client/auth/request', (req, res) => {
     }
   }
 
-  // In dev / no-telegram mode return code directly so master can share manually
+  // SECURITY: Only return code if NO Telegram configured (manual master-share fallback)
+  // Never expose code if Telegram delivery was successful
+  const exposeCode = deliveryMode === 'manual' && process.env.NODE_ENV !== 'production';
   res.json({
     ok:           true,
-    deliveryMode,                          // 'telegram' | 'manual'
-    // Only include code if bot NOT configured (manual fallback)
-    ...(deliveryMode === 'manual' && { code }),
+    deliveryMode,
+    ...(exposeCode && { code }),
     telegramLinked: !!(chatId),
     clientName:   client.name,
   });
 });
 
 /* Step 2 — verify OTP, get session token */
-app.post('/api/client/auth', (req, res) => {
+app.post('/api/client/auth', limiterOtpVerify, (req, res) => {
   const { phone, code } = req.body;
   if (!phone || !code) return res.status(400).json({ error: 'phone and code required' });
 
@@ -427,17 +509,190 @@ app.post('/api/client/auth', (req, res) => {
   const client = (data.clients || []).find(c => c.phone === phone);
   if (!client) return res.status(404).json({ ok: false, error: 'client_not_found' });
 
-  // Create session token, valid 30 days
-  const token = crypto.randomBytes(32).toString('hex');
-  sessionStore.set(token, {
-    clientId:  client.id,
-    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-  });
-
+  const token = createSession(client.id);
   res.json({ ok: true, token, clientId: client.id, name: client.name });
 });
 
+/* ══════════════════════════════════════════════════════════
+   ░░ TELEGRAM LOGIN WIDGET AUTH ░░
+   POST /api/client/auth/telegram
+   Body: { id, first_name, last_name, username, photo_url, auth_date, hash }
+══════════════════════════════════════════════════════════ */
+app.post('/api/client/auth/telegram', limiterOtpVerify, (req, res) => {
+  const authData = req.body;
+  if (!authData || !authData.hash || !authData.id) {
+    return res.status(400).json({ ok: false, error: 'invalid_data' });
+  }
+
+  if (!verifyTelegramAuth(authData)) {
+    return res.status(401).json({ ok: false, error: 'invalid_hash' });
+  }
+
+  const data   = readData();
+  let   client = (data.clients || []).find(c => String(c.telegramId) === String(authData.id));
+
+  if (!client) {
+    // Try to find by linked chatId
+    client = (data.clients || []).find(c => String(c.telegramChatId) === String(authData.id));
+  }
+
+  if (!client) {
+    // Auto-create guest client profile
+    if (!data.clients) data.clients = [];
+    client = {
+      id:         uid(),
+      name:       [authData.first_name, authData.last_name].filter(Boolean).join(' '),
+      phone:      '',
+      telegramId: authData.id,
+      telegramUsername: authData.username || '',
+      cars:       [],
+      repairs:    [],
+      createdAt:  new Date().toISOString(),
+    };
+    data.clients.push(client);
+  } else {
+    // Update telegramId if missing
+    if (!client.telegramId) {
+      client.telegramId = authData.id;
+      client.telegramUsername = authData.username || '';
+    }
+  }
+
+  writeData(data);
+  const token = createSession(client.id);
+  res.json({ ok: true, token, clientId: client.id, name: client.name });
+});
+
+/* ══════════════════════════════════════════════════════════
+   ░░ VK OAUTH 2.0 ░░
+   GET  /api/client/auth/vk          → redirect to VK
+   GET  /api/client/auth/vk/callback → exchange code, set session
+══════════════════════════════════════════════════════════ */
+const VK_APP_ID     = process.env.VK_APP_ID;
+const VK_APP_SECRET = process.env.VK_APP_SECRET;
+const VK_REDIRECT   = process.env.VK_REDIRECT_URI ||
+  'https://autoelectricianlanding-production.up.railway.app/api/client/auth/vk/callback';
+
+app.get('/api/client/auth/vk', (req, res) => {
+  if (!VK_APP_ID) {
+    return res.status(503).json({ ok: false, error: 'vk_not_configured' });
+  }
+  const url = new URL('https://oauth.vk.com/authorize');
+  url.searchParams.set('client_id',     VK_APP_ID);
+  url.searchParams.set('redirect_uri',  VK_REDIRECT);
+  url.searchParams.set('scope',         'offline');
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('v',             '5.131');
+  url.searchParams.set('display',       'page');
+  res.redirect(url.toString());
+});
+
+app.get('/api/client/auth/vk/callback', async (req, res) => {
+  const { code, error } = req.query;
+  if (error || !code) {
+    return res.redirect('/profile.html?auth=error&reason=' + encodeURIComponent(error || 'no_code'));
+  }
+  if (!VK_APP_ID || !VK_APP_SECRET) {
+    return res.redirect('/profile.html?auth=error&reason=not_configured');
+  }
+
+  try {
+    // Exchange code for access_token
+    const tokenUrl = new URL('https://oauth.vk.com/access_token');
+    tokenUrl.searchParams.set('client_id',     VK_APP_ID);
+    tokenUrl.searchParams.set('client_secret', VK_APP_SECRET);
+    tokenUrl.searchParams.set('redirect_uri',  VK_REDIRECT);
+    tokenUrl.searchParams.set('code',          code);
+
+    const vkResp = await new Promise((resolve, reject) => {
+      https.get(tokenUrl.toString(), r => {
+        let body = '';
+        r.on('data', d => body += d);
+        r.on('end', () => resolve(JSON.parse(body)));
+      }).on('error', reject);
+    });
+
+    if (vkResp.error) {
+      return res.redirect('/profile.html?auth=error&reason=' + encodeURIComponent(vkResp.error));
+    }
+
+    const vkId    = String(vkResp.user_id);
+    const vkEmail = vkResp.email || '';
+
+    // Fetch VK user info
+    const userUrl = `https://api.vk.com/method/users.get?user_ids=${vkId}&fields=first_name,last_name,photo_100&access_token=${vkResp.access_token}&v=5.131`;
+    const vkUser  = await new Promise((resolve, reject) => {
+      https.get(userUrl, r => {
+        let body = '';
+        r.on('data', d => body += d);
+        r.on('end', () => {
+          try { resolve(JSON.parse(body)?.response?.[0] || {}); } catch { resolve({}); }
+        });
+      }).on('error', reject);
+    });
+
+    const dbData = readData();
+    let client   = (dbData.clients || []).find(c => c.vkId === vkId);
+
+    if (!client && vkEmail) {
+      client = (dbData.clients || []).find(c => c.email === vkEmail);
+    }
+
+    if (!client) {
+      if (!dbData.clients) dbData.clients = [];
+      client = {
+        id:        uid(),
+        name:      [vkUser.first_name, vkUser.last_name].filter(Boolean).join(' ') || 'ВК Пользователь',
+        phone:     '',
+        email:     vkEmail,
+        vkId,
+        cars:      [],
+        repairs:   [],
+        createdAt: new Date().toISOString(),
+      };
+      dbData.clients.push(client);
+    } else {
+      if (!client.vkId) client.vkId = vkId;
+    }
+
+    writeData(dbData);
+    const token = createSession(client.id);
+    // Redirect back to profile with token in URL hash (client stores it)
+    res.redirect(`/profile.html?auth=vk&token=${token}&name=${encodeURIComponent(client.name)}`);
+
+  } catch (err) {
+    console.error('VK OAuth error:', err.message);
+    res.redirect('/profile.html?auth=error&reason=server_error');
+  }
+});
+
 /* Get own profile (client) */
+app.get('/api/client/profile', clientAuth, (req, res) => {
+  const data   = readData();
+  const client = (data.clients || []).find(c => c.id === req.clientId);
+  if (!client) return res.status(404).json({ error: 'Not found' });
+  res.json({ ok: true, client });
+});
+
+/* Update client phone number */
+app.post('/api/client/profile/phone', clientAuth, (req, res) => {
+  const { phone } = req.body;
+  if (!phone || !/^\+?[0-9]{10,15}$/.test(phone.replace(/[\s\-()]/g, ''))) {
+    return res.status(400).json({ ok: false, error: 'invalid_phone' });
+  }
+  
+  const rawPhone = phone.replace(/[\s\-()]/g, '');
+  const cleanPhone = rawPhone.startsWith('+') ? rawPhone : '+' + rawPhone;
+
+  const data = readData();
+  const client = (data.clients || []).find(c => c.id === req.clientId);
+  if (!client) return res.status(404).json({ ok: false, error: 'not_found' });
+
+  client.phone = cleanPhone;
+  writeData(data);
+  res.json({ ok: true, phone: cleanPhone });
+});
+
 app.get('/api/client/me', clientAuth, (req, res) => {
   const data   = readData();
   const client = (data.clients || []).find(c => c.id === req.clientId);

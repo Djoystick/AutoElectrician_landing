@@ -1,7 +1,6 @@
-﻿/* ============================================================
-   profile.js — Личный кабинет клиента AutoElectro v1.0
-   Авторизация по телефону + Telegram OTP
-   Лаборатория: гараж, история, статистика, геймификация
+/* ============================================================
+   profile.js — Личный кабинет клиента AutoElectro v1.1
+   Авторизация: Telegram Widget | VK OAuth | Телефон + OTP
 ============================================================ */
 'use strict';
 
@@ -19,154 +18,60 @@ const MASCOT_TIPS = [
 ];
 
 /* ══════════════════════════════════════════════════════════
-   AUTH FLOW
+   PHONE UPDATE FLOW
 ══════════════════════════════════════════════════════════ */
-const stepPhone  = document.getElementById('step-phone');
-const stepOtp    = document.getElementById('step-otp');
-const inputPhone = document.getElementById('input-phone');
-const inputCode  = document.getElementById('input-code');
-const phoneErr   = document.getElementById('phone-error');
-const otpErr     = document.getElementById('otp-error');
-const otpHint    = document.getElementById('otp-hint');
-const manualBox  = document.getElementById('manual-code-box');
-const manualVal  = document.getElementById('manual-code-val');
+const phoneMissingBanner = document.getElementById('phone-missing-banner');
+const missingPhoneInput  = document.getElementById('missing-phone-input');
+const missingPhoneError  = document.getElementById('missing-phone-error');
+const btnSavePhone       = document.getElementById('btn-save-phone');
 
-// Format phone as user types
-inputPhone?.addEventListener('input', () => {
-  let v = inputPhone.value.replace(/\D/g, '');
+missingPhoneInput?.addEventListener('input', () => {
+  let v = missingPhoneInput.value.replace(/\D/g, '');
   if (v.startsWith('8')) v = '7' + v.slice(1);
   if (v.length > 0 && !v.startsWith('7')) v = '7' + v;
   if (v.length > 11) v = v.slice(0, 11);
-  // Format: +7 (XXX) XXX-XX-XX
   let formatted = '';
   if (v.length >= 1) formatted = '+' + v[0];
   if (v.length >= 2) formatted += ' (' + v.slice(1, 4);
   if (v.length >= 5) formatted += ') ' + v.slice(4, 7);
   if (v.length >= 8) formatted += '-' + v.slice(7, 9);
   if (v.length >= 10) formatted += '-' + v.slice(9, 11);
-  inputPhone.value = formatted;
+  missingPhoneInput.value = formatted;
 });
 
-// Auto-submit OTP when 6 digits entered
-inputCode?.addEventListener('input', () => {
-  inputCode.value = inputCode.value.replace(/\D/g, '').slice(0, 6);
-  if (inputCode.value.length === 6) verifyCode();
-});
+btnSavePhone?.addEventListener('click', async () => {
+  const raw = missingPhoneInput.value.replace(/[\s\-()]/g, '');
+  missingPhoneError.classList.add('hidden');
 
-document.getElementById('btn-send-code')?.addEventListener('click', sendCode);
-document.getElementById('btn-verify-code')?.addEventListener('click', verifyCode);
-document.getElementById('btn-back-phone')?.addEventListener('click', () => {
-  stepOtp.classList.add('hidden');
-  stepPhone.classList.remove('hidden');
-  manualBox.classList.add('hidden');
-  otpErr.classList.add('hidden');
-});
-
-async function sendCode() {
-  const raw   = inputPhone.value.replace(/[\s\-()]/g, '');
-  const phone = raw.startsWith('+') ? raw : '+' + raw;
-  phoneErr.classList.add('hidden');
-
-  if (!/^\+7\d{10}$/.test(phone)) {
-    phoneErr.textContent = 'Введите корректный номер телефона';
-    phoneErr.classList.remove('hidden');
+  if (!/^\+7\d{10}$/.test(raw) && !/^7\d{10}$/.test(raw)) {
+    missingPhoneError.textContent = 'Введите корректный номер телефона';
+    missingPhoneError.classList.remove('hidden');
     return;
   }
 
-  const btn = document.getElementById('btn-send-code');
-  btn.disabled = true;
-  btn.textContent = 'Отправляем…';
+  btnSavePhone.disabled = true;
+  btnSavePhone.textContent = 'Сохраняем...';
 
   try {
-    const res  = await fetch('/api/client/auth/request', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ phone }),
+    const res = await fetch('/api/client/profile/phone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-client-token': TOKEN },
+      body: JSON.stringify({ phone: raw }),
     });
     const json = await res.json();
-
-    if (!json.ok) {
-      if (json.error === 'client_not_found') {
-        phoneErr.textContent = 'Номер не найден. Обратитесь к мастеру для создания профиля.';
-      } else {
-        phoneErr.textContent = 'Ошибка. Попробуйте ещё раз.';
-      }
-      phoneErr.classList.remove('hidden');
-      btn.disabled = false;
-      btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> Получить код';
-      lucide.createIcons();
-      return;
-    }
-
-    // Switch to OTP step
-    stepPhone.classList.add('hidden');
-    stepOtp.classList.remove('hidden');
-
-    if (json.deliveryMode === 'telegram') {
-      otpHint.textContent = `✅ Код отправлен в Telegram (${json.clientName}). Проверьте сообщения от бота.`;
-      manualBox.classList.add('hidden');
-    } else {
-      otpHint.textContent = `Telegram не привязан. Ваш код ниже — или попросите у мастера.`;
-      manualVal.textContent = json.code || '—';
-      manualBox.classList.remove('hidden');
-    }
-    inputCode.focus();
-
-  } catch {
-    phoneErr.textContent = 'Ошибка соединения. Попробуйте позже.';
-    phoneErr.classList.remove('hidden');
-  }
-
-  btn.disabled = false;
-  btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i> Получить код';
-  lucide.createIcons();
-}
-
-async function verifyCode() {
-  const raw   = inputPhone.value.replace(/[\s\-()]/g, '');
-  const phone = raw.startsWith('+') ? raw : '+' + raw;
-  const code  = inputCode.value.trim();
-  otpErr.classList.add('hidden');
-
-  if (code.length < 6) {
-    otpErr.textContent = 'Введите полный 6-значный код';
-    otpErr.classList.remove('hidden');
-    return;
-  }
-
-  const btn = document.getElementById('btn-verify-code');
-  btn.disabled = true;
-  btn.textContent = 'Проверяем…';
-
-  try {
-    const res  = await fetch('/api/client/auth', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ phone, code }),
-    });
-    const json = await res.json();
-
     if (json.ok) {
-      TOKEN = json.token;
-      localStorage.setItem(TOKEN_KEY, TOKEN);
-      await loadProfile();
+      phoneMissingBanner.classList.add('hidden');
     } else {
-      const msgs = {
-        wrong_code:   'Неверный код. Попробуйте ещё раз.',
-        code_expired: 'Код истёк. Вернитесь и запросите новый.',
-      };
-      otpErr.textContent = msgs[json.error] || 'Ошибка авторизации.';
-      otpErr.classList.remove('hidden');
+      missingPhoneError.textContent = 'Ошибка сохранения';
+      missingPhoneError.classList.remove('hidden');
     }
-  } catch {
-    otpErr.textContent = 'Ошибка соединения.';
-    otpErr.classList.remove('hidden');
+  } catch (err) {
+    missingPhoneError.textContent = 'Ошибка сети';
+    missingPhoneError.classList.remove('hidden');
   }
-
-  btn.disabled = false;
-  btn.innerHTML = '<i data-lucide="log-in" class="w-4 h-4"></i> Войти';
-  lucide.createIcons();
-}
+  btnSavePhone.disabled = false;
+  btnSavePhone.textContent = 'Сохранить';
+});
 
 /* ══════════════════════════════════════════════════════════
    LOAD PROFILE
@@ -203,6 +108,16 @@ function showLoginScreen() {
 }
 
 function showProfileScreen() {
+  // Show phone missing banner if client has no phone
+  const phoneMissingBanner = document.getElementById('phone-missing-banner');
+  if (phoneMissingBanner) {
+    if (!CLIENT.phone || CLIENT.phone.trim() === '') {
+      phoneMissingBanner.classList.remove('hidden');
+    } else {
+      phoneMissingBanner.classList.add('hidden');
+    }
+  }
+
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('profile-screen').classList.remove('hidden');
 
@@ -474,9 +389,91 @@ function fmtDate(str) {
 ══════════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   lucide.createIcons();
+
+  // Handle VK OAuth redirect (token in URL params)
+  const urlParams = new URLSearchParams(window.location.search);
+  const authType  = urlParams.get('auth');
+  const urlToken  = urlParams.get('token');
+
+  if (authType === 'vk' && urlToken) {
+    TOKEN = urlToken;
+    localStorage.setItem(TOKEN_KEY, TOKEN);
+    // Clean URL
+    window.history.replaceState({}, '', '/profile.html');
+    loadProfile();
+    return;
+  }
+
+  if (authType === 'error') {
+    showLoginScreen();
+    const reason = urlParams.get('reason') || 'unknown';
+    const msgs = {
+      not_configured: 'ВК авторизация ещё не настроена — используйте номер телефона.',
+      access_denied:  'Вы отказались от авторизации.',
+      server_error:   'Ошибка сервера. Попробуйте ещё раз.',
+    };
+    phoneErr.textContent = msgs[reason] || `Ошибка: ${reason}`;
+    phoneErr.classList.remove('hidden');
+    window.history.replaceState({}, '', '/profile.html');
+    return;
+  }
+
+  // Inject Telegram Login Widget
+  injectTelegramWidget();
+
   if (TOKEN) {
     loadProfile();
   } else {
     showLoginScreen();
   }
 });
+
+/* ── Telegram Login Widget ── */
+function injectTelegramWidget() {
+  // Fetch bot username from server config
+  fetch('/api/data')
+    .then(r => r.json())
+    .then(data => {
+      const botName = data.settings?.telegramBotUsername;
+      if (!botName) return; // Widget requires bot username
+
+      // Replace fallback button with real widget
+      const wrap = document.getElementById('tg-widget-wrap');
+      if (!wrap) return;
+
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = 'https://telegram.org/js/telegram-widget.js?22';
+      script.setAttribute('data-telegram-login',   botName);
+      script.setAttribute('data-size',             'large');
+      script.setAttribute('data-radius',           '12');
+      script.setAttribute('data-onauth',           'onTelegramAuth(user)');
+      script.setAttribute('data-request-access',   'write');
+      wrap.innerHTML = '';
+      wrap.appendChild(script);
+    })
+    .catch(() => {});
+}
+
+/* Called by Telegram Widget after user auth */
+window.onTelegramAuth = async function(user) {
+  try {
+    const res  = await fetch('/api/client/auth/telegram', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(user),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      TOKEN = json.token;
+      localStorage.setItem(TOKEN_KEY, TOKEN);
+      await loadProfile();
+    } else {
+      phoneErr.textContent = 'Ошибка Telegram авторизации. Попробуйте войти по номеру.';
+      phoneErr.classList.remove('hidden');
+    }
+  } catch {
+    phoneErr.textContent = 'Ошибка соединения.';
+    phoneErr.classList.remove('hidden');
+  }
+};

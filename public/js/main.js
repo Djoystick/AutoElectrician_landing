@@ -80,6 +80,12 @@ function renderHero() {
   // City
   const cityEl = document.getElementById('hero-city');
   if (cityEl && c.city) cityEl.textContent = 'Выезд ' + c.city;
+
+  // Dynamic price in bubble
+  const priceBubble = document.getElementById('hero-bubble-price');
+  if (priceBubble && DATA.services && DATA.services.length > 0) {
+    priceBubble.textContent = DATA.services[0].price || '0 ₽';
+  }
 }
 
 
@@ -89,8 +95,8 @@ function renderServices() {
 
   grid.innerHTML = DATA.services.map(s => `
     <div class="service-card reveal
-                bg-bg border border-border rounded-3xl p-7
-                flex flex-col sm:flex-row gap-5 items-start
+                bg-bg border border-border rounded-3xl p-5
+                flex flex-col sm:flex-row gap-4 items-start
                 card-hover">
       <div class="shrink-0 w-14 h-14 rounded-2xl bg-accent/10
                   flex items-center justify-center">
@@ -115,8 +121,8 @@ function renderReviews() {
   wrapper.innerHTML = DATA.reviews.map(r => `
     <div class="swiper-slide h-auto">
       <div class="h-full bg-surface border border-border rounded-3xl
-                  p-7 flex flex-col">
-        <div class="flex items-center gap-1 text-accent mb-5">
+                  p-5 flex flex-col">
+        <div class="flex items-center gap-1 text-accent mb-4">
           ${[...Array(5)].map(() =>
             '<i data-lucide="star" class="w-4 h-4 fill-current"></i>'
           ).join('')}
