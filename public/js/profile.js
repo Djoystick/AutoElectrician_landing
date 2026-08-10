@@ -440,7 +440,7 @@ let magicPollInterval = null;
 
 async function initTelegramMagicLink() {
   try {
-    const res = await fetch('/api/client/auth/telegram/magic');
+    const res = await fetch('/api/client/auth/telegram/magic?t=' + Date.now());
     const data = await res.json();
     if (!data.sessionId || !data.botUsername) return;
 
