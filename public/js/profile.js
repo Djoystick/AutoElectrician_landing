@@ -425,17 +425,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // Inject Telegram Login Widget
-  injectTelegramWidget();
-
-  // Check if we returned from Telegram OAuth redirect (fallback for mobile)
-  if (urlParams.has('hash') && urlParams.has('id')) {
-    const user = Object.fromEntries(urlParams.entries());
-    window.history.replaceState({}, document.title, window.location.pathname); // clear URL
-    await window.onTelegramAuth(user);
-    return;
-  }
-
   if (TOKEN) {
     await loadProfile();
   } else {
