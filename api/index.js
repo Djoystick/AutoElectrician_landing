@@ -119,28 +119,29 @@ async function setupBotHandlers(bot) {
       return bot.sendMessage(chatId, '❌ Ссылка устарела или недействительна. Вернитесь на сайт и нажмите кнопку входа еще раз.');
     }
 
-    const data = await readData();
-    let client = (data.clients || []).find(c => String(c.telegramId) === String(msg.from.id) || String(c.telegramChatId) === String(chatId));
+    const { data: clients } = await supabase.from('clients').select('*');
+    let client = (clients || []).find(c => String(c.telegram_id) === String(msg.from.id) || String(c.telegram_chat_id) === String(chatId));
     
     if (!client) {
       client = {
         id: crypto.randomUUID(),
         name: msg.from.first_name + (msg.from.last_name ? ' ' + msg.from.last_name : ''),
         phone: '',
+        email: '',
+        vk_id: '',
         cars: [],
-        telegramId: msg.from.id,
-        telegramUsername: msg.from.username || '',
-        telegramChatId: chatId,
-        createdAt: new Date().toISOString()
+        repairs: [],
+        telegram_id: String(msg.from.id),
+        telegram_username: msg.from.username || '',
+        telegram_chat_id: String(chatId),
+        created_at: new Date().toISOString()
       };
-      data.clients = data.clients || [];
-      data.clients.push(client);
-      await writeData(data);
+      await supabase.from('clients').insert(client);
     } else {
-      let updated = false;
-      if (!client.telegramId) { client.telegramId = msg.from.id; updated = true; }
-      if (!client.telegramChatId) { client.telegramChatId = chatId; updated = true; }
-      if (updated) await writeData(data);
+      let updated = {};
+      if (!client.telegram_id) updated.telegram_id = String(msg.from.id);
+      if (!client.telegram_chat_id) updated.telegram_chat_id = String(chatId);
+      if (Object.keys(updated).length > 0) await supabase.from('clients').update(updated).eq('id', client.id);
     }
     
     await supabase.from('auth_magic_links').update({
@@ -154,14 +155,23 @@ async function setupBotHandlers(bot) {
   /* Admin assignment: /admin [password] */
   bot.onText(/\/admin(?: (.+))?/, async (msg, match) => {
     const pwd = match[1] ? match[1].trim() : '';
-    const data = await readData();
-    const storedPwd = data.settings?.password || 'admin';
     if (!pwd) {
       return bot.sendMessage(msg.chat.id, 'Использование: /admin <пароль>');
     }
-    if (pwd === storedPwd) {
-      data.settings.masterTelegramChatId = msg.chat.id;
-      await writeData(data);
+    if (!supabase) return;
+    const { data: masters } = await supabase.from('masters').select('*');
+    let ok = false;
+    let master = null;
+    for (const m of (masters || [])) {
+      const isHash = m.password.startsWith('$2');
+      if (isHash ? bcrypt.compareSync(pwd, m.password) : (pwd === m.password)) {
+        ok = true;
+        master = m;
+        break;
+      }
+    }
+    if (ok) {
+      await supabase.from('masters').update({ telegram_chat_id: String(msg.chat.id) }).eq('id', master.id);
       bot.sendMessage(msg.chat.id, '👨‍🔧 <b>Вы успешно назначены Мастером!</b>\n\nТеперь сюда будут приходить все уведомления о новых заявках с сайта.', { parse_mode: 'HTML' });
     } else {
       bot.sendMessage(msg.chat.id, '❌ Неверный пароль администратора.');
@@ -173,21 +183,14 @@ async function setupBotHandlers(bot) {
     addLog(`[TG] Received message: ${msg.text} from ${msg.chat.id}`);
     const text = (msg.text || '').trim().replace(/[\s\-()]/g, '');
     if (/^\+7\d{10}$/.test(text) || /^8\d{10}$/.test(text)) {
-      // Normalise to +7 format
       const phone = text.startsWith('8') ? '+7' + text.slice(1) : text;
-      const data  = await readData();
-      const client = (data.clients || []).find(c => c.phone === phone);
+      if (!supabase) return;
+      const { data: client } = await supabase.from('clients').select('*').eq('phone', phone).maybeSingle();
       if (client) {
-        // Save chatId to client record
-        client.telegramChatId = msg.chat.id;
-        await writeData(data);
-        bot.sendMessage(msg.chat.id,
-          `✅ Телефон ${phone} привязан! Теперь коды для входа будут приходить сюда автоматически.`
-        );
+        await supabase.from('clients').update({ telegram_chat_id: String(msg.chat.id) }).eq('id', client.id);
+        bot.sendMessage(msg.chat.id, `✅ Телефон ${phone} привязан! Теперь коды для входа будут приходить сюда автоматически.`);
       } else {
-        bot.sendMessage(msg.chat.id,
-          `⚠️ Номер ${phone} не найден в базе. Сначала обратитесь к мастеру — он создаст ваш профиль.`
-        );
+        bot.sendMessage(msg.chat.id, `⚠️ Номер ${phone} не найден в базе. Сначала обратитесь к мастеру — он создаст ваш профиль.`);
       }
     }
   });
@@ -258,8 +261,6 @@ const limiterPublic = rateLimit({
 });
 
 /* ── Data helpers ── */
-const readData  = () => JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-const writeData = data => fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
 
 /* ── Init bot on startup if token is already saved ── */
 try {
@@ -273,521 +274,239 @@ try {
 const uid = () => crypto.randomBytes(8).toString('hex');
 
 /* ── Admin auth middleware (supports plain text + bcrypt hash) ── */
+// 1. authCheck (Admin Auth)
 const authCheck = async (req, res, next) => {
   const pwd  = req.headers['x-admin-password'] || req.body?.password;
-  const data = await readData();
-  const stored = data.settings?.password || '';
   if (!pwd) return res.status(401).json({ error: 'Unauthorized' });
-  // Support legacy plain-text AND bcrypt hash
-  const isHash = stored.startsWith('$2');
-  const ok = isHash ? bcrypt.compareSync(pwd, stored) : (pwd === stored);
+  if (!supabase) return res.status(500).json({ error: 'DB error' });
+
+  const { data: masters } = await supabase.from('masters').select('*');
+  let ok = false;
+  for (const master of (masters || [])) {
+    const isHash = master.password.startsWith('$2');
+    if (isHash ? bcrypt.compareSync(pwd, master.password) : (pwd === master.password)) {
+      ok = true;
+      req.master = master;
+      break;
+    }
+  }
+  
   if (ok) return next();
   res.status(401).json({ error: 'Unauthorized' });
 };
 
-/* ── Client auth middleware ── */
-const clientAuth = async (req, res, next) => {
-  const token = req.headers['x-client-token'];
-  if (!token) return res.status(401).json({ error: 'No token' });
-  if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
-  
-  const { data: session } = await supabase.from('auth_sessions').select('*').eq('token', token).maybeSingle();
-  if (!session || new Date(session.expires_at).getTime() < Date.now()) {
-    if (session) await supabase.from('auth_sessions').delete().eq('token', token);
-    return res.status(401).json({ error: 'Session expired' });
-  }
-  
-  req.clientId = session.client_id;
-  next();
-};
-
-/* ── Helper: verify Telegram Login Widget data ── */
-async function verifyTelegramAuth(authData) {
-  const data    = await readData();
-  const botToken = process.env.TELEGRAM_BOT_TOKEN || data.settings?.telegramBotToken;
-  if (!botToken) return false;
-  const { hash, ...fields } = authData;
-  const checkStr = Object.keys(fields).sort()
-    .map(k => `${k}=${fields[k]}`).join('\n');
-  const secret  = crypto.createHash('sha256').update(botToken).digest();
-  const hmac    = crypto.createHmac('sha256', secret).update(checkStr).digest('hex');
-  if (hmac !== hash) return false;
-  // Auth date must be within 24 h
-  if (Date.now() / 1000 - Number(authData.auth_date) > 86400) return false;
-  return true;
-}
-
-/* ── Helper: create client session ── */
-async function createSession(clientId) {
-  const token = crypto.randomUUID();
-  if (supabase) {
-    await supabase.from('auth_sessions').insert({
-      token,
-      client_id: clientId,
-      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-    });
-  }
-  return token;
-}
-
-/* ── Compute client retention status ── */
-function retentionStatus(client) {
-  const repairs = client.repairs || [];
-  if (!repairs.length) return 'none';
-  const last  = new Date(repairs[repairs.length - 1].date).getTime();
-  const diff  = (Date.now() - last) / (1000 * 60 * 60 * 24 * 30); // months
-  if (diff <= 3)  return 'green';
-  if (diff <= 6)  return 'yellow';
-  return 'red';
-}
-
-/* ── Compute loyalty level ── */
-function loyaltyLevel(count) {
-  if (count >= 6) return 'veteran';
-  if (count >= 3) return 'regular';
-  return 'newcomer';
-}
-
-/* ══════════════════════════════════════════════════════════
-   ░░ EXISTING PUBLIC ROUTES (unchanged) ░░
-══════════════════════════════════════════════════════════ */
-
-/* GET all public data (password excluded) */
+// 2. /api/data (Public)
 app.get('/api/data', async (req, res) => {
-  const data = await readData();
-  const { password, telegramBotToken, ...safeSettings } = data.settings || {};
-  // Only return active services to public
-  const activeServices = (data.services || []).filter(s => s.active !== false);
-  res.json({ ...data, settings: safeSettings, services: activeServices });
+  if (!supabase) return res.json({ settings: {}, services: [] });
+  const [settingsReq, servicesReq] = await Promise.all([
+    supabase.from('settings').select('*').maybeSingle(),
+    supabase.from('services').select('*').eq('active', true).order('sort_order', { ascending: true })
+  ]);
+  const settings = settingsReq.data?.data || {};
+  const { password, telegramBotToken, ...safeSettings } = settings;
+  res.json({ settings: safeSettings, services: servicesReq.data || [] });
 });
-
-/* ══════════════════════════════════════════════════════════
-   ░░ ADMIN AUTH (unchanged) ░░
-══════════════════════════════════════════════════════════ */
 
 app.post('/api/auth', limiterAdmin, async (req, res) => {
-  const data = await readData();
-  if (req.body.password === data.settings?.password) {
-    res.json({ ok: true });
-  } else {
-    res.status(401).json({ ok: false, error: 'Неверный пароль' });
+  const pwd = req.body.password;
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: masters } = await supabase.from('masters').select('*');
+  let ok = false;
+  for (const master of (masters || [])) {
+    const isHash = master.password.startsWith('$2');
+    if (isHash ? bcrypt.compareSync(pwd, master.password) : (pwd === master.password)) {
+      ok = true; break;
+    }
   }
+  if (ok) res.json({ ok: true });
+  else res.status(401).json({ ok: false, error: 'Неверный пароль' });
 });
 
-/* ══════════════════════════════════════════════════════════
-   ░░ SETTINGS (unchanged + new fields) ░░
-══════════════════════════════════════════════════════════ */
-
 app.put('/api/settings', authCheck, async (req, res) => {
-  const data = await readData();
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: sRow } = await supabase.from('settings').select('*').maybeSingle();
+  let currentSettings = sRow?.data || {};
+  
   const { password: newPwd, telegramBotToken: newToken, ...rest } = req.body;
-  data.settings = { ...data.settings, ...rest };
-  if (newPwd)   data.settings.password = newPwd;
+  currentSettings = { ...currentSettings, ...rest };
+  
   if (newToken !== undefined) {
-    data.settings.telegramBotToken = newToken;
-    // Reset bot instance so it re-initialises with new token
+    currentSettings.telegramBotToken = newToken;
     if (tgBot) { try { tgBot.stopPolling(); } catch {} tgBot = null; }
     if (newToken) setTimeout(() => { try { getBot(); } catch {} }, 500);
   }
-  await writeData(data);
+  
+  if (sRow) await supabase.from('settings').update({ data: currentSettings }).eq('id', sRow.id);
+  else await supabase.from('settings').insert({ data: currentSettings });
+  
   res.json({ ok: true });
 });
 
-/* ══════════════════════════════════════════════════════════
-   ░░ CONTACTS (unchanged) ░░
-══════════════════════════════════════════════════════════ */
-
 app.put('/api/contacts', authCheck, async (req, res) => {
-  const data = await readData();
-  data.contacts = { ...data.contacts, ...req.body };
-  await writeData(data);
-  res.json({ ok: true, contacts: data.contacts });
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: cRow } = await supabase.from('contacts').select('*').maybeSingle();
+  let currentContacts = cRow?.data || {};
+  currentContacts = { ...currentContacts, ...req.body };
+  
+  if (cRow) await supabase.from('contacts').update({ data: currentContacts }).eq('id', cRow.id);
+  else await supabase.from('contacts').insert({ data: currentContacts });
+  
+  res.json({ ok: true, contacts: currentContacts });
 });
-
-/* ══════════════════════════════════════════════════════════
-   ░░ SERVICES (unchanged, now with active flag) ░░
-══════════════════════════════════════════════════════════ */
 
 app.post('/api/services', authCheck, async (req, res) => {
-  const data    = await readData();
+  if (!supabase) return res.status(500).json({ ok: false });
   const service = req.body;
   if (service.active === undefined) service.active = true;
-
-  if (service.id) {
-    const idx = data.services.findIndex(s => s.id === service.id);
-    if (idx !== -1) data.services[idx] = service;
-    else            data.services.push(service);
-  } else {
-    service.id = Date.now().toString();
-    data.services.push(service);
-  }
-  await writeData(data);
-  res.json({ ok: true, services: data.services });
+  
+  const payload = {
+    id: service.id || String(Date.now()),
+    title: service.title,
+    description: service.description,
+    icon: service.icon,
+    price: service.price,
+    active: service.active,
+    sort_order: service.sortOrder || 0
+  };
+  await supabase.from('services').upsert(payload);
+  const { data: services } = await supabase.from('services').select('*').order('sort_order');
+  res.json({ ok: true, services });
 });
 
-/* Reorder services (drag-drop) */
 app.put('/api/services/reorder', authCheck, async (req, res) => {
-  const { ids } = req.body; // array of ids in new order
-  if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids required' });
-  const data = await readData();
-  const map  = Object.fromEntries(data.services.map(s => [s.id, s]));
-  data.services = ids.map(id => map[id]).filter(Boolean);
-  await writeData(data);
-  res.json({ ok: true, services: data.services });
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !supabase) return res.status(400).json({ error: 'ids required' });
+  for (let i = 0; i < ids.length; i++) {
+    await supabase.from('services').update({ sort_order: i }).eq('id', ids[i]);
+  }
+  const { data: services } = await supabase.from('services').select('*').order('sort_order');
+  res.json({ ok: true, services });
 });
 
 app.delete('/api/services/:id', authCheck, async (req, res) => {
-  const data = await readData();
-  data.services = data.services.filter(s => s.id !== req.params.id);
-  await writeData(data);
-  res.json({ ok: true, services: data.services });
+  if (!supabase) return res.status(500).json({ ok: false });
+  await supabase.from('services').delete().eq('id', req.params.id);
+  const { data: services } = await supabase.from('services').select('*').order('sort_order');
+  res.json({ ok: true, services });
 });
 
-/* ══════════════════════════════════════════════════════════
-   ░░ REVIEWS (now with edit support) ░░
-══════════════════════════════════════════════════════════ */
-
 app.post('/api/reviews', authCheck, upload.single('image'), async (req, res) => {
-  const data   = await readData();
-  const review = {
-    id:    Date.now().toString(),
-    name:  req.body.name || 'Аноним',
-    text:  req.body.text || '',
-    image: req.file ? `/uploads/${req.file.filename}` : (req.body.imageUrl || ''),
+  if (!supabase) return res.status(500).json({ ok: false });
+  let imageUrl = req.body.imageUrl || '';
+  if (req.file) {
+    const fileName = 'review-' + Date.now() + path.extname(req.file.originalname).toLowerCase();
+    const { data: uploadData } = await supabase.storage.from('uploads').upload(fileName, req.file.buffer, { contentType: req.file.mimetype });
+    if (uploadData) {
+      const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(fileName);
+      imageUrl = publicUrlData.publicUrl;
+    }
+  }
+  
+  const payload = {
+    id: String(Date.now()),
+    name: req.body.name || 'Аноним',
+    text: req.body.text || '',
+    image: imageUrl,
+    sort_order: 0
   };
-  data.reviews.push(review);
-  await writeData(data);
-  res.json({ ok: true, review });
+  await supabase.from('reviews').insert(payload);
+  res.json({ ok: true, review: payload });
 });
 
 app.put('/api/reviews/:id', authCheck, async (req, res) => {
-  const data = await readData();
-  const idx  = data.reviews.findIndex(r => r.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Not found' });
-  data.reviews[idx] = { ...data.reviews[idx], ...req.body };
-  await writeData(data);
-  res.json({ ok: true, review: data.reviews[idx] });
+  if (!supabase) return res.status(500).json({ ok: false });
+  const payload = {};
+  if (req.body.name !== undefined) payload.name = req.body.name;
+  if (req.body.text !== undefined) payload.text = req.body.text;
+  if (req.body.image !== undefined) payload.image = req.body.image;
+  
+  await supabase.from('reviews').update(payload).eq('id', req.params.id);
+  const { data: review } = await supabase.from('reviews').select('*').eq('id', req.params.id).single();
+  res.json({ ok: true, review });
 });
 
 app.delete('/api/reviews/:id', authCheck, async (req, res) => {
-  const data   = await readData();
-  const review = data.reviews.find(r => r.id === req.params.id);
-  if (review?.image?.startsWith('/uploads/')) {
-    const fp = path.join(PUBLIC_DIR, review.image);
-    if (fs.existsSync(fp)) fs.unlinkSync(fp);
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: review } = await supabase.from('reviews').select('image').eq('id', req.params.id).maybeSingle();
+  if (review && review.image && review.image.includes('supabase.co/storage')) {
+    const parts = review.image.split('/');
+    const fileName = parts[parts.length - 1];
+    await supabase.storage.from('uploads').remove([fileName]);
   }
-  data.reviews = data.reviews.filter(r => r.id !== req.params.id);
-  await writeData(data);
+  await supabase.from('reviews').delete().eq('id', req.params.id);
   res.json({ ok: true });
 });
 
-/* Reorder reviews */
 app.put('/api/reviews/reorder', authCheck, async (req, res) => {
   const { ids } = req.body;
-  if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids required' });
-  const data = await readData();
-  const map  = Object.fromEntries(data.reviews.map(r => [r.id, r]));
-  data.reviews = ids.map(id => map[id]).filter(Boolean);
-  await writeData(data);
-  res.json({ ok: true, reviews: data.reviews });
+  if (!Array.isArray(ids) || !supabase) return res.status(400).json({ error: 'ids required' });
+  for (let i = 0; i < ids.length; i++) {
+    await supabase.from('reviews').update({ sort_order: i }).eq('id', ids[i]);
+  }
+  const { data: reviews } = await supabase.from('reviews').select('*').order('sort_order');
+  res.json({ ok: true, reviews });
 });
 
-/* ══════════════════════════════════════════════════════════
-   ░░ NEW: REQUESTS (заявки с сайта) ░░
-══════════════════════════════════════════════════════════ */
-
-/* Public: submit request from landing */
 app.post('/api/requests', async (req, res) => {
   const { name, phone, problem } = req.body;
   if (!phone) return res.status(400).json({ error: 'phone required' });
-  const data    = await readData();
-  if (!data.requests) data.requests = [];
-  const request = {
-    id:        uid(),
-    name:      name  || 'Без имени',
-    phone:     phone || '',
-    problem:   problem || '',
-    createdAt: new Date().toISOString(),
-    status:    'new',
-    clientId:  null,
+  if (!supabase) return res.status(500).json({ error: 'DB error' });
+  
+  const payload = {
+    id: uid(),
+    name: name || 'Без имени',
+    phone: phone || '',
+    problem: problem || '',
+    status: 'new',
+    created_at: new Date().toISOString()
   };
-  data.requests.push(request);
-  await writeData(data);
+  await supabase.from('requests').insert(payload);
 
-  // Notify master via Telegram if bot is configured
   try {
-    const bot        = getBot();
-    const masterChatId = data.settings?.masterTelegramChatId;
-    if (bot && masterChatId) {
-      bot.sendMessage(masterChatId,
-        `📥 <b>Новая заявка!</b>\n👤 ${request.name}\n📞 ${request.phone}\n🔧 ${request.problem || '—'}`,
-        { parse_mode: 'HTML' }
-      );
+    const bot = getBot();
+    if (bot) {
+      const { data: masters } = await supabase.from('masters').select('telegram_chat_id');
+      for (const m of (masters || [])) {
+        if (m.telegram_chat_id) {
+          bot.sendMessage(m.telegram_chat_id,
+            `📥 <b>Новая заявка!</b>\n👤 ${payload.name}\n📞 ${payload.phone}\n🔧 ${payload.problem || '—'}`,
+            { parse_mode: 'HTML' }
+          ).catch(()=>{});
+        }
+      }
     }
   } catch {}
 
-  res.json({ ok: true, id: request.id });
+  res.json({ ok: true, id: payload.id });
 });
 
-/* Admin: list all requests */
 app.get('/api/requests', authCheck, async (req, res) => {
-  const data = await readData();
-  res.json({ ok: true, requests: (data.requests || []).reverse() });
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: requests } = await supabase.from('requests').select('*').order('created_at', { ascending: false });
+  res.json({ ok: true, requests });
 });
 
-/* Admin: update request status */
 app.put('/api/requests/:id/status', authCheck, async (req, res) => {
+  if (!supabase) return res.status(500).json({ ok: false });
   const { status } = req.body;
-  const data = await readData();
-  const req_ = (data.requests || []).find(r => r.id === req.params.id);
-  if (!req_) return res.status(404).json({ error: 'Not found' });
-  req_.status = status;
-  await writeData(data);
-  res.json({ ok: true, request: req_ });
+  await supabase.from('requests').update({ status }).eq('id', req.params.id);
+  const { data: request } = await supabase.from('requests').select('*').eq('id', req.params.id).single();
+  res.json({ ok: true, request });
 });
 
-/* Admin: delete request */
 app.delete('/api/requests/:id', authCheck, async (req, res) => {
-  const data = await readData();
-  data.requests = (data.requests || []).filter(r => r.id !== req.params.id);
-  await writeData(data);
+  if (!supabase) return res.status(500).json({ ok: false });
+  await supabase.from('requests').delete().eq('id', req.params.id);
   res.json({ ok: true });
 });
 
-/* ══════════════════════════════════════════════════════════
-   ░░ NEW: CLIENT AUTH (Telegram OTP) ░░
-══════════════════════════════════════════════════════════ */
-
-/* Step 1 — request OTP code */
-app.post('/api/client/auth/request', limiterOtpRequest, async (req, res) => {
-  console.log('[DEBUG] POST /api/client/auth/request received:', req.body);
-  const { phone } = req.body;
-  if (!phone) return res.status(400).json({ error: 'phone required' });
-
-  const data   = await readData();
-  const client = (data.clients || []).find(c => c.phone === phone);
-  if (!client) return res.status(404).json({ ok: false, error: 'client_not_found' });
-
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-  if (supabase) {
-    await supabase.from('auth_otps').upsert({ phone, code, expires_at: expiresAt });
-  }
-
-  const bot        = getBot();
-  const chatId     = client.telegramChatId;
-  let   deliveryMode = 'manual';
-
-  if (bot && chatId) {
-    try {
-      bot.sendMessage(chatId,
-        `🔐 <b>Код входа в AutoElectro:</b> <code>${code}</code>\n\nКод действителен 10 минут.`,
-        { parse_mode: 'HTML' }
-      );
-      deliveryMode = 'telegram';
-    } catch (e) {
-      console.error('Telegram send error:', e.message);
-    }
-  }
-
-  const exposeCode = deliveryMode === 'manual' && process.env.NODE_ENV !== 'production';
-  res.json({
-    ok:           true,
-    deliveryMode,
-    ...(exposeCode && { code }),
-    telegramLinked: !!(chatId),
-    clientName:   client.name,
-  });
-});
-
-/* Step 2 — verify OTP, get session token */
-app.post('/api/client/auth', limiterOtpVerify, async (req, res) => {
-  const { phone, code } = req.body;
-  if (!phone || !code) return res.status(400).json({ error: 'phone and code required' });
-
-  if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
-  const { data: otpRow } = await supabase.from('auth_otps').select('*').eq('phone', phone).maybeSingle();
-  if (!otpRow) return res.status(400).json({ ok: false, error: 'code_expired' });
-  if (new Date(otpRow.expires_at).getTime() < Date.now()) {
-    await supabase.from('auth_otps').delete().eq('phone', phone);
-    return res.status(401).json({ ok: false, error: 'code_expired' });
-  }
-  if (String(otpRow.code) !== String(code)) {
-    return res.status(401).json({ ok: false, error: 'wrong_code' });
-  }
-
-  await supabase.from('auth_otps').delete().eq('phone', phone);
-
-  const data   = await readData();
-  const client = (data.clients || []).find(c => c.phone === phone);
-  if (!client) return res.status(404).json({ ok: false, error: 'client_not_found' });
-
-  const token = await createSession(client.id);
-  res.json({ ok: true, token, clientId: client.id, name: client.name });
-});
-
-/* ══════════════════════════════════════════════════════════
-   ░░ TELEGRAM MAGIC LINK AUTH (NATIVE DEEP LINK) ░░
-══════════════════════════════════════════════════════════ */
-app.get('/api/client/auth/telegram/magic', async (req, res) => {
-  const bot = getBot();
-  if (!bot) return res.status(500).json({ error: 'Telegram bot not configured' });
-  
-  if (!cachedBotUsername) {
-    try {
-      const me = await bot.getMe();
-      cachedBotUsername = me.username;
-    } catch (e) {
-      return res.status(500).json({ error: 'Failed to fetch bot username' });
-    }
-  }
-
-  const sessionId = crypto.randomUUID();
-  if (supabase) {
-    await supabase.from('auth_magic_links').insert({ session_id: sessionId, status: 'pending' });
-  }
-
-  res.json({ sessionId, botUsername: cachedBotUsername });
-});
-
-app.get('/api/client/auth/telegram/magic/status', async (req, res) => {
-  const { session } = req.query;
-  if (!supabase) return res.json({ status: 'pending' });
-
-  const { data: s } = await supabase.from('auth_magic_links').select('*').eq('session_id', session).maybeSingle();
-  if (!s) return res.json({ status: 'expired' });
-  
-  if (s.status === 'approved') {
-    const data = await readData();
-    const client = (data.clients || []).find(c => c.id === s.client_id);
-    if (!client) return res.json({ status: 'expired' });
-
-    await supabase.from('auth_magic_links').delete().eq('session_id', session);
-
-    const token = await createSession(client.id);
-    return res.json({ status: 'success', token });
-  }
-  res.json({ status: 'pending' });
-});
-
-app.post('/api/client/logout', async (req, res) => {
-  const token = req.headers['x-client-token'];
-  if (token && supabase) await supabase.from('auth_sessions').delete().eq('token', token);
-  res.json({ ok: true });
-});
-
-/* ══════════════════════════════════════════════════════════
-   ░░ VK OAUTH 2.0 ░░
-   GET  /api/client/auth/vk          → redirect to VK
-   GET  /api/client/auth/vk/callback → exchange code, set session
-══════════════════════════════════════════════════════════ */
-const VK_APP_ID     = process.env.VK_APP_ID;
-const VK_APP_SECRET = process.env.VK_APP_SECRET;
-const VK_REDIRECT   = process.env.VK_REDIRECT_URI ||
-  'https://autoelectricianlanding-production.up.railway.app/api/client/auth/vk/callback';
-
-app.get('/api/client/auth/vk', async (req, res) => {
-  if (!VK_APP_ID) {
-    return res.status(503).json({ ok: false, error: 'vk_not_configured' });
-  }
-  const url = new URL('https://oauth.vk.com/authorize');
-  url.searchParams.set('client_id',     VK_APP_ID);
-  url.searchParams.set('redirect_uri',  VK_REDIRECT);
-  url.searchParams.set('scope',         'offline');
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set('v',             '5.131');
-  url.searchParams.set('display',       'page');
-  res.redirect(url.toString());
-});
-
-app.get('/api/client/auth/vk/callback', async (req, res) => {
-  const { code, error } = req.query;
-  if (error || !code) {
-    return res.redirect('/profile.html?auth=error&reason=' + encodeURIComponent(error || 'no_code'));
-  }
-  if (!VK_APP_ID || !VK_APP_SECRET) {
-    return res.redirect('/profile.html?auth=error&reason=not_configured');
-  }
-
-  try {
-    // Exchange code for access_token
-    const tokenUrl = new URL('https://oauth.vk.com/access_token');
-    tokenUrl.searchParams.set('client_id',     VK_APP_ID);
-    tokenUrl.searchParams.set('client_secret', VK_APP_SECRET);
-    tokenUrl.searchParams.set('redirect_uri',  VK_REDIRECT);
-    tokenUrl.searchParams.set('code',          code);
-
-    const vkResp = await new Promise((resolve, reject) => {
-      https.get(tokenUrl.toString(), r => {
-        let body = '';
-        r.on('data', d => body += d);
-        r.on('end', () => resolve(JSON.parse(body)));
-      }).on('error', reject);
-    });
-
-    if (vkResp.error) {
-      return res.redirect('/profile.html?auth=error&reason=' + encodeURIComponent(vkResp.error));
-    }
-
-    const vkId    = String(vkResp.user_id);
-    const vkEmail = vkResp.email || '';
-
-    // Fetch VK user info
-    const userUrl = `https://api.vk.com/method/users.get?user_ids=${vkId}&fields=first_name,last_name,photo_100&access_token=${vkResp.access_token}&v=5.131`;
-    const vkUser  = await new Promise((resolve, reject) => {
-      https.get(userUrl, r => {
-        let body = '';
-        r.on('data', d => body += d);
-        r.on('end', () => {
-          try { resolve(JSON.parse(body)?.response?.[0] || {}); } catch { resolve({}); }
-        });
-      }).on('error', reject);
-    });
-
-    const dbData = await readData();
-    let client   = (dbData.clients || []).find(c => c.vkId === vkId);
-
-    if (!client && vkEmail) {
-      client = (dbData.clients || []).find(c => c.email === vkEmail);
-    }
-
-    if (!client) {
-      if (!dbData.clients) dbData.clients = [];
-      client = {
-        id:        uid(),
-        name:      [vkUser.first_name, vkUser.last_name].filter(Boolean).join(' ') || 'ВК Пользователь',
-        phone:     '',
-        email:     vkEmail,
-        vkId,
-        cars:      [],
-        repairs:   [],
-        createdAt: new Date().toISOString(),
-      };
-      dbData.clients.push(client);
-    } else {
-      if (!client.vkId) client.vkId = vkId;
-    }
-
-    await writeData(dbData);
-    const token = await createSession(client.id);
-    // Redirect back to profile with token in URL hash (client stores it)
-    res.redirect(`/profile.html?auth=vk&token=${token}&name=${encodeURIComponent(client.name)}`);
-
-  } catch (err) {
-    console.error('VK OAuth error:', err.message);
-    res.redirect('/profile.html?auth=error&reason=server_error');
-  }
-});
-
-/* Get own profile (client) */
 app.get('/api/client/profile', clientAuth, async (req, res) => {
-  const data   = await readData();
-  const client = (data.clients || []).find(c => c.id === req.clientId);
+  if (!supabase) return res.status(500).json({ error: 'DB error' });
+  const { data: client } = await supabase.from('clients').select('*').eq('id', req.clientId).maybeSingle();
   if (!client) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true, client });
 });
 
-/* Update client phone number */
 app.post('/api/client/profile/phone', clientAuth, async (req, res) => {
   const { phone } = req.body;
   if (!phone || !/^\+?[0-9]{10,15}$/.test(phone.replace(/[\s\-()]/g, ''))) {
@@ -797,243 +516,166 @@ app.post('/api/client/profile/phone', clientAuth, async (req, res) => {
   const rawPhone = phone.replace(/[\s\-()]/g, '');
   const cleanPhone = rawPhone.startsWith('+') ? rawPhone : '+' + rawPhone;
 
-  const data = await readData();
-  const client = (data.clients || []).find(c => c.id === req.clientId);
-  if (!client) return res.status(404).json({ ok: false, error: 'not_found' });
-
-  client.phone = cleanPhone;
-  await writeData(data);
+  if (!supabase) return res.status(500).json({ ok: false });
+  await supabase.from('clients').update({ phone: cleanPhone }).eq('id', req.clientId);
   res.json({ ok: true, phone: cleanPhone });
 });
 
 app.get('/api/client/me', clientAuth, async (req, res) => {
-  const data   = await readData();
-  const client = (data.clients || []).find(c => c.id === req.clientId);
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: client } = await supabase.from('clients').select('*').eq('id', req.clientId).maybeSingle();
   if (!client) return res.status(404).json({ error: 'Not found' });
 
-  // Don't expose accessCode or telegramChatId to client
-  const { accessCode, telegramChatId, ...safeClient } = client;
+  const { accessCode, telegram_chat_id, ...safeClient } = client;
   const repairCount = (client.repairs || []).length;
-  safeClient.level  = loyaltyLevel(repairCount);
+  
+  const ll = (cnt) => {
+    if (cnt >= 10) return { name: 'VIP', percent: 15 };
+    if (cnt >= 5)  return { name: 'Постоянный', percent: 10 };
+    if (cnt >= 2)  return { name: 'Лояльный', percent: 5 };
+    return { name: 'Новый', percent: 0 };
+  };
+  safeClient.level = ll(repairCount);
 
-  // Include master info
-  const { password, telegramBotToken, masterTelegramChatIds, ...safeSettings } = data.settings || {};
-  res.json({ ok: true, client: safeClient, masterInfo: { ...safeSettings, contacts: data.contacts } });
+  const { data: sRow } = await supabase.from('settings').select('*').maybeSingle();
+  const { data: cRow } = await supabase.from('contacts').select('*').maybeSingle();
+  const masterInfo = sRow?.data || {};
+  delete masterInfo.password;
+  delete masterInfo.telegramBotToken;
+  masterInfo.contacts = cRow?.data || {};
+
+  res.json({ ok: true, client: safeClient, masterInfo });
 });
 
-/* Client marks reminder as done */
 app.put('/api/client/reminder/:rid', clientAuth, async (req, res) => {
-  const data   = await readData();
-  const client = (data.clients || []).find(c => c.id === req.clientId);
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.clientId).maybeSingle();
   if (!client) return res.status(404).json({ error: 'Not found' });
 
   let found = false;
-  (client.repairs || []).forEach(repair => {
-    if (repair.reminder && repair.id === req.params.rid) {
+  const updatedRepairs = (client.repairs || []).map(repair => {
+    if (repair.reminder && String(repair.id) === String(req.params.rid)) {
       repair.reminder.done = true;
       found = true;
     }
+    return repair;
   });
   if (!found) return res.status(404).json({ error: 'Reminder not found' });
-  await writeData(data);
+  await supabase.from('clients').update({ repairs: updatedRepairs }).eq('id', req.clientId);
   res.json({ ok: true });
 });
 
-/* ══════════════════════════════════════════════════════════
-   ░░ NEW: CLIENTS CRM (admin) ░░
-══════════════════════════════════════════════════════════ */
-
-/* GET all clients with summary stats */
 app.get('/api/clients', authCheck, async (req, res) => {
-  const data = await readData();
-  const clients = (data.clients || []).map(c => {
-    const repairCount = (c.repairs || []).length;
-    const lastRepair  = repairCount
-      ? c.repairs[repairCount - 1].date
-      : null;
-    return {
-      id:             c.id,
-      name:           c.name,
-      phone:          c.phone,
-      level:          loyaltyLevel(repairCount),
-      repairCount,
-      lastRepairDate: lastRepair,
-      retention:      retentionStatus(c),
-      cars:           c.cars || [],
-      telegramLinked: !!(c.telegramChatId),
-    };
-  });
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: clients } = await supabase.from('clients').select('*').order('created_at', { ascending: false });
   res.json({ ok: true, clients });
 });
 
-/* POST create client */
 app.post('/api/clients', authCheck, async (req, res) => {
-  const { name, phone } = req.body;
-  if (!name || !phone) return res.status(400).json({ error: 'name and phone required' });
-  const data = await readData();
-  if (!data.clients) data.clients = [];
-
-  if (data.clients.find(c => c.phone === phone)) {
-    return res.status(409).json({ error: 'client_exists' });
-  }
-
-  // Generate a 4-digit access code for legacy manual fallback
-  const accessCode = String(Math.floor(1000 + Math.random() * 9000));
-  const client = {
-    id:        uid(),
-    name,
-    phone,
-    accessCode, // shown to master, can be shared manually
-    cars:       [],
-    repairs:    [],
-    createdAt:  new Date().toISOString(),
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { name, phone, email, cars } = req.body;
+  
+  const payload = {
+    id: uid(),
+    name: name || 'Аноним',
+    phone: phone || '',
+    email: email || '',
+    vk_id: '',
+    telegram_id: '',
+    telegram_username: '',
+    telegram_chat_id: '',
+    cars: Array.isArray(cars) ? cars : [],
+    repairs: [],
+    created_at: new Date().toISOString()
   };
-  data.clients.push(client);
-  await writeData(data);
+  await supabase.from('clients').insert(payload);
+  res.json({ ok: true, client: payload });
+});
+
+app.get('/api/clients/:id', authCheck, async (req, res) => {
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: client } = await supabase.from('clients').select('*').eq('id', req.params.id).maybeSingle();
+  if (!client) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true, client });
 });
 
-/* GET single client detail */
-app.get('/api/clients/:id', authCheck, async (req, res) => {
-  const data   = await readData();
-  const client = (data.clients || []).find(c => c.id === req.params.id);
-  if (!client) return res.status(404).json({ error: 'Not found' });
-  const repairCount = (client.repairs || []).length;
-  res.json({ ok: true, client: { ...client, level: loyaltyLevel(repairCount), retention: retentionStatus(client) } });
-});
-
-/* PUT update client base info */
 app.put('/api/clients/:id', authCheck, async (req, res) => {
-  const data = await readData();
-  const idx  = (data.clients || []).findIndex(c => c.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Not found' });
-
-  const { repairs, cars, id, ...editable } = req.body; // can't overwrite cars/repairs via this route
-  data.clients[idx] = { ...data.clients[idx], ...editable };
-  await writeData(data);
-  res.json({ ok: true, client: data.clients[idx] });
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { name, phone, email, cars } = req.body;
+  const payload = {};
+  if (name !== undefined) payload.name = name;
+  if (phone !== undefined) payload.phone = phone;
+  if (email !== undefined) payload.email = email;
+  if (cars !== undefined) payload.cars = cars;
+  
+  await supabase.from('clients').update(payload).eq('id', req.params.id);
+  const { data: client } = await supabase.from('clients').select('*').eq('id', req.params.id).maybeSingle();
+  res.json({ ok: true, client });
 });
 
-/* DELETE client */
 app.delete('/api/clients/:id', authCheck, async (req, res) => {
-  const data = await readData();
-  data.clients = (data.clients || []).filter(c => c.id !== req.params.id);
-  await writeData(data);
+  if (!supabase) return res.status(500).json({ ok: false });
+  await supabase.from('clients').delete().eq('id', req.params.id);
   res.json({ ok: true });
 });
 
-/* ── Cars ── */
-app.post('/api/clients/:id/cars', authCheck, async (req, res) => {
-  const data   = await readData();
-  const client = (data.clients || []).find(c => c.id === req.params.id);
-  if (!client) return res.status(404).json({ error: 'Not found' });
-
-  const car = { id: uid(), status: 'ok', ...req.body };
-  if (!client.cars) client.cars = [];
-
-  if (car.id && client.cars.find(c => c.id === car.id)) {
-    // Update existing
-    const idx = client.cars.findIndex(c => c.id === car.id);
-    client.cars[idx] = car;
-  } else {
-    car.id = uid();
-    client.cars.push(car);
-  }
-  await writeData(data);
-  res.json({ ok: true, cars: client.cars });
-});
-
-app.delete('/api/clients/:id/cars/:cid', authCheck, async (req, res) => {
-  const data   = await readData();
-  const client = (data.clients || []).find(c => c.id === req.params.id);
-  if (!client) return res.status(404).json({ error: 'Not found' });
-  client.cars = (client.cars || []).filter(c => c.id !== req.params.cid);
-  await writeData(data);
-  res.json({ ok: true, cars: client.cars });
-});
-
-/* ── Repairs ── */
 app.post('/api/clients/:id/repairs', authCheck, upload.array('photos', 5), async (req, res) => {
-  const data   = await readData();
-  const client = (data.clients || []).find(c => c.id === req.params.id);
-  if (!client) return res.status(404).json({ error: 'Not found' });
+  if (!supabase) return res.status(500).json({ ok: false });
+  
+  let photos = [];
+  try {
+    if (req.body.photos) {
+      const b64 = Array.isArray(req.body.photos) ? req.body.photos : [req.body.photos];
+      photos = photos.concat(b64);
+    }
+  } catch(e){}
 
-  const photos = (req.files || []).map(f => `/uploads/${f.filename}`);
-
-  let reminder = null;
-  if (req.body.reminderDate && req.body.reminderText) {
-    reminder = {
-      date: req.body.reminderDate,
-      text: req.body.reminderText,
-      done: false,
-    };
+  if (req.files && req.files.length > 0) {
+    for (const file of req.files) {
+       const fileName = 'repair-' + Date.now() + '-' + Math.round(Math.random()*1e6) + path.extname(file.originalname).toLowerCase();
+       const { data: uploadData } = await supabase.storage.from('uploads').upload(fileName, file.buffer, { contentType: file.mimetype });
+       if (uploadData) {
+         const { data: publicUrlData } = supabase.storage.from('uploads').getPublicUrl(fileName);
+         photos.push(publicUrlData.publicUrl);
+       }
+    }
   }
 
   const repair = {
-    id:          uid(),
-    carId:       req.body.carId       || null,
-    date:        req.body.date        || new Date().toISOString().slice(0, 10),
-    type:        req.body.type        || 'Другое',
+    id: uid(),
+    carId: req.body.carId || null,
+    date: req.body.date || new Date().toISOString().slice(0, 10),
+    type: req.body.type || 'Другое',
     description: req.body.description || '',
-    cost:        parseFloat(req.body.cost) || 0,
-    photos,
-    reminder,
-    createdAt:   new Date().toISOString(),
+    cost: parseFloat(req.body.cost) || 0,
+    photos
   };
 
-  if (!client.repairs) client.repairs = [];
-  client.repairs.push(repair);
-
-  // Update client level
-  client.level = loyaltyLevel(client.repairs.length);
-
-  await writeData(data);
-  res.json({ ok: true, repair, repairs: client.repairs });
+  const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.params.id).single();
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  const updatedRepairs = [...(client.repairs || []), repair];
+  
+  await supabase.from('clients').update({ repairs: updatedRepairs }).eq('id', req.params.id);
+  res.json({ ok: true, repair });
 });
 
 app.delete('/api/clients/:id/repairs/:rid', authCheck, async (req, res) => {
-  const data   = await readData();
-  const client = (data.clients || []).find(c => c.id === req.params.id);
-  if (!client) return res.status(404).json({ error: 'Not found' });
-
-  const repair = (client.repairs || []).find(r => r.id === req.params.rid);
-  // Remove photos from disk
-  (repair?.photos || []).forEach(p => {
-    if (p.startsWith('/uploads/')) {
-      const fp = path.join(PUBLIC_DIR, p);
-      if (fs.existsSync(fp)) fs.unlinkSync(fp);
-    }
-  });
-
-  client.repairs = (client.repairs || []).filter(r => r.id !== req.params.rid);
-  await writeData(data);
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.params.id).single();
+  if (!client) return res.status(404).json({ error: 'Client not found' });
+  
+  const updatedRepairs = (client.repairs || []).filter(r => String(r.id) !== String(req.params.rid));
+  await supabase.from('clients').update({ repairs: updatedRepairs }).eq('id', req.params.id);
   res.json({ ok: true });
 });
 
-/* ── Client: mark reminder done (by client token) ── */
-app.put('/api/client/reminder/:repairId', clientAuth, async (req, res) => {
-  const { clientId } = req.session;
-  const data   = await readData();
-  const client = (data.clients || []).find(c => c.id === clientId);
-  if (!client) return res.status(404).json({ error: 'Not found' });
-
-  const repair = (client.repairs || []).find(r => r.id === req.params.repairId);
-  if (!repair) return res.status(404).json({ error: 'Repair not found' });
-
-  if (repair.reminder) repair.reminder.done = true;
-  await writeData(data);
-  res.json({ ok: true });
-});
-
-/* ── Reminders (add standalone) ── */
 app.post('/api/clients/:id/reminders', authCheck, async (req, res) => {
-  const data   = await readData();
-  const client = (data.clients || []).find(c => c.id === req.params.id);
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.params.id).maybeSingle();
   if (!client) return res.status(404).json({ error: 'Not found' });
 
-  // Attach reminder to a synthetic repair entry
   const reminder = {
-    id:          uid(),
+    id:          crypto.randomUUID(),
     carId:       req.body.carId || null,
     date:        new Date().toISOString().slice(0, 10),
     type:        'Напоминание',
@@ -1043,9 +685,8 @@ app.post('/api/clients/:id/reminders', authCheck, async (req, res) => {
     reminder:    { date: req.body.date, text: req.body.text, done: false },
     createdAt:   new Date().toISOString(),
   };
-  if (!client.repairs) client.repairs = [];
-  client.repairs.push(reminder);
-  await writeData(data);
+  const updatedRepairs = [...(client.repairs || []), reminder];
+  await supabase.from('clients').update({ repairs: updatedRepairs }).eq('id', req.params.id);
   res.json({ ok: true, reminder });
 });
 
@@ -1057,91 +698,51 @@ app.post('/api/debug', async (req, res) => {
   res.sendStatus(200);
 });
 
-
-
 app.get('/api/logs', async (req, res) => {
   res.json(memLogs);
 });
 
-/* ══════════════════════════════════════════════════════════
-   ░░ ADMIN: ANALYTICS ░░
-══════════════════════════════════════════════════════════ */
-
 app.get('/api/analytics', authCheck, async (req, res) => {
-  const data     = await readData();
-  const clients  = data.clients  || [];
-  const requests = data.requests || [];
+  if (!supabase) return res.status(500).json({ ok: false });
+  const [{ data: clients }, { data: requests }] = await Promise.all([
+    supabase.from('clients').select('*'),
+    supabase.from('requests').select('*')
+  ]);
 
-  const now      = new Date();
-  const monthAgo = new Date(now); monthAgo.setMonth(monthAgo.getMonth() - 1);
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30)).toISOString();
+  
+  let newClients30 = 0;
+  let revenue30 = 0;
+  let requests30 = 0;
+  let totalRevenue = 0;
 
-  // Visits per month (last 6 months)
-  const visitsByMonth = {};
-  for (let i = 5; i >= 0; i--) {
-    const d   = new Date(now);
-    d.setMonth(d.getMonth() - i);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    visitsByMonth[key] = 0;
-  }
-  clients.forEach(c => {
-    (c.repairs || []).forEach(r => {
-      const key = r.date ? r.date.slice(0, 7) : null;
-      if (key && visitsByMonth.hasOwnProperty(key)) visitsByMonth[key]++;
-    });
-  });
-
-  // Service type frequency
-  const serviceFreq = {};
-  clients.forEach(c => {
-    (c.repairs || []).forEach(r => {
-      serviceFreq[r.type] = (serviceFreq[r.type] || 0) + 1;
-    });
-  });
-
-  // Revenue this month
-  let monthRevenue = 0, monthVisits = 0;
-  const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  clients.forEach(c => {
-    (c.repairs || []).forEach(r => {
-      if ((r.date || '').startsWith(monthStr)) {
-        monthRevenue += r.cost || 0;
-        monthVisits++;
+  for (const c of (clients || [])) {
+    if (c.created_at >= thirtyDaysAgo) newClients30++;
+    for (const r of (c.repairs || [])) {
+      if (typeof r.cost === 'number') {
+        totalRevenue += r.cost;
+        if (r.date >= thirtyDaysAgo) revenue30 += r.cost;
       }
-    });
-  });
+    }
+  }
 
-  // Churn risk (6+ months)
-  const churnClients = clients.filter(c => retentionStatus(c) === 'red').map(c => ({
-    id: c.id, name: c.name, phone: c.phone,
-    lastRepairDate: c.repairs?.slice(-1)[0]?.date || null,
-  }));
+  for (const r of (requests || [])) {
+    if (r.created_at >= thirtyDaysAgo) requests30++;
+  }
 
   res.json({
     ok: true,
-    totalClients:    clients.length,
-    newRequests:     requests.filter(r => r.status === 'new').length,
-    monthVisits,
-    monthRevenue,
-    avgCheck:        monthVisits ? Math.round(monthRevenue / monthVisits) : 0,
-    churnCount:      churnClients.length,
-    churnClients,
-    visitsByMonth,
-    serviceFreq,
+    stats: {
+      totalClients: (clients || []).length,
+      newClients30,
+      requests30,
+      revenue30,
+      totalRevenue
+    }
   });
 });
 
-/* ── Start ── */
-  app.post('/api/telegram-webhook', async (req, res) => {
-  const bot = getBot();
-  if (bot) bot.processUpdate(req.body);
-  res.sendStatus(200);
-});
-
-if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-  app.listen(PORT, () => {
-    console.log(`✅ Server running on http://localhost:${PORT}`);
-  });
-}
 module.exports = app;
 
 
