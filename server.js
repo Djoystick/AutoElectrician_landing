@@ -981,7 +981,7 @@ app.get('/api/client/auth/telegram/callback', (req, res) => {
     <head><title>Авторизация...</title></head>
     <body>
       <script>
-        localStorage.setItem('__autoElectro_client_token', '${token}');
+        localStorage.setItem('ae_client_token', '${token}');
         window.location.href = '/profile.html';
       </script>
     </body>
