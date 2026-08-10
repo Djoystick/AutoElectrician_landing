@@ -897,7 +897,7 @@ app.get('/api/client/auth/vk/callback', async (req, res) => {
   }
 });
 
-const clientAuth = async (req, res, next) => {
+async function clientAuth(req, res, next) {
   const token = req.headers['x-client-token'];
   if (!token) return res.status(401).json({ error: 'No token' });
   if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
@@ -910,7 +910,7 @@ const clientAuth = async (req, res, next) => {
   
   req.clientId = session.client_id;
   next();
-};
+}
 
 module.exports = app;
 
