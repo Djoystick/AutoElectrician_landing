@@ -112,8 +112,26 @@
         <i data-lucide="phone" class="w-4 h-4"></i>
         Позвонить
       </a>
+      
+      <!-- Mobile buttons (Profile + Menu toggle) -->
+      <div class="flex items-center gap-3 md:hidden">
+        <a href="/profile.html" class="flex items-center justify-center w-10 h-10 rounded-xl bg-surface border border-border text-accent">
+          <i data-lucide="user-circle" class="w-5 h-5"></i>
+        </a>
+        <button id="mobile-menu-btn" class="flex items-center justify-center w-10 h-10 rounded-xl bg-surface border border-border text-gray-400">
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
+      </div>
     </div>
   </nav>
+
+  <!-- Mobile Menu Overlay -->
+  <div id="mobile-menu" class="fixed inset-0 z-30 bg-bg/95 backdrop-blur-xl flex flex-col items-center justify-center gap-8 hidden opacity-0 transition-opacity duration-300 md:hidden pt-20">
+    <a href="#services"    class="text-2xl font-bold text-white hover:text-accent mobile-link">Услуги</a>
+    <a href="#how"         class="text-2xl font-bold text-white hover:text-accent mobile-link">Как работаем</a>
+    <a href="#reviews"     class="text-2xl font-bold text-white hover:text-accent mobile-link">Отзывы</a>
+    <a href="#contacts"    class="text-2xl font-bold text-white hover:text-accent mobile-link">Контакты</a>
+  </div>
 
   <!-- ─────────────────────────────────────────────
        HERO

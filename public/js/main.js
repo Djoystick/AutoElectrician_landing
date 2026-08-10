@@ -183,17 +183,48 @@ function renderContacts() {
 ══════════════════════════════════════════════════════════ */
 function initNavbar() {
   const nav = document.getElementById('navbar');
+  if (!nav) return;
+
   const onScroll = () => {
-    if (window.scrollY > 60) {
+    if (window.scrollY > 20) {
       nav.classList.add('glass', 'py-2');
-      nav.classList.remove('py-4');
+      nav.classList.remove('py-3');
     } else {
       nav.classList.remove('glass', 'py-2');
-      nav.classList.add('py-4');
+      nav.classList.add('py-3');
     }
   };
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
+
+  /* Mobile Menu Toggle */
+  const menuBtn = document.getElementById('mobile-menu-btn');
+  const mobileMenu = document.getElementById('mobile-menu');
+  if (menuBtn && mobileMenu) {
+    const toggleMenu = () => {
+      const isHidden = mobileMenu.classList.contains('hidden');
+      if (isHidden) {
+        mobileMenu.classList.remove('hidden');
+        void mobileMenu.offsetWidth; // trigger reflow
+        mobileMenu.classList.remove('opacity-0');
+        menuBtn.innerHTML = '<i data-lucide="x" class="w-5 h-5"></i>';
+        lucide.createIcons();
+      } else {
+        mobileMenu.classList.add('opacity-0');
+        setTimeout(() => {
+          mobileMenu.classList.add('hidden');
+          menuBtn.innerHTML = '<i data-lucide="menu" class="w-5 h-5"></i>';
+          lucide.createIcons();
+        }, 300);
+      }
+    };
+    menuBtn.addEventListener('click', toggleMenu);
+    document.querySelectorAll('.mobile-link').forEach(link => {
+      link.addEventListener('click', () => {
+        if (!mobileMenu.classList.contains('hidden')) toggleMenu();
+      });
+    });
+  }
 }
 
 /* ══════════════════════════════════════════════════════════
