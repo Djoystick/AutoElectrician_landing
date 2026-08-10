@@ -21,7 +21,7 @@ const https       = require('https');
 
 /* ── Optional Telegram Bot ── */
 let TelegramBot = null;
-try { TelegramBot = require('node-telegram-bot-api'); } catch {}
+try { const pkg = require('node-telegram-bot-api'); TelegramBot = pkg.default || pkg; } catch {}
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
