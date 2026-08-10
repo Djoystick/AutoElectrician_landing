@@ -55,6 +55,12 @@ function getBot() {
   if (!token || !TelegramBot) return null;
   if (!tgBot) {
     tgBot = new TelegramBot(token, { polling: true });
+    
+    // Prevent polling conflicts from crashing the server during rolling deploys
+    tgBot.on('polling_error', (error) => {
+      console.error('Telegram polling error:', error.message || error);
+    });
+    
     setupBotHandlers(tgBot);
   }
   return tgBot;
@@ -1077,8 +1083,20 @@ app.get('/api/analytics', authCheck, (req, res) => {
 });
 
 /* ── Start ── */
-app.listen(PORT, () => {
-  console.log(`✅  Сервер запущен → http://localhost:${PORT}`);
-  console.log(`⚙️   Админка        → http://localhost:${PORT}/admin.html`);
-  console.log(`👤  Профиль        → http://localhost:${PORT}/profile.html`);
-});
+  app.listen(PORT, () => {
+    console.log(`✅  Сервер запущен → http://localhost:${PORT}`);
+    console.log(`⚙️   Админка        → http://localhost:${PORT}/admin.html`);
+    console.log(`👤  Профиль        → http://localhost:${PORT}/profile.html`);
+  });
+
+  // Graceful shutdown to stop Telegram polling and prevent 409 Conflicts on Railway restarts
+  const shutdown = () => {
+    if (tgBot) {
+      console.log('Stopping Telegram polling...');
+      tgBot.stopPolling().then(() => process.exit(0)).catch(() => process.exit(1));
+    } else {
+      process.exit(0);
+    }
+  };
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
