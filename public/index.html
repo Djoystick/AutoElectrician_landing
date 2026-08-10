@@ -46,9 +46,13 @@
   <!-- Lucide -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 
-  <!-- DEBUG SYSTEM (Eruda) -->
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-  <script>eruda.init();</script>
+  <!-- DEBUG SYSTEM (vConsole) -->
+  <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
+  <script>
+    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      window.vConsole = new window.VConsole();
+    }
+  </script>
 </head>
 
 <body class="bg-bg text-gray-100 font-sans antialiased overflow-x-hidden">

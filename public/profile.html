@@ -61,9 +61,13 @@
     .mascot-float { animation:float 3.5s ease-in-out infinite; }
   </style>
 
-  <!-- DEBUG SYSTEM (Eruda) -->
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-  <script>eruda.init();</script>
+  <!-- DEBUG SYSTEM (vConsole) -->
+  <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
+  <script>
+    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      window.vConsole = new window.VConsole();
+    }
+  </script>
 </head>
 <body class="min-h-screen antialiased">
 
