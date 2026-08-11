@@ -97,10 +97,14 @@ async function loadProfile() {
     }
 
     const json = await res.json();
+    
     if (json.adminToken) {
       localStorage.setItem('ae_admin_token', json.adminToken);
-      window.location.href = '/admin.html';
-      return;
+      const adminBtn = document.getElementById('btn-admin-panel');
+      if (adminBtn) {
+        adminBtn.classList.remove('hidden');
+        adminBtn.addEventListener('click', () => { window.location.href = '/admin.html'; });
+      }
     }
     
     CLIENT = json.client;
@@ -369,6 +373,7 @@ formProfileReq?.addEventListener('submit', async e => {
 // Logout
 document.getElementById('logout-btn')?.addEventListener('click', () => {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('ae_admin_token');
   TOKEN = ''; CLIENT = null; MASTER = null;
   showLoginScreen();
   // Reset OTP form

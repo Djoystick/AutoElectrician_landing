@@ -30,16 +30,21 @@ document.getElementById('auth-btn').addEventListener('click', async () => {
       method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: user, password: pwd })
     });
     const json = await res.json();
-    if (json.ok) { TOKEN = user + ':' + pwd; localStorage.setItem('ae_admin_token', TOKEN); loadAndShow(); }
-    else err.classList.remove('hidden');
+    if (json.ok && json.token) { 
+      TOKEN = json.token; 
+      localStorage.setItem('ae_admin_token', TOKEN); 
+      loadAndShow(); 
+    } else {
+      err.classList.remove('hidden');
+    }
   } catch { err.textContent = 'Ошибка соединения'; err.classList.remove('hidden'); }
 });
 
 document.getElementById('logout-btn').addEventListener('click', () => {
   TOKEN = ''; 
   localStorage.removeItem('ae_admin_token');
-  localStorage.removeItem('ae_client_token');
-  window.location.href = '/';
+  // Return to client profile (where they might still be logged in)
+  window.location.href = '/profile.html';
 });
 
 /* ══════════════════════════════════════════════════════════
@@ -884,7 +889,7 @@ function openModal(id) {
    UTILS
 ══════════════════════════════════════════════════════════ */
 async function api(method, url, body) {
-  const opts = { method, headers: { 'x-admin-password': TOKEN } };
+  const opts = { method, headers: { 'Authorization': 'Bearer ' + TOKEN } };
   if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
   const res = await fetch(url, opts);
   return res.json();

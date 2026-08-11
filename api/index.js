@@ -18,11 +18,13 @@ const helmet      = require('helmet');
 const rateLimit   = require('express-rate-limit');
 const bcrypt      = require('bcryptjs');
 const https       = require('https');
+const jwt         = require('jsonwebtoken');
 const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+const JWT_SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.JWT_SECRET || 'secret-fallback-key';
 /* ── In-memory logs (limit to 100) ── */
 const memLogs = [];
 const addLog = (msg) => {
@@ -419,23 +421,22 @@ async function createSession(clientId) {
 
 /* ── Middleware: Admin Auth Check ── */
 const authCheck = async (req, res, next) => {
-  const token = req.headers['x-admin-password'];
+  const token = req.headers['authorization']?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const [username, ...pwdParts] = token.split(':');
-  const pwd = pwdParts.join(':');
-  if (!username || !pwd) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { data: m } = await supabase.from('masters').select('*').eq('username', username).maybeSingle();
-  if (!m) return res.status(401).json({ error: 'Unauthorized' });
-  
-  const isHash = m.password.startsWith('$2');
-  // Allow login if pwd exactly matches the DB hash (for auto-login tokens) or if bcrypt succeeds
-  const ok = (pwd === m.password) || (isHash && bcrypt.compareSync(pwd, m.password));
-  if (!ok) return res.status(401).json({ error: 'Unauthorized' });
-  
-  req.master = m;
-  next();
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded || !decoded.username) return res.status(401).json({ error: 'Unauthorized' });
+    
+    // Quick DB check to ensure master still exists (optional but good for security)
+    const { data: m } = await supabase.from('masters').select('*').eq('username', decoded.username).maybeSingle();
+    if (!m) return res.status(401).json({ error: 'Unauthorized' });
+    
+    req.master = m;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 };
 
 // 2. /api/data (Public)
@@ -467,8 +468,12 @@ app.post('/api/auth', limiterAdmin, async (req, res) => {
   const isHash = master.password.startsWith('$2');
   const ok = isHash ? bcrypt.compareSync(password, master.password) : (password === master.password);
   
-  if (ok) res.json({ ok: true });
-  else res.status(401).json({ ok: false, error: 'Неверный логин или пароль' });
+  if (ok) {
+    const token = jwt.sign({ username: master.username, id: master.id }, JWT_SECRET, { expiresIn: '30d' });
+    res.json({ ok: true, token });
+  } else {
+    res.status(401).json({ ok: false, error: 'Неверный логин или пароль' });
+  }
 });
 
 /* ── Masters Management ── */
@@ -737,10 +742,12 @@ app.get('/api/client/me', clientAuth, async (req, res) => {
   if (tgId) {
     const { data: master } = await supabase
       .from('masters')
-      .select('username, password')
+      .select('id, username')
       .eq('telegram_chat_id', tgId)
       .maybeSingle();
-    if (master) adminToken = `${master.username}:${master.password}`;
+    if (master) {
+      adminToken = jwt.sign({ username: master.username, id: master.id }, JWT_SECRET, { expiresIn: '30d' });
+    }
   }
 
   res.json({ ok: true, client: safeClient, masterInfo, adminToken });
