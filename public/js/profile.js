@@ -155,11 +155,15 @@ function renderGreeting() {
   document.getElementById('header-name').textContent = CLIENT.name;
 
   // Level badge
-  const level = CLIENT.level || 'newcomer';
-  const labels = { newcomer: '🔩 Новичок', regular: '⚡ Постоянный', veteran: '🏆 Ветеран гаража' };
-  const css    = { newcomer: 'level-newcomer', regular: 'level-regular', veteran: 'level-veteran' };
+  const levelObj = CLIENT.level || { name: 'Новичок', percent: 0 };
+  const levelName = levelObj.name || 'Новичок';
+  
+  let cssClass = 'level-newcomer';
+  if (levelName === 'Постоянный' || levelName === 'Лояльный') cssClass = 'level-regular';
+  if (levelName === 'VIP') cssClass = 'level-veteran';
+
   document.getElementById('level-badge-el').innerHTML =
-    `<span class="level-badge ${css[level]}">${labels[level]}</span>`;
+    `<span class="level-badge ${cssClass}">★ ${levelName}</span>`;
 
   // Progress bar
   const repairs = (CLIENT.repairs || []).length;

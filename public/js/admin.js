@@ -18,36 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ══════════════════════════════════════════════════════════
-   AUTH
-══════════════════════════════════════════════════════════ */
-document.getElementById('auth-btn').addEventListener('click', async () => {
-  const user = document.getElementById('auth-username').value;
-  const pwd = document.getElementById('auth-password').value;
-  const err = document.getElementById('auth-error');
-  if (!user || !pwd) return;
-  try {
-    const res = await fetch('/api/auth', {
-      method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: user, password: pwd })
-    });
-    const json = await res.json();
-    if (json.ok && json.token) { 
-      TOKEN = json.token; 
-      localStorage.setItem('ae_admin_token', TOKEN); 
-      loadAndShow(); 
-    } else {
-      err.classList.remove('hidden');
-    }
-  } catch { err.textContent = 'Ошибка соединения'; err.classList.remove('hidden'); }
-});
-
-document.getElementById('logout-btn').addEventListener('click', () => {
-  TOKEN = ''; 
-  localStorage.removeItem('ae_admin_token');
-  // Return to client profile (where they might still be logged in)
-  window.location.href = '/profile.html';
-});
-
-/* ══════════════════════════════════════════════════════════
    LOAD & SHOW
 ══════════════════════════════════════════════════════════ */
 async function loadAndShow() {
@@ -119,6 +89,34 @@ function bindEvents() {
       toast('Настройки сохранены!');
       loadAndShow();
     } else toast('Ошибка сохранения', 'error');
+  });
+
+  // AUTH
+  document.getElementById('auth-btn')?.addEventListener('click', async () => {
+    const user = document.getElementById('auth-username').value;
+    const pwd = document.getElementById('auth-password').value;
+    const err = document.getElementById('auth-error');
+    if (!user || !pwd) return;
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: user, password: pwd })
+      });
+      const json = await res.json();
+      if (json.ok && json.token) { 
+        TOKEN = json.token; 
+        localStorage.setItem('ae_admin_token', TOKEN); 
+        loadAndShow(); 
+      } else {
+        err.classList.remove('hidden');
+      }
+    } catch { err.textContent = 'Ошибка соединения'; err.classList.remove('hidden'); }
+  });
+
+  document.getElementById('logout-btn')?.addEventListener('click', () => {
+    TOKEN = ''; 
+    localStorage.removeItem('ae_admin_token');
+    // Return to client profile (where they might still be logged in)
+    window.location.href = '/profile.html';
   });
 }
 
@@ -893,6 +891,15 @@ async function api(method, url, body) {
   if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
   const res = await fetch(url, opts);
   return res.json();
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function formToObj(form) { return Object.fromEntries(new FormData(form)); }
