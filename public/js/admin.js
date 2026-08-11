@@ -36,10 +36,10 @@ document.getElementById('auth-btn').addEventListener('click', async () => {
 });
 
 document.getElementById('logout-btn').addEventListener('click', () => {
-  TOKEN = ''; localStorage.removeItem('ae_admin_token');
-  document.getElementById('dashboard').classList.add('hidden');
-  document.getElementById('dashboard').classList.remove('flex');
-  document.getElementById('login-screen').classList.remove('hidden');
+  TOKEN = ''; 
+  localStorage.removeItem('ae_admin_token');
+  localStorage.removeItem('ae_client_token');
+  window.location.href = '/';
 });
 
 /* ══════════════════════════════════════════════════════════
