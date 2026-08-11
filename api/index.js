@@ -79,14 +79,9 @@ async function getBot() {
   if (!TelegramBot) return null;
 
   if (!tgBot) {
-    // On Vercel: create bot WITHOUT polling. Webhook is set separately.
-    // On local: use polling.
-    if (process.env.VERCEL) {
-      tgBot = new TelegramBot(cachedToken);
-    } else {
-      tgBot = new TelegramBot(cachedToken, { polling: true });
-      setupBotHandlers(tgBot);
-    }
+    // NEVER use polling — it resets the production Telegram webhook!
+    // Webhook mode only: Telegram pushes updates to /api/telegram-webhook
+    tgBot = new TelegramBot(cachedToken);
   }
   return tgBot;
 }
@@ -380,15 +375,30 @@ app.post('/api/telegram-webhook', async (req, res) => {
 });
 
 
-/* ── Init bot on startup if token is already saved ── */
+/* ── Init bot on startup & ensure webhook is set on Vercel ── */
 (async () => {
   try {
-    await getBot();
+    const bot = await getBot();
+    if (bot && process.env.VERCEL && cachedToken) {
+      // Always re-set webhook on cold start — it gets reset on redeploy
+      const webhookUrl = 'https://auto-electrician-landing.vercel.app/api/telegram-webhook';
+      const r = await fetch(
+        `https://api.telegram.org/bot${cachedToken}/setWebhook`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: webhookUrl, drop_pending_updates: false, allowed_updates: ['message'] })
+        }
+      );
+      const result = await r.json();
+      addLog(`[TG] Webhook set on cold start: ${JSON.stringify(result)}`);
+    }
   } catch (err) {
     addLog(`[TG] Bot Init Error: ${err.stack || err}`);
     console.error('Bot Init Error:', err);
   }
 })();
+
 
 /* ── ID generator ── */
 const uid = () => crypto.randomBytes(8).toString('hex');
