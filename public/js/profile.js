@@ -117,11 +117,17 @@ async function loadProfile() {
 
 /* ══════════════════════════════════════════════════════════
    RENDER PROFILE
-══════════════════════════════════════════════════════════ */
+let isTgMagicLinkInitialized = false;
+
 function showLoginScreen() {
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('profile-screen').classList.add('hidden');
   lucide.createIcons();
+  
+  if (!isTgMagicLinkInitialized) {
+    initTelegramMagicLink();
+    isTgMagicLinkInitialized = true;
+  }
 }
 
 function showProfileScreen() {
@@ -444,7 +450,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadProfile();
   } else {
     showLoginScreen();
-    initTelegramMagicLink();
   }
 });
 
