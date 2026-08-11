@@ -265,32 +265,39 @@ app.post('/api/telegram-webhook', async (req, res) => {
     const from   = msg.from;
 
     // ── /start — welcome message with instructions ──
-    if (text === '/start' || text.startsWith('/start ')) {
+    if (text === '/start' || text === '/start ') {
       await bot.sendMessage(chatId,
         '👋 Привет! Это бот для входа в личный кабинет AutoElectro.\n\n' +
         '🔑 Как войти на сайт:\n' +
         '1. Откройте личный кабинет: https://auto-electrician-landing.vercel.app/profile.html\n' +
         '2. Нажмите «Войти через Telegram»\n' +
-        '3. Появится 6-значный код — отправьте его сюда\n\n' +
-        'Жду ваш код! 👇'
+        '3. Нажмите кнопку «Открыть бота» на сайте, и вы будете авторизованы автоматически!'
       );
       return;
     }
 
-    // ── 6-digit auth code ──
-    if (/^\d{6}$/.test(text)) {
+    // ── Deep Link / Code auth ──
+    let sessionCode = null;
+    if (text.startsWith('/start auth_')) {
+      sessionCode = text.split('auth_')[1];
+    } else if (/^\d{6}$/.test(text)) {
+      sessionCode = text; // backward compatibility
+    } else if (text.startsWith('/start ')) {
+      sessionCode = text.split('/start ')[1]; // generic start param
+    }
+
+    if (sessionCode) {
       const { data: session, error: sessErr } = await supabase
         .from('auth_magic_links')
         .select('*')
-        .eq('code', text)
+        .or(`code.eq.${sessionCode},session_id.eq.${sessionCode}`)
         .eq('status', 'pending')
         .maybeSingle();
 
       if (sessErr || !session) {
         await bot.sendMessage(chatId,
-          '❌ Код не найден или уже использован.\n\n' +
-          'Вернитесь на сайт и нажмите «Войти через Telegram» ещё раз — ' +
-          'придёт новый код.'
+          '❌ Ссылка устарела или недействительна.\n\n' +
+          'Вернитесь на сайт и нажмите «Войти через Telegram» ещё раз.'
         );
         return;
       }
@@ -300,7 +307,7 @@ app.post('/api/telegram-webhook', async (req, res) => {
       if (Date.now() - created.getTime() > 10 * 60 * 1000) {
         await supabase.from('auth_magic_links').update({ status: 'expired' }).eq('session_id', session.session_id);
         await bot.sendMessage(chatId,
-          '⏱ Код истёк (10 минут). Вернитесь на сайт и запросите новый.'
+          '⏱ Ссылка истекла (10 минут). Вернитесь на сайт и запросите новую.'
         );
         return;
       }
@@ -362,11 +369,10 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
     // ── Any other message ──
     await bot.sendMessage(chatId,
-      '🤖 Я понимаю только 6-значные коды авторизации.\n\n' +
+      '🤖 Я бот авторизации сайта AutoElectro.\n\n' +
       'Чтобы войти в личный кабинет:\n' +
       '1. Перейдите на сайт → Войти через Telegram\n' +
-      '2. Получите код\n' +
-      '3. Отправьте его сюда'
+      '2. Нажмите кнопку входа и вас автоматически перекинет сюда для авторизации.'
     );
 
   } catch (err) {
