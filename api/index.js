@@ -405,7 +405,7 @@ const uid = () => crypto.randomBytes(8).toString('hex');
 
 /* ── Session generator ── */
 async function createSession(clientId) {
-  const token = crypto.randomBytes(32).toString('hex');
+  const token = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
   await supabase.from('auth_sessions').insert({ token, client_id: clientId, expires_at: expiresAt });
   return token;
