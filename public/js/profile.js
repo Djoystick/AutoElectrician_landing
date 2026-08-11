@@ -117,6 +117,7 @@ async function loadProfile() {
 
 /* ══════════════════════════════════════════════════════════
    RENDER PROFILE
+══════════════════════════════════════════════════════════ */
 let isTgMagicLinkInitialized = false;
 
 function showLoginScreen() {
