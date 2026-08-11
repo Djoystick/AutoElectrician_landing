@@ -97,6 +97,12 @@ async function loadProfile() {
     }
 
     const json = await res.json();
+    if (json.adminToken) {
+      localStorage.setItem('ae_admin_token', json.adminToken);
+      window.location.href = '/admin.html';
+      return;
+    }
+    
     CLIENT = json.client;
     MASTER = json.masterInfo;
     showProfileScreen();

@@ -678,7 +678,20 @@ app.get('/api/client/profile', clientAuth, async (req, res) => {
   if (!supabase) return res.status(500).json({ error: 'DB error' });
   const { data: client } = await supabase.from('clients').select('*').eq('id', req.clientId).maybeSingle();
   if (!client) return res.status(404).json({ error: 'Not found' });
-  res.json({ ok: true, client });
+
+  let adminToken = null;
+  const tgId = client.telegram_chat_id || client.telegram_id;
+  if (tgId) {
+    const { data: master } = await supabase
+      .from('masters')
+      .select('password')
+      .eq('telegram_chat_id', tgId)
+      .maybeSingle();
+    
+    if (master) adminToken = master.password;
+  }
+
+  res.json({ ok: true, client, adminToken });
 });
 
 app.post('/api/client/profile/phone', clientAuth, async (req, res) => {
@@ -718,7 +731,18 @@ app.get('/api/client/me', clientAuth, async (req, res) => {
   delete masterInfo.telegramBotToken;
   masterInfo.contacts = cRow?.data || {};
 
-  res.json({ ok: true, client: safeClient, masterInfo });
+  let adminToken = null;
+  const tgId = client.telegram_chat_id || client.telegram_id;
+  if (tgId) {
+    const { data: master } = await supabase
+      .from('masters')
+      .select('password')
+      .eq('telegram_chat_id', tgId)
+      .maybeSingle();
+    if (master) adminToken = master.password;
+  }
+
+  res.json({ ok: true, client: safeClient, masterInfo, adminToken });
 });
 
 app.put('/api/client/reminder/:rid', clientAuth, async (req, res) => {
