@@ -446,8 +446,15 @@ async function initTelegramMagicLink() {
 
     const tgBtn = document.getElementById('tg-login-btn');
     if (tgBtn) {
-      tgBtn.href = `tg://resolve?domain=${data.botUsername}&start=auth_${data.sessionId}`;
-      
+      // Use https://t.me/ link — tg:// does NOT pass start= parameter on Telegram PC
+      const tgUrl = `https://t.me/${data.botUsername}?start=auth_${data.sessionId}`;
+      tgBtn.href = tgUrl;
+      tgBtn.target = '_blank';
+      tgBtn.onclick = (e) => {
+        e.preventDefault();
+        window.open(tgUrl, '_blank');
+      };
+
       // Start polling
       if (magicPollInterval) clearInterval(magicPollInterval);
       magicPollInterval = setInterval(async () => {

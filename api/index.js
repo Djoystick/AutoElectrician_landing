@@ -64,29 +64,31 @@ const sessionStore = new Map();
 /* ── Telegram bot instance (initialised lazily when token is saved) ── */
 let tgBot = null;
 
+let cachedToken = process.env.TELEGRAM_BOT_TOKEN || null;
+
 async function getBot() {
-  let token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token && supabase) {
+  // Use cached token or fetch from Supabase once per cold start
+  if (!cachedToken && supabase) {
     const { data: sRow } = await supabase.from('settings').select('data').maybeSingle();
-    if (sRow && sRow.data && sRow.data.telegramBotToken) token = sRow.data.telegramBotToken;
+    if (sRow && sRow.data && sRow.data.telegramBotToken) {
+      cachedToken = sRow.data.telegramBotToken;
+    }
   }
   
-  if (process.env.VERCEL) {
-    if (!tgBot) {
-      if (!token) return null;
-      tgBot = new TelegramBot(token);
-      tgBot.setWebHook('https://auto-electrician-landing.vercel.app/api/telegram-webhook').catch(e => console.error('Webhook set error:', e));
-      // Handlers are executed synchronously in the webhook for Vercel
-    }
-    return tgBot;
-  } else {
-    if (!tgBot) {
-      if (!token) return null;
-      tgBot = new TelegramBot(token, { polling: true });
+  if (!cachedToken) return null;
+  if (!TelegramBot) return null;
+
+  if (!tgBot) {
+    // On Vercel: create bot WITHOUT polling. Webhook is set separately.
+    // On local: use polling.
+    if (process.env.VERCEL) {
+      tgBot = new TelegramBot(cachedToken);
+    } else {
+      tgBot = new TelegramBot(cachedToken, { polling: true });
       setupBotHandlers(tgBot);
     }
-    return tgBot;
   }
+  return tgBot;
 }
 
 async function setupBotHandlers(bot) {
