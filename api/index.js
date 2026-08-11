@@ -245,104 +245,140 @@ const limiterPublic = rateLimit({
 
 /* ── Data helpers ── */
 
+/* ══════════════════════════════════════════════════
+   TELEGRAM WEBHOOK — code-based auth (no deep links)
+   Flow:
+   1. Site generates 6-digit code → stores in auth_magic_links (session_id, code, status=pending)
+   2. User opens bot, sends the 6-digit code
+   3. Bot finds pending session by code, approves it, creates/links client
+   4. Site polling detects approval → logs user in
+══════════════════════════════════════════════════ */
 app.post('/api/telegram-webhook', async (req, res) => {
+  // Always respond 200 immediately to Telegram so it doesn't retry
+  res.sendStatus(200);
+
   try {
     const bot = await getBot();
-    if (!bot) return res.sendStatus(200);
+    if (!bot || !supabase) return;
 
     const update = req.body;
-    if (update.message && update.message.text) {
-      const msg = update.message;
-      const text = msg.text;
-      const chatId = msg.chat.id;
+    if (!update.message || !update.message.text) return;
 
-      if (text.startsWith('/start auth_')) {
-        const sessionId = text.replace('/start auth_', '').trim();
-        
-        if (!supabase) {
-          await bot.sendMessage(chatId, '❌ Ошибка сервера: база данных не подключена.');
-          return res.sendStatus(200);
-        }
+    const msg    = update.message;
+    const text   = msg.text.trim();
+    const chatId = msg.chat.id;
+    const from   = msg.from;
 
-        const { data: s } = await supabase.from('auth_magic_links').select('*').eq('session_id', sessionId).maybeSingle();
-        
-        if (!s || s.status !== 'pending') {
-          await bot.sendMessage(chatId, '❌ Ссылка устарела или недействительна. Вернитесь на сайт и нажмите кнопку входа еще раз.');
-        } else {
-          const { data: clients } = await supabase.from('clients').select('*');
-          let client = (clients || []).find(c => String(c.telegram_id) === String(msg.from.id) || String(c.telegram_chat_id) === String(chatId));
-          
-          if (!client) {
-            client = {
-              id: crypto.randomUUID(),
-              name: msg.from.first_name + (msg.from.last_name ? ' ' + msg.from.last_name : ''),
-              phone: '',
-              email: '',
-              vk_id: '',
-              cars: [],
-              repairs: [],
-              telegram_id: String(msg.from.id),
-              telegram_username: msg.from.username || '',
-              telegram_chat_id: String(chatId),
-              created_at: new Date().toISOString()
-            };
-            await supabase.from('clients').insert(client);
-          } else {
-            let updated = {};
-            if (!client.telegram_id) updated.telegram_id = String(msg.from.id);
-            if (!client.telegram_chat_id) updated.telegram_chat_id = String(chatId);
-            if (Object.keys(updated).length > 0) await supabase.from('clients').update(updated).eq('id', client.id);
-          }
-
-          await supabase.from('auth_magic_links').update({ status: 'approved', client_id: client.id }).eq('session_id', sessionId);
-          
-          const { data: adminSettings } = await supabase.from('settings').select('*').maybeSingle();
-          if (adminSettings && adminSettings.data && Array.isArray(adminSettings.data.masterTelegramChatIds)) {
-            for (const adminChatId of adminSettings.data.masterTelegramChatIds) {
-              await bot.sendMessage(adminChatId, `🟢 Авторизован новый клиент:\nИмя: ${client.name}\nTG: @${client.telegram_username}`).catch(() => {});
-            }
-          }
-          
-          await bot.sendMessage(chatId, '✅ Вы успешно авторизовались в личном кабинете AutoElectro! Возвращайтесь на сайт.');
-        }
-      } else if (text === '/start') {
-        await bot.sendMessage(chatId, '👋 Привет! Я бот для входа в личный кабинет клиента AutoElectro.\n\nОтправьте ваш номер телефона в формате +79991234567, чтобы привязать аккаунт.');
-      } else {
-        // Fallback for regular text messages
-        if (!supabase) return res.sendStatus(200);
-        
-        let clientMatch = null;
-        const { data: allClients } = await supabase.from('clients').select('*');
-        if (allClients) {
-          clientMatch = allClients.find(c => String(c.telegram_chat_id) === String(chatId) || String(c.telegram_id) === String(msg.from.id));
-        }
-
-        if (!clientMatch) {
-          const phoneRegex = /^(\+)?(7|8)?\s?\(?\d{3}\)?\s?\d{3}-?\d{2}-?\d{2}$/;
-          if (phoneRegex.test(text)) {
-            const cleanPhone = text.replace(/\D/g, '');
-            if (allClients) {
-              const byPhone = allClients.find(c => c.phone.replace(/\D/g, '') === cleanPhone);
-              if (byPhone) {
-                await supabase.from('clients').update({
-                  telegram_id: String(msg.from.id),
-                  telegram_username: msg.from.username || '',
-                  telegram_chat_id: String(chatId)
-                }).eq('id', byPhone.id);
-                await bot.sendMessage(chatId, '✅ Аккаунт успешно привязан по номеру телефона!');
-              } else {
-                await bot.sendMessage(chatId, '❌ Номер телефона не найден в базе.');
-              }
-            }
-          }
-        }
-      }
+    // ── /start — welcome message with instructions ──
+    if (text === '/start' || text.startsWith('/start ')) {
+      await bot.sendMessage(chatId,
+        '👋 Привет! Это бот для входа в личный кабинет AutoElectro.\n\n' +
+        '🔑 Как войти на сайт:\n' +
+        '1. Откройте личный кабинет: https://auto-electrician-landing.vercel.app/profile.html\n' +
+        '2. Нажмите «Войти через Telegram»\n' +
+        '3. Появится 6-значный код — отправьте его сюда\n\n' +
+        'Жду ваш код! 👇'
+      );
+      return;
     }
+
+    // ── 6-digit auth code ──
+    if (/^\d{6}$/.test(text)) {
+      const { data: session, error: sessErr } = await supabase
+        .from('auth_magic_links')
+        .select('*')
+        .eq('code', text)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (sessErr || !session) {
+        await bot.sendMessage(chatId,
+          '❌ Код не найден или уже использован.\n\n' +
+          'Вернитесь на сайт и нажмите «Войти через Telegram» ещё раз — ' +
+          'придёт новый код.'
+        );
+        return;
+      }
+
+      // Check code hasn't expired (10 min)
+      const created = new Date(session.created_at);
+      if (Date.now() - created.getTime() > 10 * 60 * 1000) {
+        await supabase.from('auth_magic_links').update({ status: 'expired' }).eq('session_id', session.session_id);
+        await bot.sendMessage(chatId,
+          '⏱ Код истёк (10 минут). Вернитесь на сайт и запросите новый.'
+        );
+        return;
+      }
+
+      // Find or create client
+      let client = null;
+      const { data: existing } = await supabase
+        .from('clients')
+        .select('*')
+        .or(`telegram_id.eq.${String(from.id)},telegram_chat_id.eq.${String(chatId)}`)
+        .maybeSingle();
+
+      if (existing) {
+        client = existing;
+        // Update telegram fields if missing
+        const upd = {};
+        if (!client.telegram_id) upd.telegram_id = String(from.id);
+        if (!client.telegram_chat_id) upd.telegram_chat_id = String(chatId);
+        if (!client.telegram_username && from.username) upd.telegram_username = from.username;
+        if (Object.keys(upd).length > 0) {
+          await supabase.from('clients').update(upd).eq('id', client.id);
+        }
+      } else {
+        const newClient = {
+          id: crypto.randomUUID(),
+          name: [from.first_name, from.last_name].filter(Boolean).join(' '),
+          phone: '', email: '', vk_id: '',
+          cars: [], repairs: [],
+          telegram_id: String(from.id),
+          telegram_username: from.username || '',
+          telegram_chat_id: String(chatId),
+          created_at: new Date().toISOString()
+        };
+        await supabase.from('clients').insert([newClient]);
+        client = newClient;
+      }
+
+      // Approve session
+      await supabase
+        .from('auth_magic_links')
+        .update({ status: 'approved', client_id: client.id })
+        .eq('session_id', session.session_id);
+
+      // Notify admins
+      const { data: settingsRow } = await supabase.from('settings').select('data').maybeSingle();
+      const adminIds = settingsRow?.data?.masterTelegramChatIds || [];
+      for (const adminId of adminIds) {
+        bot.sendMessage(adminId,
+          `🟢 Новый вход в кабинет:\nКлиент: ${client.name}\nTG: @${client.telegram_username || from.id}`
+        ).catch(() => {});
+      }
+
+      await bot.sendMessage(chatId,
+        '✅ Вы успешно вошли в личный кабинет AutoElectro!\n\n' +
+        '↩️ Вернитесь на страницу сайта — она обновится автоматически.'
+      );
+      return;
+    }
+
+    // ── Any other message ──
+    await bot.sendMessage(chatId,
+      '🤖 Я понимаю только 6-значные коды авторизации.\n\n' +
+      'Чтобы войти в личный кабинет:\n' +
+      '1. Перейдите на сайт → Войти через Telegram\n' +
+      '2. Получите код\n' +
+      '3. Отправьте его сюда'
+    );
+
   } catch (err) {
     console.error('Webhook error:', err);
   }
-  res.sendStatus(200);
 });
+
 
 /* ── Init bot on startup if token is already saved ── */
 (async () => {
@@ -925,6 +961,7 @@ app.get('/api/client/auth/telegram/magic', async (req, res) => {
   const bot = await getBot();
   if (!bot) return res.status(500).json({ error: 'Telegram bot not configured' });
   
+  // Get bot username
   if (!cachedBotUsername) {
     try {
       const me = await bot.getMe();
@@ -934,19 +971,43 @@ app.get('/api/client/auth/telegram/magic', async (req, res) => {
     }
   }
 
+  // Generate session + 6-digit code
   const sessionId = crypto.randomBytes(16).toString('hex');
-  const { error } = await supabase.from('auth_magic_links').insert({ session_id: sessionId, status: 'pending' });
-  if (error) return res.status(500).json({ error: 'DB Error' });
+  const code = String(Math.floor(100000 + Math.random() * 900000)); // 100000–999999
+
+  const { error } = await supabase
+    .from('auth_magic_links')
+    .insert({ session_id: sessionId, code, status: 'pending' });
+
+  if (error) {
+    console.error('DB insert error:', error);
+    return res.status(500).json({ error: 'DB Error: ' + error.message });
+  }
   
-  res.json({ sessionId, botUsername: cachedBotUsername });
+  res.json({ sessionId, code, botUsername: cachedBotUsername });
 });
 
 app.get('/api/client/auth/telegram/magic/status', async (req, res) => {
   const { session } = req.query;
   if (!supabase) return res.json({ status: 'pending' });
 
-  const { data: s } = await supabase.from('auth_magic_links').select('*').eq('session_id', session).maybeSingle();
+  const { data: s } = await supabase
+    .from('auth_magic_links')
+    .select('*')
+    .eq('session_id', session)
+    .maybeSingle();
+
   if (!s) return res.json({ status: 'expired' });
+  if (s.status === 'expired') return res.json({ status: 'expired' });
+  
+  // Also expire if older than 10 minutes
+  if (s.status === 'pending') {
+    const age = Date.now() - new Date(s.created_at).getTime();
+    if (age > 10 * 60 * 1000) {
+      await supabase.from('auth_magic_links').update({ status: 'expired' }).eq('session_id', session);
+      return res.json({ status: 'expired' });
+    }
+  }
   
   if (s.status === 'approved') {
     const { data: client } = await supabase.from('clients').select('*').eq('id', s.client_id).maybeSingle();

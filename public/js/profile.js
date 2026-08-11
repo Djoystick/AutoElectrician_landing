@@ -437,44 +437,119 @@ document.addEventListener('DOMContentLoaded', async () => {
    TELEGRAM MAGIC LINK INITIATION & POLLING
 ══════════════════════════════════════════════════════════ */
 let magicPollInterval = null;
+let magicCountdownInterval = null;
 
 async function initTelegramMagicLink() {
   try {
+    // Clean up old intervals
+    if (magicPollInterval) clearInterval(magicPollInterval);
+    if (magicCountdownInterval) clearInterval(magicCountdownInterval);
+
     const res = await fetch('/api/client/auth/telegram/magic?t=' + Date.now());
     const data = await res.json();
-    if (!data.sessionId || !data.botUsername) return;
-
-    const tgBtn = document.getElementById('tg-login-btn');
-    if (tgBtn) {
-      // Use https://t.me/ link — tg:// does NOT pass start= parameter on Telegram PC
-      const tgUrl = `https://t.me/${data.botUsername}?start=auth_${data.sessionId}`;
-      tgBtn.href = tgUrl;
-      tgBtn.target = '_blank';
-      tgBtn.onclick = (e) => {
-        e.preventDefault();
-        window.open(tgUrl, '_blank');
-      };
-
-      // Start polling
-      if (magicPollInterval) clearInterval(magicPollInterval);
-      magicPollInterval = setInterval(async () => {
-        try {
-          const pRes = await fetch(`/api/client/auth/telegram/magic/status?session=${data.sessionId}`);
-          const pData = await pRes.json();
-          if (pData.status === 'success') {
-            clearInterval(magicPollInterval);
-            TOKEN = pData.token;
-            localStorage.setItem(TOKEN_KEY, TOKEN);
-            await loadProfile();
-          } else if (pData.status === 'expired') {
-            clearInterval(magicPollInterval);
-            initTelegramMagicLink(); // Generate new session
-          }
-        } catch (e) {
-          // Ignore polling errors
-        }
-      }, 2000);
+    if (!data.sessionId || !data.code || !data.botUsername) {
+      console.error('Magic link error:', data);
+      return;
     }
+
+    const botUrl = `https://t.me/${data.botUsername}`;
+    const tgBtn = document.getElementById('tg-login-btn');
+    
+    // Rewrite the entire login area to show the code UI
+    const loginArea = tgBtn ? tgBtn.closest('.space-y-3, div') : null;
+    const container = tgBtn ? tgBtn.parentElement : null;
+
+    if (tgBtn) {
+      // Update the main button to open the bot
+      tgBtn.href = botUrl;
+      tgBtn.target = '_blank';
+      tgBtn.onclick = (e) => { e.preventDefault(); window.open(botUrl, '_blank'); };
+      tgBtn.innerHTML = `
+        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/>
+        </svg>
+        Шаг 1: Открыть бота @${data.botUsername}
+      `;
+    }
+
+    // Inject code block after the button
+    const existingCodeBlock = document.getElementById('tg-code-block');
+    if (existingCodeBlock) existingCodeBlock.remove();
+
+    const codeBlock = document.createElement('div');
+    codeBlock.id = 'tg-code-block';
+    codeBlock.style.cssText = `
+      margin-top: 12px;
+      padding: 16px;
+      background: rgba(0,180,253,0.07);
+      border: 1px solid rgba(0,180,253,0.25);
+      border-radius: 12px;
+      text-align: center;
+    `;
+    codeBlock.innerHTML = `
+      <p style="color:#7d8590;font-size:0.78rem;margin:0 0 8px;">Шаг 2: Отправьте этот код боту (6 цифр)</p>
+      <div id="tg-auth-code" style="
+        font-size: 2.2rem;
+        font-weight: 900;
+        letter-spacing: 0.35em;
+        color: #00b4fd;
+        font-family: monospace;
+        cursor: pointer;
+        user-select: all;
+      " title="Нажмите чтобы скопировать">${data.code}</div>
+      <p style="color:#7d8590;font-size:0.72rem;margin:8px 0 0;">Действует <span id="tg-code-timer" style="color:#f59e0b;font-weight:700;">10:00</span></p>
+      <p style="color:#3fb950;font-size:0.72rem;margin:6px 0 0;">&#128994; Жду код от бота...</p>
+    `;
+
+    if (tgBtn && tgBtn.parentElement) {
+      tgBtn.parentElement.insertBefore(codeBlock, tgBtn.nextSibling);
+    }
+
+    // Copy to clipboard on click
+    document.getElementById('tg-auth-code')?.addEventListener('click', () => {
+      navigator.clipboard?.writeText(data.code).then(() => {
+        const el = document.getElementById('tg-auth-code');
+        if (el) { el.style.color = '#3fb950'; setTimeout(() => { el.style.color = '#00b4fd'; }, 1000); }
+      });
+    });
+
+    // Countdown timer (10 min)
+    let secondsLeft = 10 * 60;
+    magicCountdownInterval = setInterval(() => {
+      secondsLeft--;
+      const m = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
+      const s = (secondsLeft % 60).toString().padStart(2, '0');
+      const timerEl = document.getElementById('tg-code-timer');
+      if (timerEl) timerEl.textContent = `${m}:${s}`;
+      if (secondsLeft <= 0) {
+        clearInterval(magicCountdownInterval);
+        clearInterval(magicPollInterval);
+        // Auto-refresh with a new code
+        initTelegramMagicLink();
+      }
+    }, 1000);
+
+    // Poll for approval
+    magicPollInterval = setInterval(async () => {
+      try {
+        const pRes = await fetch(`/api/client/auth/telegram/magic/status?session=${data.sessionId}`);
+        const pData = await pRes.json();
+        if (pData.status === 'success') {
+          clearInterval(magicPollInterval);
+          clearInterval(magicCountdownInterval);
+          TOKEN = pData.token;
+          localStorage.setItem(TOKEN_KEY, TOKEN);
+          await loadProfile();
+        } else if (pData.status === 'expired') {
+          clearInterval(magicPollInterval);
+          clearInterval(magicCountdownInterval);
+          initTelegramMagicLink(); // Generate new code
+        }
+      } catch (e) {
+        // Ignore polling errors
+      }
+    }, 2000);
+
   } catch (e) {
     console.error('Failed to init Telegram magic link', e);
   }
