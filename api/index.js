@@ -430,7 +430,8 @@ const authCheck = async (req, res, next) => {
   if (!m) return res.status(401).json({ error: 'Unauthorized' });
   
   const isHash = m.password.startsWith('$2');
-  const ok = isHash ? bcrypt.compareSync(pwd, m.password) : pwd === m.password;
+  // Allow login if pwd exactly matches the DB hash (for auto-login tokens) or if bcrypt succeeds
+  const ok = (pwd === m.password) || (isHash && bcrypt.compareSync(pwd, m.password));
   if (!ok) return res.status(401).json({ error: 'Unauthorized' });
   
   req.master = m;
@@ -736,10 +737,10 @@ app.get('/api/client/me', clientAuth, async (req, res) => {
   if (tgId) {
     const { data: master } = await supabase
       .from('masters')
-      .select('password')
+      .select('username, password')
       .eq('telegram_chat_id', tgId)
       .maybeSingle();
-    if (master) adminToken = master.password;
+    if (master) adminToken = `${master.username}:${master.password}`;
   }
 
   res.json({ ok: true, client: safeClient, masterInfo, adminToken });
