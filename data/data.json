@@ -1,16 +1,14 @@
 {
   "settings": {
-    "password": "admin",
+    "password": "",
     "heroTitle": "Автоэлектрик с выездом",
     "heroSubtitle": "Диагностика, ремонт проводки, сигнализации — приеду к вашей машине в течение часа. Работаем 24/7.",
     "acceptingRequests": true,
-    "telegramBotToken": "8227351240:AAGw-trrfL3PckYd8aG5cL-BDnLgzaR9D64",
+    "telegramBotToken": "",
     "telegramBotUsername": "AutoElectricalENC_bot",
     "masterName": "Мастер",
     "masterPhoto": "",
-    "masterTelegramChatIds": [
-      6208918931
-    ]
+    "masterTelegramChatIds": []
   },
   "contacts": {
     "phone": "+7 (999) 123-45-67",

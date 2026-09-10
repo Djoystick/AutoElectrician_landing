@@ -169,18 +169,13 @@
 
         <!-- LEFT: text content -->
         <div>
-          <!-- Online badge -->
-          <div id="hero-badge"
-               class="inline-flex items-center gap-2.5
-                      bg-surface border border-border
-                      px-4 py-2 rounded-full mb-7 text-sm font-medium">
-            <span class="relative flex h-2.5 w-2.5 shrink-0">
-              <span class="pulse-ring absolute inline-flex h-full w-full
-                           rounded-full bg-green-500"></span>
-              <span class="relative inline-flex h-2.5 w-2.5
-                           rounded-full bg-green-500"></span>
-            </span>
-            <span id="hero-accepting-text">Мастер сейчас принимает вызовы</span>
+          <!-- Online / Live Status Badge with Radar Pulse -->
+          <div id="hero-status-wrap" class="status-wrap mb-7">
+            <div id="hero-badge" class="status-indicator free" role="status" aria-live="polite">
+              <span class="status-icon" aria-hidden="true"></span>
+              <span id="hero-accepting-text" class="status-text font-semibold">🟢 Свободен — выезд за ~25 мин</span>
+            </div>
+            <div class="radar-ring" aria-hidden="true"></div>
           </div>
 
           <!-- Title -->
@@ -276,6 +271,148 @@
       <span class="text-xs uppercase tracking-widest">Прокрутите</span>
       <i data-lucide="chevrons-down" class="w-5 h-5"></i>
     </a>
+  </section>
+
+  <!-- ─────────────────────────────────────────────
+       EXPRESS FAULT CALCULATOR (3 шага)
+  ───────────────────────────────────────────── -->
+  <section id="calculator" class="py-12 bg-surface/30 border-y border-border relative overflow-hidden">
+    <div class="container mx-auto px-5 lg:px-10 max-w-4xl relative z-10">
+      <div class="text-center mb-8 reveal">
+        <span class="text-accent text-xs font-bold uppercase tracking-widest bg-accent/10 px-3 py-1 rounded-full border border-accent/20">
+          Быстрый подбор решения
+        </span>
+        <h2 class="font-black text-2xl sm:text-3xl lg:text-4xl text-white uppercase mt-3">
+          Экспресс-калькулятор неисправностей
+        </h2>
+        <p class="text-gray-400 text-sm mt-2">Узнайте ориентировочное время прибытия и стоимость работ за 3 клика</p>
+      </div>
+
+      <!-- Card container -->
+      <div class="calc-card bg-surface border border-border rounded-3xl p-6 sm:p-8 shadow-2xl relative">
+        <!-- Progress bar -->
+        <div class="calc-progress-bar mb-6 bg-bg/80 h-2 rounded-full overflow-hidden border border-border">
+          <div id="calc-progress-fill" class="h-full bg-accent transition-all duration-300 rounded-full" style="width: 33.33%"></div>
+        </div>
+
+        <!-- STEP 1: CAR TYPE -->
+        <div id="calc-step-1" class="calc-step">
+          <h3 class="text-white font-bold text-lg mb-4 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-full bg-accent text-bg text-xs font-black flex items-center justify-center">1</span>
+            Выберите категорию автомобиля:
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <button type="button" class="calc-opt-btn text-left" data-step="1" data-val="отечественный" data-cost-mult="1.0">
+              <span class="text-2xl mb-1 block">🚗</span>
+              <span class="font-bold text-white text-sm block">Отечественный</span>
+              <span class="text-xs text-gray-400">ВАЗ, ГАЗ, УАЗ</span>
+            </button>
+            <button type="button" class="calc-opt-btn text-left" data-step="1" data-val="иномарка до 2015" data-cost-mult="1.15">
+              <span class="text-2xl mb-1 block">🚙</span>
+              <span class="font-bold text-white text-sm block">Иномарка до 2015</span>
+              <span class="text-xs text-gray-400">Европа, Корея, Япония</span>
+            </button>
+            <button type="button" class="calc-opt-btn text-left" data-step="1" data-val="современная иномарка" data-cost-mult="1.3">
+              <span class="text-2xl mb-1 block">🏎️</span>
+              <span class="font-bold text-white text-sm block">Свежая иномарка / Премиум</span>
+              <span class="text-xs text-gray-400">С 2016 г., VAG, BMW, Mercedes</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 2: SYMPTOM -->
+        <div id="calc-step-2" class="calc-step hidden">
+          <h3 class="text-white font-bold text-lg mb-4 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-full bg-accent text-bg text-xs font-black flex items-center justify-center">2</span>
+            Что произошло с автомобилем?
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button type="button" class="calc-opt-btn text-left" data-step="2" data-symptom="Не заводится / стартер молчит" data-base-price="2000" data-time="25-35 мин">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">⚡</span>
+                <div>
+                  <span class="font-bold text-white text-sm block">Не заводится / стартер</span>
+                  <span class="text-xs text-gray-400">Молчит, щелкает, не крутит</span>
+                </div>
+              </div>
+            </button>
+            <button type="button" class="calc-opt-btn text-left" data-step="2" data-symptom="Сел аккумулятор / нет зарядки" data-base-price="1800" data-time="20-30 мин">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">🔋</span>
+                <div>
+                  <span class="font-bold text-white text-sm block">АКБ / Генератор</span>
+                  <span class="text-xs text-gray-400">Сел аккумулятор, горит лампа АКБ</span>
+                </div>
+              </div>
+            </button>
+            <button type="button" class="calc-opt-btn text-left" data-step="2" data-symptom="Заблокирована сигнализация / иммо" data-base-price="2500" data-time="30-40 мин">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">🚨</span>
+                <div>
+                  <span class="font-bold text-white text-sm block">Сигнализация / Иммо</span>
+                  <span class="text-xs text-gray-400">Блокирует запуск, орёт, не видит брелок</span>
+                </div>
+              </div>
+            </button>
+            <button type="button" class="calc-opt-btn text-left" data-step="2" data-symptom="Короткое замыкание / запах гари" data-base-price="2500" data-time="25-35 мин">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">💨</span>
+                <div>
+                  <span class="font-bold text-white text-sm block">Замыкание / проводка</span>
+                  <span class="text-xs text-gray-400">Искрит, горит предохранитель, запах гари</span>
+                </div>
+              </div>
+            </button>
+            <button type="button" class="calc-opt-btn text-left sm:col-span-2" data-step="2" data-symptom="Компьютерная диагностика / Check Engine" data-base-price="1500" data-time="25-35 мин">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">💻</span>
+                <div>
+                  <span class="font-bold text-white text-sm block">Компьютерная диагностика ошибок</span>
+                  <span class="text-xs text-gray-400">Горит чек, плавают обороты, ошибки блоков управления</span>
+                </div>
+              </div>
+            </button>
+          </div>
+          <button type="button" id="calc-back-1" class="text-xs text-gray-400 hover:text-accent mt-4 inline-flex items-center gap-1">
+            ← Назад к выбору авто
+          </button>
+        </div>
+
+        <!-- STEP 3: RESULT & CTA -->
+        <div id="calc-step-3" class="calc-step hidden">
+          <div class="bg-bg/90 border border-accent/30 rounded-2xl p-5 mb-5 text-center">
+            <span class="text-xs text-accent font-bold uppercase tracking-wider block mb-1">Предварительный расчет</span>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-6 my-3">
+              <div>
+                <span class="text-xs text-gray-400 block">Ориентир прибытия:</span>
+                <span id="calc-res-time" class="text-xl font-black text-white">~25-35 мин</span>
+              </div>
+              <div class="hidden sm:block w-px h-10 bg-border"></div>
+              <div>
+                <span class="text-xs text-gray-400 block">Ориентировочная стоимость:</span>
+                <span id="calc-res-price" class="text-2xl font-black text-accent">от 1 800 ₽</span>
+              </div>
+            </div>
+            <p id="calc-res-desc" class="text-xs text-gray-300 max-w-md mx-auto"></p>
+          </div>
+
+          <div class="flex flex-col sm:flex-row gap-3">
+            <button type="button" id="calc-apply-btn" class="flex-1 py-3.5 px-6 rounded-2xl bg-accent hover:brightness-110 text-bg font-bold text-base transition-all flex items-center justify-center gap-2 accent-glow">
+              <i data-lucide="send" class="w-4 h-4"></i>
+              Вызвать мастера с этими данными
+            </button>
+            <a id="calc-call-btn" href="tel:+79991234567" class="py-3.5 px-6 rounded-2xl bg-surface hover:bg-border text-white border border-border font-semibold text-base transition-colors flex items-center justify-center gap-2">
+              <i data-lucide="phone-call" class="w-4 h-4 text-accent"></i>
+              Срочный звонок
+            </a>
+          </div>
+
+          <button type="button" id="calc-restart-btn" class="text-xs text-gray-400 hover:text-accent mt-4 inline-flex items-center gap-1">
+            ↺ Пересчитать заново
+          </button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ─────────────────────────────────────────────

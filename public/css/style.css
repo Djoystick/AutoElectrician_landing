@@ -140,3 +140,122 @@ body {
 /* ---------- How section connecting line on step 1 ---------- */
 .how-card { position: relative; }
 
+/* ---------- Live Master Status Badge & Radar Pulse ---------- */
+.status-wrap {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1rem;
+  border-radius: 9999px;
+  background: rgba(28, 31, 39, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid #2A2D38;
+  font-size: 0.875rem;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  z-index: 2;
+  position: relative;
+}
+
+.status-indicator.free {
+  border-color: #10b981;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.25);
+}
+
+.status-indicator.busy {
+  border-color: #f59e0b;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.25);
+}
+
+.status-indicator.offline {
+  border-color: #6b7280;
+}
+
+.status-icon {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-indicator.free .status-icon {
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+.status-indicator.busy .status-icon {
+  background: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+}
+
+.status-indicator.offline .status-icon {
+  background: #6b7280;
+}
+
+.radar-ring {
+  position: absolute;
+  left: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(16, 185, 129, 0.5);
+  border-radius: 50%;
+  animation: pulseRadar 2s infinite ease-out;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.status-indicator.busy ~ .radar-ring {
+  border-color: rgba(245, 158, 11, 0.5);
+}
+
+.status-indicator.offline ~ .radar-ring {
+  display: none;
+}
+
+@keyframes pulseRadar {
+  0%   { transform: translateY(-50%) scale(0.6); opacity: 0.9; }
+  60%  { opacity: 0.4; }
+  100% { transform: translateY(-50%) scale(2.2); opacity: 0; }
+}
+
+/* ---------- Express Calculator ---------- */
+.calc-opt-btn {
+  background: rgba(28, 31, 39, 0.7);
+  border: 1px solid #2A2D38;
+  border-radius: 1rem;
+  padding: 1rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.calc-opt-btn:hover {
+  border-color: #00b4fd;
+  background: rgba(0, 180, 253, 0.08);
+  transform: translateY(-2px);
+}
+
+.calc-opt-btn.selected {
+  border-color: #00b4fd;
+  background: rgba(0, 180, 253, 0.15);
+  box-shadow: 0 0 16px rgba(0, 180, 253, 0.2);
+}
+
+/* ---------- Reduced Motion (Accessibility) ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .radar-ring { display: none !important; }
+  .mascot-float { transform: none !important; }
+}
+

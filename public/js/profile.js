@@ -173,15 +173,16 @@ function renderGreeting() {
     `<span class="level-badge ${cssClass}">★ ${levelName}</span>`;
 
   // Progress bar
+  const levelKey = (levelName === 'VIP') ? 'veteran' : (levelName === 'Постоянный' || levelName === 'Лояльный') ? 'regular' : 'newcomer';
   const repairs = (CLIENT.repairs || []).length;
   const targets = { newcomer: [0, 3], regular: [3, 6], veteran: [6, 6] };
-  const [from, to] = targets[level] || [0, 3];
+  const [from, to] = targets[levelKey] || [0, 3];
   const pct = to > from ? Math.min(100, Math.round((repairs - from) / (to - from) * 100)) : 100;
   const nextLabels = { newcomer: 'До уровня "Постоянный"', regular: 'До уровня "Ветеран"', veteran: 'Максимальный уровень!' };
   const ps = document.getElementById('level-progress-section');
-  if (level !== 'veteran') {
+  if (levelKey !== 'veteran') {
     ps.classList.remove('hidden');
-    document.getElementById('level-progress-label').textContent = nextLabels[level];
+    document.getElementById('level-progress-label').textContent = nextLabels[levelKey];
     document.getElementById('level-progress-val').textContent = `${repairs - from} / ${to - from} визитов`;
     setTimeout(() => { document.getElementById('level-progress-fill').style.width = pct + '%'; }, 300);
   }
@@ -387,21 +388,20 @@ document.getElementById('logout-btn')?.addEventListener('click', () => {
   localStorage.removeItem('ae_admin_token');
   TOKEN = ''; CLIENT = null; MASTER = null;
   showLoginScreen();
-  // Reset OTP form
-  stepPhone.classList.remove('hidden');
-  stepOtp.classList.add('hidden');
-  inputPhone.value = '';
-  inputCode.value  = '';
 });
 
 /* ══════════════════════════════════════════════════════════
    UTILS
 ══════════════════════════════════════════════════════════ */
 function esc(str) {
-  if (!str) return '';
+  if (str === null || str === undefined) return '';
   return String(str)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/`/g, '&#96;');
 }
 
 function fmtDate(str) {

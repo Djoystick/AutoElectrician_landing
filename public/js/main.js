@@ -31,6 +31,8 @@ async function init() {
   initNavbar();
   initAnimations();
   initLightbox();
+  initCalculator();
+  initRequestModal();
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -54,18 +56,19 @@ function renderHero() {
   const subtitleEl = document.getElementById('hero-subtitle');
   if (s.heroSubtitle) subtitleEl.textContent = s.heroSubtitle;
 
-  // Accepting requests badge
+  // Accepting requests badge (Living Status Indicator)
   const badge        = document.getElementById('hero-badge');
   const acceptingText = document.getElementById('hero-accepting-text');
   if (badge && acceptingText) {
     const accepting = s.acceptingRequests !== false;
-    const dot = badge.querySelector('.pulse-ring')?.parentElement;
     if (!accepting) {
-      badge.classList.add('opacity-60');
-      acceptingText.textContent = 'Сейчас не принимаю вызовы';
-      if (dot) { dot.querySelectorAll('span').forEach(sp => { sp.classList.remove('bg-green-500'); sp.classList.add('bg-gray-500'); }); }
+      badge.classList.remove('free');
+      badge.classList.add('busy');
+      acceptingText.textContent = '🟡 На выезде / Занят';
     } else {
-      acceptingText.textContent = 'Мастер сейчас принимает вызовы';
+      badge.classList.remove('busy');
+      badge.classList.add('free');
+      acceptingText.textContent = '🟢 Свободен — выезд за ~25 мин';
     }
   }
 
@@ -76,6 +79,7 @@ function renderHero() {
   setHref('nav-call-btn',      phoneHref);
   setHref('hero-call-btn',     phoneHref);
   setHref('services-call-btn', phoneHref);
+  setHref('calc-call-btn',     phoneHref);
 
   // City
   const cityEl = document.getElementById('hero-city');
@@ -350,6 +354,164 @@ function initLightbox() {
 function setHref(id, href) {
   const el = document.getElementById(id);
   if (el) el.href = href;
+}
+
+/* ══════════════════════════════════════════════════════════
+   EXPRESS FAULT CALCULATOR (3 STEPS)
+══════════════════════════════════════════════════════════ */
+function initCalculator() {
+  const step1 = document.getElementById('calc-step-1');
+  const step2 = document.getElementById('calc-step-2');
+  const step3 = document.getElementById('calc-step-3');
+  const progressFill = document.getElementById('calc-progress-fill');
+  if (!step1 || !step2 || !step3) return;
+
+  let selectedCar = 'Отечественный';
+  let carMultiplier = 1.0;
+  let selectedSymptom = 'Не заводится / стартер молчит';
+  let basePrice = 2000;
+  let estimatedTime = '25-35 мин';
+  let finalPrice = 2000;
+
+  // Step 1: Car Category
+  step1.querySelectorAll('.calc-opt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedCar = btn.getAttribute('data-val') || 'Автомобиль';
+      carMultiplier = parseFloat(btn.getAttribute('data-cost-mult')) || 1.0;
+
+      if (progressFill) progressFill.style.width = '66.66%';
+      step1.classList.add('hidden');
+      step2.classList.remove('hidden');
+    });
+  });
+
+  // Step 2: Symptom
+  step2.querySelectorAll('.calc-opt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedSymptom = btn.getAttribute('data-symptom') || 'Неисправность';
+      basePrice = parseInt(btn.getAttribute('data-base-price'), 10) || 2000;
+      estimatedTime = btn.getAttribute('data-time') || '25-35 мин';
+
+      finalPrice = Math.round((basePrice * carMultiplier) / 100) * 100;
+
+      const timeEl = document.getElementById('calc-res-time');
+      const priceEl = document.getElementById('calc-res-price');
+      const descEl = document.getElementById('calc-res-desc');
+
+      if (timeEl) timeEl.textContent = `~${estimatedTime}`;
+      if (priceEl) priceEl.textContent = `от ${finalPrice.toLocaleString('ru-RU')} ₽`;
+      if (descEl) descEl.textContent = `Категория: ${selectedCar} • Поломка: ${selectedSymptom}`;
+
+      if (progressFill) progressFill.style.width = '100%';
+      step2.classList.add('hidden');
+      step3.classList.remove('hidden');
+    });
+  });
+
+  // Back button (Step 2 -> Step 1)
+  document.getElementById('calc-back-1')?.addEventListener('click', () => {
+    if (progressFill) progressFill.style.width = '33.33%';
+    step2.classList.add('hidden');
+    step1.classList.remove('hidden');
+  });
+
+  // Restart button (Step 3 -> Step 1)
+  document.getElementById('calc-restart-btn')?.addEventListener('click', () => {
+    if (progressFill) progressFill.style.width = '33.33%';
+    step3.classList.add('hidden');
+    step1.classList.remove('hidden');
+  });
+
+  // Apply button (Step 3 -> Open Request Modal with filled problem text)
+  document.getElementById('calc-apply-btn')?.addEventListener('click', () => {
+    const summary = `[Экспресс-калькулятор]\nКатегория авто: ${selectedCar}\nНеисправность: ${selectedSymptom}\nПредварительно: от ${finalPrice} ₽ (~${estimatedTime})`;
+    if (typeof window.openRequestModal === 'function') {
+      window.openRequestModal(summary);
+    }
+  });
+}
+
+/* ══════════════════════════════════════════════════════════
+   REQUEST MODAL & FORM (Decoupled from mascot)
+══════════════════════════════════════════════════════════ */
+function initRequestModal() {
+  const modalReq      = document.getElementById('modal-request');
+  const closeReqModal = document.getElementById('close-request-modal');
+  const heroReqBtn    = document.getElementById('hero-request-btn');
+  const stickyReqBtn  = document.getElementById('sticky-request-btn');
+  const formPubReq    = document.getElementById('form-public-request');
+  const reqSuccess    = document.getElementById('req-success');
+  const reqError      = document.getElementById('req-error');
+
+  window.openRequestModal = function(prefillProblem) {
+    if (!modalReq) return;
+    if (prefillProblem && formPubReq) {
+      const p = formPubReq.querySelector('[name="problem"]');
+      if (p) p.value = prefillProblem;
+    }
+    modalReq.classList.remove('hidden');
+    modalReq.classList.add('flex');
+    if (reqSuccess) reqSuccess.classList.add('hidden');
+    if (reqError) reqError.classList.add('hidden');
+  };
+
+  window.closeRequestModal = function() {
+    if (!modalReq) return;
+    modalReq.classList.add('hidden');
+    modalReq.classList.remove('flex');
+  };
+
+  heroReqBtn?.addEventListener('click', () => window.openRequestModal());
+  stickyReqBtn?.addEventListener('click', () => window.openRequestModal());
+  closeReqModal?.addEventListener('click', () => window.closeRequestModal());
+
+  modalReq?.addEventListener('click', e => {
+    if (e.target === modalReq) window.closeRequestModal();
+  });
+
+  if (formPubReq) {
+    formPubReq.addEventListener('submit', async e => {
+      e.preventDefault();
+      const submitBtn = formPubReq.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+      if (reqSuccess) reqSuccess.classList.add('hidden');
+      if (reqError) reqError.classList.add('hidden');
+
+      const formData = new FormData(formPubReq);
+      const payload = Object.fromEntries(formData.entries());
+
+      try {
+        const res = await fetch('/api/requests', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (res.ok && json.ok) {
+          if (reqSuccess) reqSuccess.classList.remove('hidden');
+          formPubReq.reset();
+          if (typeof window.onMascotCelebration === 'function') {
+            window.onMascotCelebration();
+          }
+          setTimeout(() => {
+            window.closeRequestModal();
+          }, 2200);
+        } else {
+          if (reqError) {
+            reqError.textContent = json.error || 'Ошибка при отправке заявки. Позвоните нам напрямую.';
+            reqError.classList.remove('hidden');
+          }
+        }
+      } catch (err) {
+        if (reqError) {
+          reqError.textContent = 'Ошибка соединения. Пожалуйста, позвоните мастеру.';
+          reqError.classList.remove('hidden');
+        }
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
 }
 
 /* ── Run ── */

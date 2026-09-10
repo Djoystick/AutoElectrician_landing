@@ -21,10 +21,17 @@ document.addEventListener('DOMContentLoaded', () => {
    LOAD & SHOW
 ══════════════════════════════════════════════════════════ */
 async function loadAndShow() {
-  [DATA, ANALYTICS] = await Promise.all([
-    fetch('/api/data').then(r => r.json()),
-    api('GET', '/api/analytics'),
+  const [pubData, analyticsRes, clientsRes, requestsRes] = await Promise.all([
+    fetch('/api/data').then(r => r.json()).catch(() => ({})),
+    api('GET', '/api/analytics').catch(() => ({})),
+    api('GET', '/api/clients').catch(() => ({})),
+    api('GET', '/api/requests').catch(() => ({})),
   ]);
+
+  DATA = pubData || {};
+  DATA.clients = clientsRes?.clients || [];
+  DATA.requests = requestsRes?.requests || [];
+  ANALYTICS = analyticsRes || {};
 
   document.getElementById('login-screen').classList.add('hidden');
   const dash = document.getElementById('dashboard');
@@ -893,13 +900,24 @@ async function api(method, url, body) {
   return res.json();
 }
 
-function escapeHtml(str) {
+function esc(str) {
   if (str === null || str === undefined) return '';
   return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/`/g, '&#96;');
+}
+
+function escapeHtml(str) {
+  return esc(str);
+}
+
+function sanitizePhone(phone) {
+  if (!phone) return '';
+  return String(phone).replace(/[^\d+]/g, '');
 }
 
 function formToObj(form) { return Object.fromEntries(new FormData(form)); }
@@ -910,11 +928,6 @@ function toast(msg = 'Сохранено', isError = false) {
   el.className = `fixed top-4 right-4 z-50 text-white px-5 py-3 rounded-xl shadow-xl text-sm font-semibold transition-transform duration-300 ${isError ? 'bg-red-600' : 'bg-green-600'}`;
   el.classList.remove('translate-x-[150%]');
   setTimeout(() => el.classList.add('translate-x-[150%]'), 3000);
-}
-
-function esc(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function fmtDate(str) {

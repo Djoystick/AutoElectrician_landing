@@ -2,3 +2,12 @@ node_modules/
 public/uploads/
 .env
 *.log
+
+*.pdf
+*.bak
+*.tmp
+run_agents*.py
+openrouter_agent_*.md
+agent_code_outputs/
+
+

@@ -1,228 +1,128 @@
-﻿/* ============================================================
-   mascot.js — Электрон, маскот AutoElectro
-   Онбординг при первом визите + плавающая кнопка-помощник
+/* ============================================================
+   mascot.js — Электрон, маскот-помощник AutoElectro
+   Интерактивный помощник-диагност по запросу (on-demand)
+   Форма заявки и калькулятор вынесены независимо в main.js
 ============================================================ */
 'use strict';
 
-const ONBOARD_KEY = 'ae_onboarded';
+(function () {
+  /* ── DOM Elements ── */
+  const mascotChar   = document.getElementById('mascot-character');
+  const mascotBubble = document.getElementById('mascot-bubble');
+  const mascotText   = document.getElementById('mascot-text');
+  const mascotNext   = document.getElementById('mascot-next');
+  const mascotInd    = document.getElementById('mascot-step-indicator');
+  const mascotBtn    = document.getElementById('mascot-btn');
 
-const STEPS = [
-  {
-    text: '👋 Привет! Я Электрон — помощник AutoElectro. Давай покажу, как работает сайт!',
-    highlight: null,
-  },
-  {
-    text: '📞 Здесь вы можете позвонить мастеру или оставить заявку онлайн — он перезвонит в течение часа.',
-    highlight: '#hero-btns',
-  },
-  {
-    text: '🔧 В этом разделе — все услуги с ценами. После ремонта всё автоматически попадает в ваш профиль.',
-    highlight: '#services',
-  },
-  {
-    text: '👤 А здесь — ваш личный кабинет. История ремонтов, гараж и напоминания о ТО всегда под рукой.',
-    highlight: null,
-    link: '/profile.html',
-    linkText: 'Перейти в профиль →',
-  },
-];
+  if (!mascotBtn || !mascotBubble || !mascotText) return;
 
-const HINTS = {
-  default: '⚡ Чем могу помочь? Напишите мастеру или оставьте заявку!',
-  services: '🔧 Выберите нужную услугу — мастер приедет к вашей машине.',
-  how: '📋 Всё просто: звонок → приезд → ремонт → запись в профиль.',
-  reviews: '⭐ Реальные отзывы от клиентов. Вы тоже можете оставить — после ремонта.',
-  contacts: '📱 Работаем 24/7. Звоните в любое время!',
-};
-
-let currentStep = 0;
-let onboardingDone = localStorage.getItem(ONBOARD_KEY) === '1';
-
-/* ── Elements ── */
-const mascotChar   = document.getElementById('mascot-character');
-const mascotBubble = document.getElementById('mascot-bubble');
-const mascotText   = document.getElementById('mascot-text');
-const mascotNext   = document.getElementById('mascot-next');
-const mascotInd    = document.getElementById('mascot-step-indicator');
-const mascotBtn    = document.getElementById('mascot-btn');
-
-function showBubble(text, showLink) {
-  mascotText.innerHTML = text;
-  if (showLink) {
-    mascotText.innerHTML += `<br/><a href="${showLink.href}"
-      class="text-accent text-xs font-semibold hover:underline mt-1 block">${showLink.label}</a>`;
-  }
-  mascotBubble.classList.remove('hidden');
-}
-
-function hideBubble() {
-  mascotBubble.classList.add('hidden');
-}
-
-function showStep(idx) {
-  const step = STEPS[idx];
-  mascotInd.textContent = `${idx + 1} / ${STEPS.length}`;
-  mascotNext.textContent = idx < STEPS.length - 1 ? 'Далее' : 'Понятно!';
-
-  showBubble(
-    step.text,
-    step.link ? { href: step.link, label: step.linkText } : null
-  );
-
-  // Highlight element
-  document.querySelectorAll('.mascot-highlight').forEach(el => {
-    el.classList.remove('mascot-highlight');
-    el.style.outline = '';
-  });
-  if (step.highlight) {
-    const el = document.querySelector(step.highlight);
-    if (el) {
-      el.style.outline = '2px solid rgba(0,180,253,0.6)';
-      el.style.borderRadius = '16px';
-      el.classList.add('mascot-highlight');
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }
-}
-
-function finishOnboarding() {
-  localStorage.setItem(ONBOARD_KEY, '1');
-  onboardingDone = true;
-
-  // Clear highlights
-  document.querySelectorAll('.mascot-highlight').forEach(el => {
-    el.style.outline = '';
-    el.classList.remove('mascot-highlight');
-  });
-
-  hideBubble();
-  // Slide mascot back down
-  mascotChar.style.transform = 'translateY(100%)';
-  setTimeout(() => mascotChar.classList.add('hidden'), 700);
-
-  // Show persistent floating button
+  // Make floating button visible by default (non-intrusive)
   mascotBtn.classList.remove('hidden');
-}
 
-/* ── Start onboarding ── */
-function startOnboarding() {
-  if (onboardingDone) {
-    mascotBtn.classList.remove('hidden');
-    return;
+  function showBubble(htmlContent) {
+    mascotText.innerHTML = htmlContent;
+    mascotBubble.classList.remove('hidden');
   }
 
-  currentStep = 0;
-  mascotChar.classList.remove('hidden');
+  function hideBubble() {
+    mascotBubble.classList.add('hidden');
+  }
 
-  // Slide in mascot after short delay
-  setTimeout(() => {
-    mascotChar.style.transform = 'translateY(0)';
-    setTimeout(() => showStep(0), 400);
-  }, 1200);
-}
-
-/* ── Next button ── */
-mascotNext?.addEventListener('click', () => {
-  if (!onboardingDone) {
-    currentStep++;
-    if (currentStep >= STEPS.length) {
-      finishOnboarding();
-    } else {
-      showStep(currentStep);
+  /* ── Interactive diagnostic menu ── */
+  function showDiagnosticMenu() {
+    if (mascotInd) mascotInd.textContent = 'Диагностика';
+    if (mascotNext) {
+      mascotNext.textContent = 'Закрыть';
     }
-  } else {
-    hideBubble();
-  }
-});
 
-/* ── Floating button: show context hint ── */
-mascotBtn?.addEventListener('click', () => {
-  if (!mascotBubble.classList.contains('hidden')) {
-    hideBubble();
-    return;
-  }
+    const menuHtml = `
+      <div class="space-y-2">
+        <p class="font-bold text-accent text-xs uppercase tracking-wider flex items-center gap-1">
+          <span>⚡</span> Помощник Электрон
+        </p>
+        <p class="text-xs text-gray-200">Что случилось с автомобилем? Выберите для быстрого вызова:</p>
+        <div class="grid grid-cols-1 gap-1.5 pt-1">
+          <button type="button" class="mascot-chip text-left px-2.5 py-1.5 rounded-lg bg-bg/80 hover:bg-accent/20 border border-border hover:border-accent/40 text-xs text-white transition-colors flex items-center gap-2" data-symptom="Не заводится / стартер молчит">
+            <span>⚡</span> <span>Не заводится / стартер</span>
+          </button>
+          <button type="button" class="mascot-chip text-left px-2.5 py-1.5 rounded-lg bg-bg/80 hover:bg-accent/20 border border-border hover:border-accent/40 text-xs text-white transition-colors flex items-center gap-2" data-symptom="Сел аккумулятор / нет зарядки">
+            <span>🔋</span> <span>Сел аккумулятор / зарядка</span>
+          </button>
+          <button type="button" class="mascot-chip text-left px-2.5 py-1.5 rounded-lg bg-bg/80 hover:bg-accent/20 border border-border hover:border-accent/40 text-xs text-white transition-colors flex items-center gap-2" data-symptom="Сигнализация заблокировала запуск">
+            <span>🚨</span> <span>Глючит сигнализация</span>
+          </button>
+          <button type="button" class="mascot-chip text-left px-2.5 py-1.5 rounded-lg bg-bg/80 hover:bg-accent/20 border border-border hover:border-accent/40 text-xs text-white transition-colors flex items-center gap-2" data-action="calc">
+            <span>🧮</span> <span>Экспресс-калькулятор цены</span>
+          </button>
+        </div>
+      </div>
+    `;
 
-  // Determine current section
-  const sections = ['services', 'how', 'reviews', 'contacts'];
-  let hint = HINTS.default;
-  for (const id of sections) {
-    const el = document.getElementById(id);
-    if (el) {
-      const rect = el.getBoundingClientRect();
-      if (rect.top < window.innerHeight / 2 && rect.bottom > 100) {
-        hint = HINTS[id] || HINTS.default;
-        break;
-      }
-    }
-  }
+    showBubble(menuHtml);
 
-  mascotInd.textContent = '';
-  mascotNext.textContent = 'OK';
-  showBubble(hint);
-});
+    // Attach click listeners to chips
+    mascotText.querySelectorAll('.mascot-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const action = chip.getAttribute('data-action');
+        const symptom = chip.getAttribute('data-symptom');
 
-/* ── Request modal ── */
-const modalReq       = document.getElementById('modal-request');
-const closeReqModal  = document.getElementById('close-request-modal');
-const heroReqBtn     = document.getElementById('hero-request-btn');
-const formPubReq     = document.getElementById('form-public-request');
-const reqSuccess     = document.getElementById('req-success');
-const reqError       = document.getElementById('req-error');
+        if (action === 'calc') {
+          hideBubble();
+          const calcSec = document.getElementById('calculator');
+          if (calcSec) calcSec.scrollIntoView({ behavior: 'smooth' });
+          return;
+        }
 
-function openRequestModal() {
-  modalReq.classList.remove('hidden');
-  modalReq.classList.add('flex');
-  reqSuccess?.classList.add('hidden');
-  reqError?.classList.add('hidden');
-}
-
-heroReqBtn?.addEventListener('click', openRequestModal);
-document.getElementById('sticky-request-btn')?.addEventListener('click', openRequestModal);
-closeReqModal?.addEventListener('click', () => {
-  modalReq.classList.add('hidden');
-  modalReq.classList.remove('flex');
-});
-modalReq?.addEventListener('click', e => {
-  if (e.target === modalReq) {
-    modalReq.classList.add('hidden');
-    modalReq.classList.remove('flex');
-  }
-});
-
-formPubReq?.addEventListener('submit', async e => {
-  e.preventDefault();
-  const data = Object.fromEntries(new FormData(e.target));
-  reqSuccess?.classList.add('hidden');
-  reqError?.classList.add('hidden');
-  try {
-    const res  = await fetch('/api/requests', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(data),
+        if (symptom && typeof window.openRequestModal === 'function') {
+          hideBubble();
+          window.openRequestModal(`[Через маскота] Поломка: ${symptom}`);
+        }
+      });
     });
-    const json = await res.json();
-    if (json.ok) {
-      reqSuccess?.classList.remove('hidden');
-      e.target.reset();
-      setTimeout(() => {
-        modalReq.classList.add('hidden');
-        modalReq.classList.remove('flex');
-      }, 2500);
-      // Mascot celebrates
-      if (mascotBtn && !mascotBtn.classList.contains('hidden')) {
-        mascotInd.textContent = '';
-        mascotNext.textContent = 'OK';
-        showBubble('🎉 Заявка принята! Мастер скоро свяжется с вами.');
-      }
-    } else {
-      reqError?.classList.remove('hidden');
-    }
-  } catch {
-    reqError?.classList.remove('hidden');
   }
-});
 
-/* ── Init ── */
-document.addEventListener('DOMContentLoaded', () => {
-  startOnboarding();
-});
+  /* ── Button Click: Toggle Menu ── */
+  mascotBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!mascotBubble.classList.contains('hidden')) {
+      hideBubble();
+    } else {
+      showDiagnosticMenu();
+    }
+  });
+
+  mascotNext?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    hideBubble();
+  });
+
+  // Close when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!mascotBubble.contains(e.target) && !mascotBtn.contains(e.target)) {
+      hideBubble();
+    }
+  });
+
+  /* ── Celebration hook called upon successful form submission ── */
+  window.onMascotCelebration = function () {
+    if (mascotInd) mascotInd.textContent = 'Готово';
+    if (mascotNext) mascotNext.textContent = 'Отлично!';
+    showBubble(`
+      <div class="py-1">
+        <p class="font-bold text-accent text-sm mb-1">🎉 Заявка принята!</p>
+        <p class="text-xs text-gray-200">Мастер уже уведомлен в Telegram и свяжется с вами в течение часа.</p>
+      </div>
+    `);
+    if (mascotChar) {
+      mascotChar.classList.remove('hidden');
+      mascotChar.style.transform = 'translateY(0)';
+      setTimeout(() => {
+        mascotChar.style.transform = 'translateY(100%)';
+        setTimeout(() => mascotChar.classList.add('hidden'), 500);
+      }, 3500);
+    }
+    setTimeout(() => {
+      hideBubble();
+    }, 4000);
+  };
+})();

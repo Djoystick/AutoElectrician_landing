@@ -52,6 +52,48 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 const PUBLIC_DIR = path.join(__dirname, '../public');
+const DATA_FILE  = path.join(__dirname, '../data/data.json');
+
+/* ── Strict Public Landing DTO (whitelist-only, zero secrets or CRM leak) ── */
+function publicLandingDto(data) {
+  if (!data) return { settings: {}, services: [], reviews: [], contacts: {} };
+  const settings = data.settings || {};
+  const contacts = data.contacts || {};
+  const services = (data.services || []).filter(s => s && s.active !== false);
+  const reviews = data.reviews || [];
+
+  return {
+    settings: {
+      heroTitle: settings.heroTitle || '',
+      heroSubtitle: settings.heroSubtitle || '',
+      acceptingRequests: !!settings.acceptingRequests,
+      masterName: settings.masterName || 'Мастер',
+      masterPhoto: settings.masterPhoto || '',
+      masterStatus: settings.masterStatus || 'free'
+    },
+    contacts: {
+      phone: contacts.phone || '',
+      workingHours: contacts.workingHours || '',
+      city: contacts.city || '',
+      telegram: contacts.telegram || '',
+      whatsapp: contacts.whatsapp || '',
+      vk: contacts.vk || ''
+    },
+    services: services.map(s => ({
+      id: String(s.id),
+      title: s.title || '',
+      description: s.description || '',
+      price: s.price || '',
+      icon: s.icon || 'wrench'
+    })),
+    reviews: reviews.map(r => ({
+      id: String(r.id),
+      name: r.name || '',
+      text: r.text || '',
+      image: r.image || ''
+    }))
+  };
+}
 
 /* ── In-memory OTP store { phone: { code, expiresAt } } ── */
 const otpStore = new Map();
@@ -242,16 +284,26 @@ const limiterPublic = rateLimit({
 
 /* ── Data helpers ── */
 
-/* ══════════════════════════════════════════════════
-   TELEGRAM WEBHOOK — code-based auth (no deep links)
-   Flow:
-   1. Site generates 6-digit code → stores in auth_magic_links (session_id, code, status=pending)
-   2. User opens bot, sends the 6-digit code
-   3. Bot finds pending session by code, approves it, creates/links client
-   4. Site polling detects approval → logs user in
-══════════════════════════════════════════════════ */
+/* ── Telegram Webhook Secret Validator (timing-safe) ── */
+function validateTelegramSecret(req) {
+  const expected = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (!expected) return true; // если секрет не задан в .env, разрешаем во время настройки
+  const provided = req.headers['x-telegram-bot-api-secret-token'];
+  if (!provided) return false;
+  try {
+    const a = Buffer.from(String(provided), 'utf8');
+    const b = Buffer.from(String(expected), 'utf8');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
 app.post('/api/telegram-webhook', async (req, res) => {
-  // Always respond 200 immediately to Telegram so it doesn't retry
+  if (!validateTelegramSecret(req)) {
+    return res.status(403).json({ error: 'invalid_secret_token' });
+  }
+  // Respond 200 to Telegram after secret verification
   res.sendStatus(200);
 
   try {
@@ -439,24 +491,36 @@ const authCheck = async (req, res, next) => {
   }
 };
 
-// 2. /api/data (Public)
+// 2. /api/data (Public Landing DTO)
 app.get('/api/data', async (req, res) => {
-  if (!supabase) return res.json({ settings: {}, services: [], reviews: [], contacts: {} });
-  const [settingsReq, servicesReq, reviewsReq, contactsReq] = await Promise.all([
-    supabase.from('settings').select('*').maybeSingle(),
-    supabase.from('services').select('*').eq('active', true).order('sort_order', { ascending: true }),
-    supabase.from('reviews').select('*').order('sort_order', { ascending: true }),
-    supabase.from('contacts').select('*').maybeSingle()
-  ]);
-  const settings = settingsReq.data?.data || {};
-  const { password, telegramBotToken, masterTelegramChatIds, ...safeSettings } = settings;
-  const contacts = contactsReq.data?.data || {};
-  res.json({ 
-    settings: safeSettings, 
-    services: servicesReq.data || [],
-    reviews: reviewsReq.data || [],
-    contacts: contacts
-  });
+  if (!supabase) {
+    // Безопасный fallback из data/data.json при локальной разработке без Supabase
+    try {
+      if (fs.existsSync(DATA_FILE)) {
+        const fileContent = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+        return res.json(publicLandingDto(fileContent));
+      }
+    } catch {}
+    return res.json(publicLandingDto({}));
+  }
+
+  try {
+    const [settingsReq, servicesReq, reviewsReq, contactsReq] = await Promise.all([
+      supabase.from('settings').select('*').maybeSingle(),
+      supabase.from('services').select('*').eq('active', true).order('sort_order', { ascending: true }),
+      supabase.from('reviews').select('*').order('sort_order', { ascending: true }),
+      supabase.from('contacts').select('*').maybeSingle()
+    ]);
+    const rawData = {
+      settings: settingsReq.data?.data || {},
+      services: servicesReq.data || [],
+      reviews: reviewsReq.data || [],
+      contacts: contactsReq.data?.data || {}
+    };
+    res.json(publicLandingDto(rawData));
+  } catch (e) {
+    res.json(publicLandingDto({}));
+  }
 });
 
 app.post('/api/auth', limiterAdmin, async (req, res) => {
@@ -593,6 +657,16 @@ app.post('/api/reviews', authCheck, upload.single('image'), async (req, res) => 
   res.json({ ok: true, review: payload });
 });
 
+app.put('/api/reviews/reorder', authCheck, async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || !supabase) return res.status(400).json({ error: 'ids required' });
+  for (let i = 0; i < ids.length; i++) {
+    await supabase.from('reviews').update({ sort_order: i }).eq('id', ids[i]);
+  }
+  const { data: reviews } = await supabase.from('reviews').select('*').order('sort_order');
+  res.json({ ok: true, reviews });
+});
+
 app.put('/api/reviews/:id', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   const payload = {};
@@ -615,16 +689,6 @@ app.delete('/api/reviews/:id', authCheck, async (req, res) => {
   }
   await supabase.from('reviews').delete().eq('id', req.params.id);
   res.json({ ok: true });
-});
-
-app.put('/api/reviews/reorder', authCheck, async (req, res) => {
-  const { ids } = req.body;
-  if (!Array.isArray(ids) || !supabase) return res.status(400).json({ error: 'ids required' });
-  for (let i = 0; i < ids.length; i++) {
-    await supabase.from('reviews').update({ sort_order: i }).eq('id', ids[i]);
-  }
-  const { data: reviews } = await supabase.from('reviews').select('*').order('sort_order');
-  res.json({ ok: true, reviews });
 });
 
 app.post('/api/requests', async (req, res) => {
@@ -685,19 +749,8 @@ app.get('/api/client/profile', clientAuth, async (req, res) => {
   const { data: client } = await supabase.from('clients').select('*').eq('id', req.clientId).maybeSingle();
   if (!client) return res.status(404).json({ error: 'Not found' });
 
-  let adminToken = null;
-  const tgId = client.telegram_chat_id || client.telegram_id;
-  if (tgId) {
-    const { data: master } = await supabase
-      .from('masters')
-      .select('password')
-      .eq('telegram_chat_id', tgId)
-      .maybeSingle();
-    
-    if (master) adminToken = master.password;
-  }
-
-  res.json({ ok: true, client, adminToken });
+  // Пароли и токены мастера никогда не возвращаются клиенту (SEC-05)
+  res.json({ ok: true, client });
 });
 
 app.post('/api/client/profile/phone', clientAuth, async (req, res) => {
@@ -737,20 +790,8 @@ app.get('/api/client/me', clientAuth, async (req, res) => {
   delete masterInfo.telegramBotToken;
   masterInfo.contacts = cRow?.data || {};
 
-  let adminToken = null;
-  const tgId = client.telegram_chat_id || client.telegram_id;
-  if (tgId) {
-    const { data: master } = await supabase
-      .from('masters')
-      .select('id, username')
-      .eq('telegram_chat_id', tgId)
-      .maybeSingle();
-    if (master) {
-      adminToken = jwt.sign({ username: master.username, id: master.id }, JWT_SECRET, { expiresIn: '30d' });
-    }
-  }
-
-  res.json({ ok: true, client: safeClient, masterInfo, adminToken });
+  // Админский токен выдается исключительно через явный /api/auth (SEC-04)
+  res.json({ ok: true, client: safeClient, masterInfo });
 });
 
 app.put('/api/client/reminder/:rid', clientAuth, async (req, res) => {
@@ -825,6 +866,44 @@ app.delete('/api/clients/:id', authCheck, async (req, res) => {
   res.json({ ok: true });
 });
 
+/* ── Cars ── */
+app.post('/api/clients/:id/cars', authCheck, async (req, res) => {
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: client, error } = await supabase.from('clients').select('cars').eq('id', req.params.id).maybeSingle();
+  if (error || !client) return res.status(404).json({ error: 'Client not found' });
+
+  const cars = Array.isArray(client.cars) ? client.cars : [];
+  const carId = req.body.id || req.body.cid || uid();
+  const newCar = {
+    id: carId,
+    brand: req.body.brand || req.body.make || '',
+    model: req.body.model || '',
+    year: req.body.year || '',
+    plate: req.body.plate || req.body.vin || '',
+    status: req.body.status || 'ok'
+  };
+
+  const existingIdx = cars.findIndex(c => c.id === carId);
+  if (existingIdx >= 0) {
+    cars[existingIdx] = { ...cars[existingIdx], ...newCar };
+  } else {
+    cars.push(newCar);
+  }
+
+  await supabase.from('clients').update({ cars }).eq('id', req.params.id);
+  res.json({ ok: true, cars });
+});
+
+app.delete('/api/clients/:id/cars/:cid', authCheck, async (req, res) => {
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: client, error } = await supabase.from('clients').select('cars').eq('id', req.params.id).maybeSingle();
+  if (error || !client) return res.status(404).json({ error: 'Client not found' });
+
+  const cars = (client.cars || []).filter(c => c.id !== req.params.cid && c.cid !== req.params.cid);
+  await supabase.from('clients').update({ cars }).eq('id', req.params.id);
+  res.json({ ok: true, cars });
+});
+
 app.post('/api/clients/:id/repairs', authCheck, upload.array('photos', 5), async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   
@@ -856,6 +935,14 @@ app.post('/api/clients/:id/repairs', authCheck, upload.array('photos', 5), async
     cost: parseFloat(req.body.cost) || 0,
     photos
   };
+
+  if (req.body.reminderDate) {
+    repair.reminder = {
+      date: req.body.reminderDate,
+      text: req.body.reminderText || '',
+      done: false
+    };
+  }
 
   const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.params.id).single();
   if (!client) return res.status(404).json({ error: 'Client not found' });
@@ -896,15 +983,8 @@ app.post('/api/clients/:id/reminders', authCheck, async (req, res) => {
   res.json({ ok: true, reminder });
 });
 
-app.post('/api/debug', async (req, res) => {
-  const logStr = `[FRONTEND DEBUG] ${JSON.stringify(req.body)}`;
-  console.log(logStr);
-  memLogs.unshift({ time: new Date().toISOString(), msg: logStr });
-  if (memLogs.length > 100) memLogs.pop();
-  res.sendStatus(200);
-});
-
-app.get('/api/logs', async (req, res) => {
+// SEC-08: /api/debug удален. /api/logs защищен проверкой прав администратора
+app.get('/api/logs', authCheck, async (req, res) => {
   res.json(memLogs);
 });
 
@@ -915,35 +995,62 @@ app.get('/api/analytics', authCheck, async (req, res) => {
     supabase.from('requests').select('*')
   ]);
 
-  const now = new Date();
-  const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30)).toISOString();
-  
-  let newClients30 = 0;
-  let revenue30 = 0;
-  let requests30 = 0;
-  let totalRevenue = 0;
+  const clientList = clients || [];
+  const requestList = requests || [];
 
-  for (const c of (clients || [])) {
-    if (c.created_at >= thirtyDaysAgo) newClients30++;
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  
+  let monthVisits = 0;
+  let monthRevenue = 0;
+  let totalRevenue = 0;
+  const serviceFreq = {};
+  const visitsByMonth = {};
+
+  for (const c of clientList) {
     for (const r of (c.repairs || [])) {
-      if (typeof r.cost === 'number') {
-        totalRevenue += r.cost;
-        if (r.date >= thirtyDaysAgo) revenue30 += r.cost;
+      if (typeof r.cost === 'number') totalRevenue += r.cost;
+      if (r.date && r.date >= thirtyDaysAgo) {
+        monthVisits++;
+        if (typeof r.cost === 'number') monthRevenue += r.cost;
+      }
+      if (r.type) serviceFreq[r.type] = (serviceFreq[r.type] || 0) + 1;
+      if (r.date) {
+        const m = r.date.slice(0, 7);
+        visitsByMonth[m] = (visitsByMonth[m] || 0) + 1;
       }
     }
   }
 
-  for (const r of (requests || [])) {
-    if (r.created_at >= thirtyDaysAgo) requests30++;
-  }
+  const churnCutoff = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+  const churnClients = clientList.filter(c => {
+    const repairs = c.repairs || [];
+    if (!repairs.length) return false;
+    const last = repairs[repairs.length - 1];
+    return last.date && last.date < churnCutoff;
+  }).map(c => ({
+    name: c.name,
+    phone: c.phone,
+    lastRepairDate: (c.repairs || []).slice(-1)[0]?.date || null
+  }));
+
+  const newRequests = requestList.filter(r => r.status === 'new').length;
 
   res.json({
     ok: true,
+    totalClients: clientList.length,
+    newRequests,
+    monthVisits,
+    monthRevenue,
+    avgCheck: monthVisits ? Math.round(monthRevenue / monthVisits) : 0,
+    churnCount: churnClients.length,
+    churnClients,
+    visitsByMonth,
+    serviceFreq,
     stats: {
-      totalClients: (clients || []).length,
-      newClients30,
-      requests30,
-      revenue30,
+      totalClients: clientList.length,
+      newRequests,
+      monthVisits,
+      monthRevenue,
       totalRevenue
     }
   });
