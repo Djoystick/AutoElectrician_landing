@@ -281,6 +281,42 @@ const limiterPublic = rateLimit({
   max: 30,
   message: { ok: false, error: 'too_many_requests' },
 });
+const limiterTgAuth = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 min
+  max: 30,
+  message: { ok: false, error: 'too_many_requests' },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+/* ── Official Telegram Widget Auth Validator (HMAC-SHA256, timing-safe) ── */
+function verifyTelegramAuth(data, botToken) {
+  if (!data || !data.hash || !botToken) return false;
+  const checkHash = String(data.hash);
+
+  // Expiration check: auth_date not older than 24 hours
+  const authDate = parseInt(data.auth_date, 10);
+  if (isNaN(authDate) || (Date.now() / 1000 - authDate) > 86400) {
+    return false;
+  }
+
+  // Sort keys alphabetically excluding hash
+  const keys = Object.keys(data).filter(k => k !== 'hash').sort();
+  const dataCheckArr = keys.map(key => `${key}=${data[key]}`);
+  const dataCheckString = dataCheckArr.join('\n');
+
+  // SHA256 of botToken is the secret key
+  const secretKey = crypto.createHash('sha256').update(botToken).digest();
+  const hmac = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+
+  try {
+    const hmacBuf = Buffer.from(hmac, 'utf8');
+    const checkBuf = Buffer.from(checkHash, 'utf8');
+    if (hmacBuf.length !== checkBuf.length) return false;
+    return crypto.timingSafeEqual(hmacBuf, checkBuf);
+  } catch {
+    return false;
+  }
+}
 
 /* ── Data helpers ── */
 
@@ -1119,69 +1155,194 @@ app.post('/api/client/auth', limiterOtpVerify, async (req, res) => {
   res.json({ ok: true, token, clientId: client.id, name: client.name });
 });
 
-app.get('/api/client/auth/telegram/magic', async (req, res) => {
-  if (!supabase) return res.status(500).json({ error: 'DB not configured' });
+/* ── 1. Telegram Official Login Widget Auth (HMAC-SHA256 verified) ── */
+app.post('/api/client/auth/telegram', limiterTgAuth, async (req, res) => {
   const bot = await getBot();
-  if (!bot) return res.status(500).json({ error: 'Telegram bot not configured' });
-  
+  if (!cachedToken) return res.status(500).json({ ok: false, error: 'bot_not_configured' });
+
+  const isValid = verifyTelegramAuth(req.body, cachedToken);
+  if (!isValid) {
+    return res.status(403).json({ ok: false, error: 'invalid_telegram_signature' });
+  }
+
+  const { id: tgId, first_name, last_name, username } = req.body;
+  if (!tgId) return res.status(400).json({ ok: false, error: 'missing_id' });
+
+  if (!supabase) {
+    return res.status(503).json({
+      ok: false,
+      error: 'db_unavailable',
+      message: 'База данных временно недоступна. Пожалуйста, попробуйте позже.'
+    });
+  }
+
+  try {
+    let { data: client, error: findErr } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('telegram_id', String(tgId))
+      .maybeSingle();
+
+    if (findErr) {
+      console.error('Find client error:', findErr);
+      const isDbDown = findErr.message && (findErr.message.includes('fetch failed') || findErr.message.includes('ENOTFOUND'));
+      return res.status(503).json({
+        ok: false,
+        error: isDbDown ? 'db_paused' : 'db_error',
+        message: isDbDown
+          ? 'База данных Supabase приостановлена. Пожалуйста, возобновите проект в панели управления.'
+          : findErr.message
+      });
+    }
+
+    if (!client) {
+      const name = [first_name, last_name].filter(Boolean).join(' ') || `Пользователь ${tgId}`;
+      const newClient = {
+        id: crypto.randomUUID(),
+        name,
+        phone: '',
+        email: '',
+        vk_id: '',
+        telegram_id: String(tgId),
+        telegram_username: username || '',
+        telegram_chat_id: String(tgId),
+        cars: [],
+        repairs: [],
+        created_at: new Date().toISOString()
+      };
+      const { error: insErr } = await supabase.from('clients').insert([newClient]);
+      if (insErr) {
+        return res.status(500).json({ ok: false, error: 'db_error', message: insErr.message });
+      }
+      client = newClient;
+    } else {
+      const upd = {};
+      if (username && client.telegram_username !== username) upd.telegram_username = username;
+      if (Object.keys(upd).length > 0) {
+        await supabase.from('clients').update(upd).eq('id', client.id);
+      }
+    }
+
+    const token = await createSession(client.id);
+    res.json({ ok: true, token, clientId: client.id, name: client.name });
+  } catch (err) {
+    console.error('Telegram widget auth error:', err);
+    res.status(500).json({ ok: false, error: 'internal_error' });
+  }
+});
+
+/* ── 2. Telegram One-Click Magic Link Generation ── */
+app.get('/api/client/auth/telegram/magic', limiterTgAuth, async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({
+      ok: false,
+      error: 'db_unavailable',
+      message: 'База данных не настроена.'
+    });
+  }
+
+  const bot = await getBot();
+  if (!bot) {
+    return res.status(503).json({
+      ok: false,
+      error: 'bot_not_configured',
+      message: 'Telegram бот не настроен или токен не задан.'
+    });
+  }
+
   // Get bot username
   if (!cachedBotUsername) {
     try {
       const me = await bot.getMe();
       cachedBotUsername = me.username;
     } catch (e) {
-      return res.status(500).json({ error: 'Failed to fetch bot username' });
+      return res.status(500).json({
+        ok: false,
+        error: 'bot_error',
+        message: 'Не удалось получить данные бота Telegram'
+      });
     }
   }
 
-  // Generate session + 6-digit code
-  const sessionId = crypto.randomBytes(16).toString('hex');
+  // Generate 256-bit cryptographically secure session + 6-digit code
+  const sessionId = crypto.randomBytes(32).toString('hex');
   const code = String(Math.floor(100000 + Math.random() * 900000)); // 100000–999999
 
-  const { error } = await supabase
-    .from('auth_magic_links')
-    .insert({ session_id: sessionId, code, status: 'pending' });
+  try {
+    const { error } = await supabase
+      .from('auth_magic_links')
+      .insert({ session_id: sessionId, code, status: 'pending' });
 
-  if (error) {
-    console.error('DB insert error:', error);
-    return res.status(500).json({ error: 'DB Error: ' + error.message });
+    if (error) {
+      console.error('DB insert magic link error:', error);
+      const isDbDown = error.message && (error.message.includes('fetch failed') || error.message.includes('ENOTFOUND'));
+      return res.status(503).json({
+        ok: false,
+        error: isDbDown ? 'db_paused' : 'db_error',
+        message: isDbDown
+          ? 'База данных Supabase приостановлена. Если вы администратор, возобновите проект в панели управления Supabase.'
+          : ('Ошибка БД: ' + error.message)
+      });
+    }
+
+    res.json({ ok: true, sessionId, code, botUsername: cachedBotUsername });
+  } catch (err) {
+    console.error('Magic link unexpected error:', err);
+    const isDbDown = err.message && (err.message.includes('fetch failed') || err.message.includes('ENOTFOUND'));
+    res.status(503).json({
+      ok: false,
+      error: isDbDown ? 'db_paused' : 'internal_error',
+      message: isDbDown
+        ? 'База данных Supabase приостановлена. Если вы администратор, возобновите проект в панели управления Supabase.'
+        : 'Внутренняя ошибка сервера при создании сессии'
+    });
   }
-  
-  res.json({ sessionId, code, botUsername: cachedBotUsername });
 });
 
-app.get('/api/client/auth/telegram/magic/status', async (req, res) => {
+/* ── 3. Telegram Magic Link Status Polling ── */
+app.get('/api/client/auth/telegram/magic/status', limiterTgAuth, async (req, res) => {
   const { session } = req.query;
+  if (!session || typeof session !== 'string') {
+    return res.status(400).json({ status: 'invalid_session' });
+  }
+
   if (!supabase) return res.json({ status: 'pending' });
 
-  const { data: s } = await supabase
-    .from('auth_magic_links')
-    .select('*')
-    .eq('session_id', session)
-    .maybeSingle();
+  try {
+    const { data: s, error } = await supabase
+      .from('auth_magic_links')
+      .select('*')
+      .eq('session_id', session)
+      .maybeSingle();
 
-  if (!s) return res.json({ status: 'expired' });
-  if (s.status === 'expired') return res.json({ status: 'expired' });
-  
-  // Also expire if older than 10 minutes
-  if (s.status === 'pending') {
-    const age = Date.now() - new Date(s.created_at).getTime();
-    if (age > 10 * 60 * 1000) {
-      await supabase.from('auth_magic_links').update({ status: 'expired' }).eq('session_id', session);
-      return res.json({ status: 'expired' });
+    if (error || !s) return res.json({ status: 'expired' });
+    if (s.status === 'expired') return res.json({ status: 'expired' });
+
+    // Expire if older than 10 minutes
+    if (s.status === 'pending') {
+      const age = Date.now() - new Date(s.created_at).getTime();
+      if (age > 10 * 60 * 1000) {
+        await supabase.from('auth_magic_links').update({ status: 'expired' }).eq('session_id', session);
+        return res.json({ status: 'expired' });
+      }
+      return res.json({ status: 'pending' });
     }
-  }
-  
-  if (s.status === 'approved') {
-    const { data: client } = await supabase.from('clients').select('*').eq('id', s.client_id).maybeSingle();
-    if (!client) return res.json({ status: 'expired' });
 
-    await supabase.from('auth_magic_links').delete().eq('session_id', session);
+    if (s.status === 'approved') {
+      const { data: client } = await supabase.from('clients').select('*').eq('id', s.client_id).maybeSingle();
+      if (!client) return res.json({ status: 'expired' });
 
-    const token = await createSession(client.id);
-    return res.json({ status: 'success', token });
+      // Single-use guarantee: remove session immediately upon redemption
+      await supabase.from('auth_magic_links').delete().eq('session_id', session);
+
+      const token = await createSession(client.id);
+      return res.json({ status: 'success', token });
+    }
+
+    res.json({ status: 'pending' });
+  } catch (err) {
+    res.json({ status: 'pending' });
   }
-  res.json({ status: 'pending' });
 });
 
 app.get('/api/client/auth/vk/callback', async (req, res) => {

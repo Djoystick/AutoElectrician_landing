@@ -125,6 +125,7 @@ function showLoginScreen() {
   document.getElementById('profile-screen').classList.add('hidden');
   lucide.createIcons();
   
+  setupTelegramButton();
   if (!isTgMagicLinkInitialized) {
     initTelegramMagicLink();
     isTgMagicLinkInitialized = true;
@@ -455,12 +456,58 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 /* ══════════════════════════════════════════════════════════
-   TELEGRAM MAGIC LINK INITIATION & POLLING
+   TELEGRAM AUTH (DEEP LINK + WIDGET)
 ══════════════════════════════════════════════════════════ */
 let magicPollInterval = null;
 let magicCountdownInterval = null;
+let tgBotUrl = null;
+let isGeneratingMagicLink = false;
+let userRequestedOpen = false;
 
-async function initTelegramMagicLink() {
+function showAuthError(msg) {
+  const errBanner = document.getElementById('auth-error-banner');
+  if (errBanner) {
+    errBanner.textContent = msg;
+    errBanner.classList.remove('hidden');
+  }
+}
+
+function hideAuthError() {
+  const errBanner = document.getElementById('auth-error-banner');
+  if (errBanner) errBanner.classList.add('hidden');
+}
+
+function setupTelegramButton() {
+  const tgBtn = document.getElementById('tg-login-btn');
+  if (!tgBtn) return;
+
+  tgBtn.onclick = (e) => {
+    e.preventDefault();
+    hideAuthError();
+
+    if (tgBotUrl) {
+      window.open(tgBotUrl, '_blank');
+      return;
+    }
+
+    userRequestedOpen = true;
+    tgBtn.innerHTML = `
+      <svg class="w-5 h-5 animate-spin text-[#0088CC] shrink-0" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+      </svg>
+      Подключение к Telegram...
+    `;
+    initTelegramMagicLink(true);
+  };
+}
+
+async function initTelegramMagicLink(isUserTriggered = false) {
+  if (isGeneratingMagicLink) return;
+  isGeneratingMagicLink = true;
+
+  const tgBtn = document.getElementById('tg-login-btn');
+
   try {
     // Clean up old intervals
     if (magicPollInterval) clearInterval(magicPollInterval);
@@ -468,32 +515,45 @@ async function initTelegramMagicLink() {
 
     const res = await fetch('/api/client/auth/telegram/magic?t=' + Date.now());
     const data = await res.json();
-    if (!data.sessionId || !data.code || !data.botUsername) {
+
+    if (!res.ok || !data.ok || !data.sessionId || !data.botUsername) {
+      const errMsg = data.message || data.error || 'Ошибка инициализации Telegram-авторизации';
       console.error('Magic link error:', data);
+      showAuthError(errMsg);
+
+      if (tgBtn) {
+        tgBtn.innerHTML = `
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/>
+          </svg>
+          Войти через Telegram (повторить)
+        `;
+      }
+      isGeneratingMagicLink = false;
+      userRequestedOpen = false;
       return;
     }
 
+    hideAuthError();
     const botUrl = `https://t.me/${data.botUsername}?start=auth_${data.sessionId}`;
-    const tgBtn = document.getElementById('tg-login-btn');
-    
-    // Rewrite the entire login area to show the code UI
-    const loginArea = tgBtn ? tgBtn.closest('.space-y-3, div') : null;
-    const container = tgBtn ? tgBtn.parentElement : null;
+    tgBotUrl = botUrl;
 
     if (tgBtn) {
-      // Update the main button to open the bot
       tgBtn.href = botUrl;
       tgBtn.target = '_blank';
-      tgBtn.onclick = (e) => { e.preventDefault(); window.open(botUrl, '_blank'); };
       tgBtn.innerHTML = `
         <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/>
         </svg>
-        Авторизация через Telegram (1 клик)
+        Войти через Telegram (1 клик)
       `;
+      tgBtn.onclick = (e) => {
+        e.preventDefault();
+        window.open(botUrl, '_blank');
+      };
     }
 
-    // Inject code block after the button
+    // Inject active code block
     const existingCodeBlock = document.getElementById('tg-code-block');
     if (existingCodeBlock) existingCodeBlock.remove();
 
@@ -508,20 +568,26 @@ async function initTelegramMagicLink() {
       text-align: center;
     `;
     codeBlock.innerHTML = `
-      <p style="color:#7d8590;font-size:0.78rem;margin:0 0 12px;">Нажмите кнопку выше, чтобы запустить бота</p>
+      <p style="color:#7d8590;font-size:0.78rem;margin:0 0 12px;">Нажмите кнопку выше или ниже, чтобы запустить бота</p>
       <a href="${botUrl}" 
          target="_blank" 
-         class="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-[#0088cc] hover:bg-[#0077b3] transition-colors gap-2 items-center">
+         class="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-[#0088cc] hover:bg-[#0077b3] transition-colors gap-2 items-center">
         <i data-lucide="send" class="w-4 h-4"></i>
-        Открыть бота
+        Открыть Telegram бота
       </a>
       <p style="color:#f59e0b;font-size:0.72rem;margin:12px 0 0;">Ссылка действует <span id="tg-code-timer" style="font-weight:700;">10:00</span></p>
-      <p style="color:#3fb950;font-size:0.72rem;margin:6px 0 0;">&#128994; Ожидание входа в Telegram...</p>
+      <p style="color:#3fb950;font-size:0.72rem;margin:6px 0 0;">&#128994; Ожидание подтверждения в Telegram...</p>
     `;
 
     if (tgBtn && tgBtn.parentElement) {
       tgBtn.parentElement.insertBefore(codeBlock, tgBtn.nextSibling);
       if (window.lucide) window.lucide.createIcons({ root: codeBlock });
+    }
+
+    // If user explicitly clicked the button before it finished loading, open it now!
+    if (userRequestedOpen) {
+      window.open(botUrl, '_blank');
+      userRequestedOpen = false;
     }
 
     // Countdown timer (10 min)
@@ -535,7 +601,7 @@ async function initTelegramMagicLink() {
       if (secondsLeft <= 0) {
         clearInterval(magicCountdownInterval);
         clearInterval(magicPollInterval);
-        // Auto-refresh with a new code
+        tgBotUrl = null;
         initTelegramMagicLink();
       }
     }, 1000);
@@ -554,67 +620,40 @@ async function initTelegramMagicLink() {
         } else if (pData.status === 'expired') {
           clearInterval(magicPollInterval);
           clearInterval(magicCountdownInterval);
-          initTelegramMagicLink(); // Generate new code
+          tgBotUrl = null;
+          initTelegramMagicLink();
         }
       } catch (e) {
-        // Ignore polling errors
+        // Network noise
       }
     }, 2000);
 
   } catch (e) {
     console.error('Failed to init Telegram magic link', e);
+    showAuthError('Ошибка сети при инициализации Telegram-авторизации: ' + e.message);
+  } finally {
+    isGeneratingMagicLink = false;
   }
 }
 
-/* ── Telegram Login Widget ── */
-function injectTelegramWidget() {
-  // Fetch bot username from server config
-  fetch('/api/data')
-    .then(r => r.json())
-    .then(data => {
-      const botName = data.settings?.telegramBotUsername;
-      if (!botName) return; // Widget requires bot username
-
-      // Replace fallback button with real widget
-      const wrap = document.getElementById('tg-widget-wrap');
-      if (!wrap) return;
-
-      const script = document.createElement('script');
-      script.async = true;
-      script.src = 'https://telegram.org/js/telegram-widget.js?22';
-      script.setAttribute('data-telegram-login',   botName);
-      script.setAttribute('data-size',             'large');
-      script.setAttribute('data-radius',           '12');
-      script.setAttribute('data-onauth',           'onTelegramAuth(user)');
-      script.setAttribute('data-request-access',   'write');
-      wrap.innerHTML = '';
-      wrap.appendChild(script);
-    })
-    .catch(() => {});
-}
-
-/* Called by Telegram Widget after user auth */
+/* ── Telegram Login Widget Callback (HMAC-verified on backend) ── */
 window.onTelegramAuth = async function(user) {
+  hideAuthError();
   try {
-    fetch('/api/debug', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'onauth_triggered', user: user.id }) }).catch(()=>{});
-    
-    const res  = await fetch('/api/client/auth/telegram', {
+    const res = await fetch('/api/client/auth/telegram', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(user),
     });
     const json = await res.json();
-    
-    fetch('/api/debug', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'onauth_response', ok: json.ok }) }).catch(()=>{});
-
     if (json.ok) {
       TOKEN = json.token;
       localStorage.setItem(TOKEN_KEY, TOKEN);
       await loadProfile();
     } else {
-      alert('Ошибка авторизации: ' + (json.error || ''));
+      showAuthError('Ошибка авторизации Telegram: ' + (json.message || json.error || ''));
     }
   } catch (e) {
-    alert('Ошибка соединения: ' + e.message);
+    showAuthError('Ошибка соединения: ' + e.message);
   }
 };
