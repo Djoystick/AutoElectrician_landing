@@ -1357,12 +1357,10 @@ app.get('/api/client/auth/telegram/magic/status', limiterTgAuth, async (req, res
   }
 });
 
-/* ── VK Auth Helper: Resolve dynamic redirect URI ── */
+/* ── VK Auth Helper: Resolve registered redirect URI ── */
 function getVkRedirectUri(req) {
   if (process.env.VK_REDIRECT_URI) return process.env.VK_REDIRECT_URI;
-  const host = req.headers['x-forwarded-host'] || req.headers.host || 'xn--c1adkgvmp7a.xn--p1ai';
-  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-  return `${proto}://${host}/api/client/auth/vk/callback`;
+  return 'https://auto-electrician-landing.vercel.app/api/client/auth/vk/callback';
 }
 
 /* ── 4. VK ID One Tap Token Verification & Exchange ── */
@@ -1507,27 +1505,50 @@ app.post('/api/client/auth/vk', limiterVkAuth, async (req, res) => {
   }
 });
 
-/* ── In-memory PKCE store for direct OAuth redirect flow ── */
-const vkPkceStore = new Map();
+/* ── Stateless Cryptographic PKCE state helper ── */
+function createPkceState(verifier, returnUrl) {
+  const payload = {
+    v: verifier,
+    r: returnUrl || 'https://xn--c1adkgvmp7a.xn--p1ai/profile.html',
+    t: Date.now()
+  };
+  const json = JSON.stringify(payload);
+  const data = Buffer.from(json).toString('base64url');
+  const hmac = crypto.createHmac('sha256', VK_APP_SECRET).update(data).digest('base64url');
+  return `${data}.${hmac}`;
+}
+
+function verifyPkceState(stateStr) {
+  if (!stateStr || typeof stateStr !== 'string') return null;
+  const parts = stateStr.split('.');
+  if (parts.length !== 2) return null;
+  const [data, sig] = parts;
+  const expectedSig = crypto.createHmac('sha256', VK_APP_SECRET).update(data).digest('base64url');
+  if (sig !== expectedSig) return null;
+  try {
+    const json = Buffer.from(data, 'base64url').toString('utf8');
+    const parsed = JSON.parse(json);
+    // Expire after 15 minutes
+    if (Date.now() - parsed.t > 15 * 60 * 1000) return null;
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
 
 /* ── 5. VK ID Direct Login Redirect (with OAuth 2.1 PKCE) ── */
 app.get('/api/client/auth/vk/login', (req, res) => {
   const redirectUri = getVkRedirectUri(req);
   const verifier = crypto.randomBytes(32).toString('base64url');
   const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
-  const state = crypto.randomBytes(16).toString('hex');
 
-  vkPkceStore.set(state, { verifier, redirectUri, expiresAt: Date.now() + 10 * 60 * 1000 });
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'xn--c1adkgvmp7a.xn--p1ai';
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const returnUrl = `${proto}://${host}/profile.html`;
 
-  // Clean old entries
-  if (vkPkceStore.size > 100) {
-    const now = Date.now();
-    for (const [k, v] of vkPkceStore.entries()) {
-      if (v.expiresAt < now) vkPkceStore.delete(k);
-    }
-  }
+  const state = createPkceState(verifier, returnUrl);
 
-  const vkAuthUrl = `https://id.vk.ru/auth?app_id=${VK_APP_ID}&response_type=code&redirect_uri=${encodeURI(redirectUri)}&code_challenge=${challenge}&code_challenge_method=s256&state=${state}`;
+  const vkAuthUrl = `https://id.vk.ru/auth?app_id=${VK_APP_ID}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&code_challenge=${challenge}&code_challenge_method=s256&state=${encodeURIComponent(state)}`;
   res.redirect(vkAuthUrl);
 });
 
@@ -1545,18 +1566,19 @@ app.get('/api/client/auth/vk/callback', async (req, res) => {
     let accessToken = null;
     let userId = null;
     let email = '';
+    let returnUrl = '/profile.html';
 
-    const storedPkce = state ? vkPkceStore.get(state) : null;
-    if (storedPkce) {
-      vkPkceStore.delete(state);
-      // Modern VK ID OAuth 2.1 code exchange
+    const pkce = verifyPkceState(state);
+    if (pkce && pkce.v) {
+      returnUrl = pkce.r || '/profile.html';
+      // Modern VK ID OAuth 2.1 PKCE code exchange
       try {
         const tokenExchangeUrl = 'https://id.vk.com/oauth2/auth';
         const postData = new URLSearchParams({
           grant_type: 'authorization_code',
           client_id: VK_APP_ID,
-          code_verifier: storedPkce.verifier,
-          redirect_uri: storedPkce.redirectUri || redirectUri,
+          code_verifier: pkce.v,
+          redirect_uri: redirectUri,
           code,
           state: state || '',
           device_id: device_id || ''
@@ -1613,7 +1635,8 @@ app.get('/api/client/auth/vk/callback', async (req, res) => {
 
     if (!accessToken) {
       console.error('VK Token Exchange Failed');
-      return res.redirect('/profile.html?auth=error&reason=vk_token');
+      const sep = returnUrl.includes('?') ? '&' : '?';
+      return res.redirect(`${returnUrl}${sep}auth=error&reason=vk_token`);
     }
 
     const vkId = String(userId);
@@ -1651,7 +1674,10 @@ app.get('/api/client/auth/vk/callback', async (req, res) => {
       console.warn('VK user_info fetch warning in callback:', e.message);
     }
 
-    if (!supabase) return res.redirect('/profile.html?auth=error&reason=db');
+    if (!supabase) {
+      const sep = returnUrl.includes('?') ? '&' : '?';
+      return res.redirect(`${returnUrl}${sep}auth=error&reason=db`);
+    }
     let { data: client } = await supabase.from('clients').select('*').eq('vk_id', vkId).maybeSingle();
 
     if (!client && phone) {
@@ -1680,7 +1706,8 @@ app.get('/api/client/auth/vk/callback', async (req, res) => {
     }
 
     const token = await createSession(client.id);
-    res.redirect(`/profile.html?auth=vk&token=${token}&name=${encodeURIComponent(client.name)}`);
+    const sep = returnUrl.includes('?') ? '&' : '?';
+    res.redirect(`${returnUrl}${sep}auth=vk&token=${token}&name=${encodeURIComponent(client.name)}`);
 
   } catch (err) {
     console.error('VK Callback Exception:', err);

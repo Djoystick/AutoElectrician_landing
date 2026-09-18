@@ -682,7 +682,7 @@ function initVkIdAuth() {
     const VKID = window.VKIDSDK;
 
     // Use exact registered redirect URL matching VK ID console settings
-    const redirectUrl = 'https://чекгорит.рф/api/client/auth/vk/callback';
+    const redirectUrl = 'https://auto-electrician-landing.vercel.app/api/client/auth/vk/callback';
 
     VKID.Config.init({
       app: 54777601,

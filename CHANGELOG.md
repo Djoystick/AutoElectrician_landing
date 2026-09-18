@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.4] - 2026-09-18
+
+### 🚀 VK ID Serverless PKCE & Redirect URL Alignment
+- **Синхронизация Redirect URL с VK ID Console**: Устранена критическая причина «Ошибка загрузки» (код `redirect_uri is missing or invalid`), вызванная несовпадением зарегистрированного в консоли VK адреса. В `profile.js` и бэкенде установлен зарегистрированный адрес `https://auto-electrician-landing.vercel.app/api/client/auth/vk/callback`.
+- **Бессерверный (Stateless) PKCE-протокол**: Заменено хранилище `vkPkceStore` (in-memory Map) на криптографически подписанный HMAC-SHA256 токен состояния `state`, содержащий верификатор `code_verifier` и целевой URL возврата. Это полностью предотвращает потерю контекста при редиректах между различными бессерверными контейнерами Vercel (Cold Starts).
+- **Бесшовный возврат на кастомный домен**: После прохождения авторизации через VK ID бэкенд автоматически перенаправляет пользователя обратно на исходный домен (`чекгорит.рф` / `xn--c1adkgvmp7a.xn--p1ai`) с сессионным токеном.
+
 ## [1.1.3] - 2026-09-18
 
 ### 🛠️ VK ID 2.0 PKCE & SDK Hardening
