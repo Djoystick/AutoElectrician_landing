@@ -4,11 +4,6 @@
 ============================================================ */
 'use strict';
 
-// Canonical domain normalization: automatically redirect technical Vercel domain to чекгорит.рф
-if (window.location.hostname === 'auto-electrician-landing.vercel.app') {
-  window.location.replace('https://xn--c1adkgvmp7a.xn--p1ai' + window.location.pathname + window.location.search + window.location.hash);
-}
-
 window.onerror = function(msg, url, lineNo, columnNo, error) {
   fetch('/api/debug', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'onerror', msg, url, lineNo, columnNo, stack: error?.stack }) });
 };
@@ -94,15 +89,7 @@ async function loadProfile() {
       headers: { 'x-client-token': TOKEN },
     });
 
-    // 503 = DB temporarily unavailable (Supabase paused/network) → do NOT clear token
-    if (res.status === 503) {
-      console.warn('Profile load: DB unavailable (503), keeping session token');
-      // Optionally show a non-destructive error state
-      return;
-    }
-
     if (res.status === 401) {
-      // Only clear token on genuine session expiry (401)
       localStorage.removeItem(TOKEN_KEY);
       TOKEN = '';
       showLoginScreen();
@@ -143,7 +130,6 @@ function showLoginScreen() {
     initTelegramMagicLink();
     isTgMagicLinkInitialized = true;
   }
-  initVkIdAuth();
 }
 
 function showProfileScreen() {
@@ -452,12 +438,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     showLoginScreen();
     const reason = urlParams.get('reason') || 'unknown';
     const msgs = {
-      not_configured: 'ВК авторизация ещё не настроена — используйте номер телефона или Telegram.',
-      access_denied:  'Вы отказались от авторизации в VK.',
-      vk_token:       'Не удалось получить токен авторизации VK.',
-      server_error:   'Ошибка сервера при входе через VK. Попробуйте ещё раз.',
+      not_configured: 'ВК авторизация ещё не настроена — используйте номер телефона.',
+      access_denied:  'Вы отказались от авторизации.',
+      server_error:   'Ошибка сервера. Попробуйте ещё раз.',
     };
-    showAuthError(msgs[reason] || `Ошибка авторизации VK: ${reason}`);
+    phoneErr.textContent = msgs[reason] || `Ошибка: ${reason}`;
+    phoneErr.classList.remove('hidden');
     window.history.replaceState({}, '', '/profile.html');
     return;
   }
@@ -671,97 +657,3 @@ window.onTelegramAuth = async function(user) {
     showAuthError('Ошибка соединения: ' + e.message);
   }
 };
-
-/* ══════════════════════════════════════════════════════════
-   VK ID AUTH (ONE TAP & LOWCODE SDK)
-══════════════════════════════════════════════════════════ */
-let isVkIdInitialized = false;
-
-function initVkIdAuth() {
-  if (isVkIdInitialized) return;
-
-  const container = document.getElementById('vk-onetap-container');
-  const fallbackBtn = document.getElementById('vk-fallback-btn');
-  if (!container && !fallbackBtn) return;
-
-  if (typeof window.VKIDSDK === 'undefined') {
-    // Retry in 300ms in case CDN script is still downloading
-    setTimeout(initVkIdAuth, 300);
-    return;
-  }
-
-  try {
-    isVkIdInitialized = true;
-    const VKID = window.VKIDSDK;
-
-    // Use exact registered redirect URL matching VK ID console settings
-    const redirectUrl = 'https://auto-electrician-landing.vercel.app/api/client/auth/vk/callback';
-
-    VKID.Config.init({
-      app: 54777601,
-      redirectUrl: redirectUrl,
-      responseMode: VKID.ConfigResponseMode.Callback,
-      source: VKID.ConfigSource.LOWCODE,
-      scope: '',
-    });
-
-    // Wire fallback button directly to /api/client/auth/vk/login for rock-solid PKCE auth with registered origin
-    if (fallbackBtn) {
-      fallbackBtn.onclick = (e) => {
-        e.preventDefault();
-        hideAuthError();
-        window.location.href = '/api/client/auth/vk/login';
-      };
-    }
-
-    if (container) {
-      const oneTap = new VKID.OneTap();
-
-      oneTap.render({
-        container: container,
-        showAlternativeLogin: true,
-      })
-      .on(VKID.WidgetEvents.ERROR, (err) => {
-        console.warn('VK OneTap Widget Notice:', err);
-      })
-      .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, async (payload) => {
-        hideAuthError();
-        try {
-          const code = payload.code;
-          const deviceId = payload.device_id;
-
-          const tokenData = await VKID.Auth.exchangeCode(code, deviceId);
-          if (!tokenData || !tokenData.access_token) {
-            throw new Error('Не получен access_token от VK ID');
-          }
-
-          const res = await fetch('/api/client/auth/vk', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              access_token: tokenData.access_token,
-              user_id: tokenData.user_id,
-              id_token: tokenData.id_token
-            })
-          });
-
-          const data = await res.json();
-          if (data.ok && data.token) {
-            TOKEN = data.token;
-            localStorage.setItem(TOKEN_KEY, TOKEN);
-            await loadProfile();
-          } else {
-            showAuthError('Ошибка входа через VK ID: ' + (data.message || data.error || 'не удалось подтвердить сессию'));
-          }
-        } catch (err) {
-          console.error('VK ID Login process error:', err);
-          showAuthError('Ошибка авторизации через VK: ' + (err.error_description || err.message || 'попробуйте войти по кнопке ниже'));
-        }
-      });
-    }
-
-  } catch (e) {
-    console.warn('Failed to init VK ID widget:', e);
-  }
-}
-

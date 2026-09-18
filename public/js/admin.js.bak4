@@ -21,17 +21,14 @@ document.addEventListener('DOMContentLoaded', () => {
    LOAD & SHOW
 ══════════════════════════════════════════════════════════ */
 async function loadAndShow() {
-  const [pubData, analyticsRes, clientsRes, requestsRes, servicesRes] = await Promise.all([
+  const [pubData, analyticsRes, clientsRes, requestsRes] = await Promise.all([
     fetch('/api/data').then(r => r.json()).catch(() => ({})),
     api('GET', '/api/analytics').catch(() => ({})),
     api('GET', '/api/clients').catch(() => ({})),
     api('GET', '/api/requests').catch(() => ({})),
-    api('GET', '/api/services').catch(() => ({})),
   ]);
 
   DATA = pubData || {};
-  // Use admin services endpoint (includes inactive) instead of public /api/data services
-  DATA.services = servicesRes?.services || DATA.services || [];
   DATA.clients = clientsRes?.clients || [];
   DATA.requests = requestsRes?.requests || [];
   ANALYTICS = analyticsRes || {};
@@ -93,13 +90,9 @@ function bindEvents() {
     e.preventDefault();
     const { newPassword, ...rest } = formToObj(e.target);
     rest.acceptingRequests = document.getElementById('cb-accepting').checked;
-    // BUG FIX (SEC-07): do NOT replace TOKEN with plain text password.
-    // Pass new password to backend which will hash it and return a new JWT.
-    if (newPassword) rest.password = newPassword;
+    if (newPassword) { rest.password = newPassword; TOKEN = newPassword; localStorage.setItem('ae_admin_token', TOKEN); }
     const res = await api('PUT', '/api/settings', rest);
     if (res.ok) {
-      // If backend issued a new JWT (after password change), update our token
-      if (res.token) { TOKEN = res.token; localStorage.setItem('ae_admin_token', TOKEN); }
       toast('Настройки сохранены!');
       loadAndShow();
     } else toast('Ошибка сохранения', 'error');

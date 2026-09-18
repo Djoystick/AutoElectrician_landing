@@ -94,15 +94,7 @@ async function loadProfile() {
       headers: { 'x-client-token': TOKEN },
     });
 
-    // 503 = DB temporarily unavailable (Supabase paused/network) → do NOT clear token
-    if (res.status === 503) {
-      console.warn('Profile load: DB unavailable (503), keeping session token');
-      // Optionally show a non-destructive error state
-      return;
-    }
-
     if (res.status === 401) {
-      // Only clear token on genuine session expiry (401)
       localStorage.removeItem(TOKEN_KEY);
       TOKEN = '';
       showLoginScreen();

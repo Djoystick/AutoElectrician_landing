@@ -265,9 +265,6 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(PUBLIC_DIR));
 
-/* ── Telegram HTML Escape (SEC: prevent HTML-injection in bot notifications) ── */
-const escapeTgHtml = (str) => String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
 /* ── Rate limiters ── */
 const limiterOtpRequest = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
@@ -609,7 +606,7 @@ app.post('/api/masters', authCheck, async (req, res) => {
   const hashedPassword = bcrypt.hashSync(password, 10);
   const { data, error } = await supabase.from('masters').insert({
     name, username, password: hashedPassword
-  }).select('id, name, username, telegram_chat_id, created_at').maybeSingle();
+  }).select('id, name, username, telegram_chat_id, created_at').single();
   if (error) return res.status(500).json({ ok: false, error: error.message });
   res.json({ ok: true, master: data });
 });
@@ -629,15 +626,6 @@ app.put('/api/settings', authCheck, async (req, res) => {
   const { password: newPwd, telegramBotToken: newToken, ...rest } = req.body;
   currentSettings = { ...currentSettings, ...rest };
   
-  // BUG FIX: master password update goes to masters table, not settings (SEC-07)
-  let newToken_jwt = null;
-  if (newPwd && req.master) {
-    const hashedPassword = bcrypt.hashSync(newPwd, 10);
-    await supabase.from('masters').update({ password: hashedPassword }).eq('id', req.master.id);
-    // Issue a fresh JWT so the admin session remains valid after password change
-    newToken_jwt = jwt.sign({ username: req.master.username, id: req.master.id }, JWT_SECRET, { expiresIn: '30d' });
-  }
-  
   if (newToken !== undefined) {
     currentSettings.telegramBotToken = newToken;
     if (tgBot) { try { tgBot.stopPolling(); } catch {} tgBot = null; }
@@ -647,7 +635,7 @@ app.put('/api/settings', authCheck, async (req, res) => {
   if (sRow) await supabase.from('settings').update({ data: currentSettings }).eq('id', sRow.id);
   else await supabase.from('settings').insert({ data: currentSettings });
   
-  res.json({ ok: true, ...(newToken_jwt ? { token: newToken_jwt } : {}) });
+  res.json({ ok: true });
 });
 
 app.put('/api/contacts', authCheck, async (req, res) => {
@@ -660,13 +648,6 @@ app.put('/api/contacts', authCheck, async (req, res) => {
   else await supabase.from('contacts').insert({ data: currentContacts });
   
   res.json({ ok: true, contacts: currentContacts });
-});
-
-/* ── Admin: GET /api/services — all services (incl. inactive) for admin panel ── */
-app.get('/api/services', authCheck, async (req, res) => {
-  if (!supabase) return res.status(500).json({ ok: false });
-  const { data: services } = await supabase.from('services').select('*').order('sort_order', { ascending: true });
-  res.json({ ok: true, services: services || [] });
 });
 
 app.post('/api/services', authCheck, async (req, res) => {
@@ -746,7 +727,7 @@ app.put('/api/reviews/:id', authCheck, async (req, res) => {
   if (req.body.image !== undefined) payload.image = req.body.image;
   
   await supabase.from('reviews').update(payload).eq('id', req.params.id);
-  const { data: review } = await supabase.from('reviews').select('*').eq('id', req.params.id).maybeSingle();
+  const { data: review } = await supabase.from('reviews').select('*').eq('id', req.params.id).single();
   res.json({ ok: true, review });
 });
 
@@ -762,7 +743,7 @@ app.delete('/api/reviews/:id', authCheck, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/requests', limiterPublic, async (req, res) => {
+app.post('/api/requests', async (req, res) => {
   const { name, phone, problem } = req.body;
   if (!phone) return res.status(400).json({ error: 'phone required' });
   if (!supabase) return res.status(500).json({ error: 'DB error' });
@@ -784,7 +765,7 @@ app.post('/api/requests', limiterPublic, async (req, res) => {
       for (const m of (masters || [])) {
         if (m.telegram_chat_id) {
           bot.sendMessage(m.telegram_chat_id,
-            `📥 <b>Новая заявка!</b>\n👤 ${escapeTgHtml(payload.name)}\n📞 ${escapeTgHtml(payload.phone)}\n🔧 ${escapeTgHtml(payload.problem) || '—'}`,
+            `📥 <b>Новая заявка!</b>\n👤 ${payload.name}\n📞 ${payload.phone}\n🔧 ${payload.problem || '—'}`,
             { parse_mode: 'HTML' }
           ).catch(()=>{});
         }
@@ -798,18 +779,15 @@ app.post('/api/requests', limiterPublic, async (req, res) => {
 app.get('/api/requests', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   const { data: requests } = await supabase.from('requests').select('*').order('created_at', { ascending: false });
-  // Map snake_case created_at → camelCase createdAt for frontend compatibility
-  const mapped = (requests || []).map(r => ({ ...r, createdAt: r.created_at }));
-  res.json({ ok: true, requests: mapped });
+  res.json({ ok: true, requests });
 });
 
 app.put('/api/requests/:id/status', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   const { status } = req.body;
   await supabase.from('requests').update({ status }).eq('id', req.params.id);
-  const { data: request } = await supabase.from('requests').select('*').eq('id', req.params.id).maybeSingle();
-  const mapped = request ? { ...request, createdAt: request.created_at } : null;
-  res.json({ ok: true, request: mapped });
+  const { data: request } = await supabase.from('requests').select('*').eq('id', req.params.id).single();
+  res.json({ ok: true, request });
 });
 
 app.delete('/api/requests/:id', authCheck, async (req, res) => {
@@ -868,14 +846,13 @@ app.get('/api/client/me', clientAuth, async (req, res) => {
   let adminToken = null;
   try {
     const vkUsername = client.vk_id ? `vk_${client.vk_id}` : null;
-    const tgUsername = client.telegram_id ? `tg_${client.telegram_id}` : null;
-    let conditions = [];
-    conditions.push(`id.eq.${client.id}`);
-    if (vkUsername) conditions.push(`username.eq.${vkUsername}`);
-    if (tgUsername) conditions.push(`username.eq.${tgUsername}`);
-    if (client.telegram_chat_id) conditions.push(`telegram_chat_id.eq.${client.telegram_chat_id}`);
-    
-    const { data: masterRec } = await supabase.from('masters').select('*').or(conditions.join(',')).maybeSingle();
+    let masterQuery = supabase.from('masters').select('*');
+    if (vkUsername) {
+      masterQuery = masterQuery.or(`id.eq.${client.id},username.eq.${vkUsername}`);
+    } else {
+      masterQuery = masterQuery.eq('id', client.id);
+    }
+    const { data: masterRec } = await masterQuery.maybeSingle();
 
     if (masterRec) {
       adminToken = jwt.sign({ username: masterRec.username, id: masterRec.id }, JWT_SECRET, { expiresIn: '30d' });
@@ -1037,7 +1014,7 @@ app.post('/api/clients/:id/repairs', authCheck, upload.array('photos', 5), async
     };
   }
 
-  const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.params.id).maybeSingle();
+  const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.params.id).single();
   if (!client) return res.status(404).json({ error: 'Client not found' });
   const updatedRepairs = [...(client.repairs || []), repair];
   
@@ -1047,7 +1024,7 @@ app.post('/api/clients/:id/repairs', authCheck, upload.array('photos', 5), async
 
 app.delete('/api/clients/:id/repairs/:rid', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
-  const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.params.id).maybeSingle();
+  const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.params.id).single();
   if (!client) return res.status(404).json({ error: 'Client not found' });
   
   const updatedRepairs = (client.repairs || []).filter(r => String(r.id) !== String(req.params.rid));
@@ -1101,11 +1078,10 @@ app.get('/api/analytics', authCheck, async (req, res) => {
 
   for (const c of clientList) {
     for (const r of (c.repairs || [])) {
-      const cost = Number(r.cost) || 0;
-      totalRevenue += cost;
+      if (typeof r.cost === 'number') totalRevenue += r.cost;
       if (r.date && r.date >= thirtyDaysAgo) {
         monthVisits++;
-        monthRevenue += cost;
+        if (typeof r.cost === 'number') monthRevenue += r.cost;
       }
       if (r.type) serviceFreq[r.type] = (serviceFreq[r.type] || 0) + 1;
       if (r.date) {
@@ -1119,18 +1095,13 @@ app.get('/api/analytics', authCheck, async (req, res) => {
   const churnClients = clientList.filter(c => {
     const repairs = c.repairs || [];
     if (!repairs.length) return false;
-    // Sort by date to get the actual last repair (not just last array element)
-    const sorted = [...repairs].filter(r => r.date).sort((a, b) => a.date > b.date ? -1 : 1);
-    if (!sorted.length) return false;
-    return sorted[0].date < churnCutoff;
-  }).map(c => {
-    const sorted = [...(c.repairs || [])].filter(r => r.date).sort((a, b) => a.date > b.date ? -1 : 1);
-    return {
-      name: c.name,
-      phone: c.phone,
-      lastRepairDate: sorted[0]?.date || null
-    };
-  });
+    const last = repairs[repairs.length - 1];
+    return last.date && last.date < churnCutoff;
+  }).map(c => ({
+    name: c.name,
+    phone: c.phone,
+    lastRepairDate: (c.repairs || []).slice(-1)[0]?.date || null
+  }));
 
   const newRequests = requestList.filter(r => r.status === 'new').length;
 
@@ -1769,34 +1740,16 @@ app.get('/api/client/auth/vk/callback', async (req, res) => {
 async function clientAuth(req, res, next) {
   const token = req.headers['x-client-token'];
   if (!token) return res.status(401).json({ error: 'No token' });
-  if (!supabase) return res.status(503).json({ error: 'db_unavailable' });
+  if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
   
-  try {
-    const { data: session, error: sessionErr } = await supabase
-      .from('auth_sessions').select('*').eq('token', token).maybeSingle();
-    
-    // DB error (fetch failed, ENOTFOUND, etc.) → return 503 so client doesn't clear token
-    if (sessionErr) {
-      const isDbDown = sessionErr.message && (
-        sessionErr.message.includes('fetch failed') || 
-        sessionErr.message.includes('ENOTFOUND') ||
-        sessionErr.message.includes('FetchError')
-      );
-      return res.status(503).json({ error: isDbDown ? 'db_unavailable' : 'db_error' });
-    }
-    
-    if (!session || new Date(session.expires_at).getTime() < Date.now()) {
-      if (session) await supabase.from('auth_sessions').delete().eq('token', token);
-      return res.status(401).json({ error: 'Session expired' });
-    }
-    
-    req.clientId = session.client_id;
-    next();
-  } catch (err) {
-    // Network / unexpected error → do NOT return 401 to avoid wiping client token
-    const isDbDown = err.message && (err.message.includes('fetch failed') || err.message.includes('ENOTFOUND'));
-    return res.status(503).json({ error: isDbDown ? 'db_unavailable' : 'internal_error' });
+  const { data: session } = await supabase.from('auth_sessions').select('*').eq('token', token).maybeSingle();
+  if (!session || new Date(session.expires_at).getTime() < Date.now()) {
+    if (session) await supabase.from('auth_sessions').delete().eq('token', token);
+    return res.status(401).json({ error: 'Session expired' });
   }
+  
+  req.clientId = session.client_id;
+  next();
 }
 
 module.exports = app;

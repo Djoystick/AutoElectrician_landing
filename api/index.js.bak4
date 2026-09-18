@@ -25,12 +25,6 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 const JWT_SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.JWT_SECRET || 'secret-fallback-key';
-
-/* ── VK ID / VK OAuth Credentials & Fallbacks ── */
-const VK_APP_ID = process.env.VK_APP_ID || '54777601';
-const VK_APP_SECRET = process.env.VK_APP_SECRET || 'OZR7Pd0txnsYunNPKBSu';
-const VK_SERVICE_TOKEN = process.env.VK_SERVICE_TOKEN || '6aae6a7a6aae6a7a6aae6a7a9d69edbd7b66aae6aae6a7a0002bae5ba8df3e63de6749d';
-const VK_REDIRECT_URI = process.env.VK_REDIRECT_URI || 'https://xn--c1adkgvmp7a.xn--p1ai/api/client/auth/vk/callback';
 /* ── In-memory logs (limit to 100) ── */
 const memLogs = [];
 const addLog = (msg) => {
@@ -265,9 +259,6 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(PUBLIC_DIR));
 
-/* ── Telegram HTML Escape (SEC: prevent HTML-injection in bot notifications) ── */
-const escapeTgHtml = (str) => String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
 /* ── Rate limiters ── */
 const limiterOtpRequest = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
@@ -294,12 +285,6 @@ const limiterTgAuth = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 min
   max: 30,
   message: { ok: false, error: 'too_many_requests' },
-  standardHeaders: true, legacyHeaders: false,
-});
-const limiterVkAuth = rateLimit({
-  windowMs: 5 * 60 * 1000, // 5 min
-  max: 30,
-  message: { ok: false, error: 'too_many_requests', message: 'Слишком много попыток входа через VK. Попробуйте через 5 минут.' },
   standardHeaders: true, legacyHeaders: false,
 });
 
@@ -524,11 +509,7 @@ async function createSession(clientId) {
 
 /* ── Middleware: Admin Auth Check ── */
 const authCheck = async (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = (authHeader && authHeader.startsWith('Bearer '))
-    ? authHeader.slice(7).trim()
-    : (authHeader || req.headers['x-admin-password']);
-
+  const token = req.headers['authorization']?.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
@@ -609,7 +590,7 @@ app.post('/api/masters', authCheck, async (req, res) => {
   const hashedPassword = bcrypt.hashSync(password, 10);
   const { data, error } = await supabase.from('masters').insert({
     name, username, password: hashedPassword
-  }).select('id, name, username, telegram_chat_id, created_at').maybeSingle();
+  }).select('id, name, username, telegram_chat_id, created_at').single();
   if (error) return res.status(500).json({ ok: false, error: error.message });
   res.json({ ok: true, master: data });
 });
@@ -629,15 +610,6 @@ app.put('/api/settings', authCheck, async (req, res) => {
   const { password: newPwd, telegramBotToken: newToken, ...rest } = req.body;
   currentSettings = { ...currentSettings, ...rest };
   
-  // BUG FIX: master password update goes to masters table, not settings (SEC-07)
-  let newToken_jwt = null;
-  if (newPwd && req.master) {
-    const hashedPassword = bcrypt.hashSync(newPwd, 10);
-    await supabase.from('masters').update({ password: hashedPassword }).eq('id', req.master.id);
-    // Issue a fresh JWT so the admin session remains valid after password change
-    newToken_jwt = jwt.sign({ username: req.master.username, id: req.master.id }, JWT_SECRET, { expiresIn: '30d' });
-  }
-  
   if (newToken !== undefined) {
     currentSettings.telegramBotToken = newToken;
     if (tgBot) { try { tgBot.stopPolling(); } catch {} tgBot = null; }
@@ -647,7 +619,7 @@ app.put('/api/settings', authCheck, async (req, res) => {
   if (sRow) await supabase.from('settings').update({ data: currentSettings }).eq('id', sRow.id);
   else await supabase.from('settings').insert({ data: currentSettings });
   
-  res.json({ ok: true, ...(newToken_jwt ? { token: newToken_jwt } : {}) });
+  res.json({ ok: true });
 });
 
 app.put('/api/contacts', authCheck, async (req, res) => {
@@ -660,13 +632,6 @@ app.put('/api/contacts', authCheck, async (req, res) => {
   else await supabase.from('contacts').insert({ data: currentContacts });
   
   res.json({ ok: true, contacts: currentContacts });
-});
-
-/* ── Admin: GET /api/services — all services (incl. inactive) for admin panel ── */
-app.get('/api/services', authCheck, async (req, res) => {
-  if (!supabase) return res.status(500).json({ ok: false });
-  const { data: services } = await supabase.from('services').select('*').order('sort_order', { ascending: true });
-  res.json({ ok: true, services: services || [] });
 });
 
 app.post('/api/services', authCheck, async (req, res) => {
@@ -746,7 +711,7 @@ app.put('/api/reviews/:id', authCheck, async (req, res) => {
   if (req.body.image !== undefined) payload.image = req.body.image;
   
   await supabase.from('reviews').update(payload).eq('id', req.params.id);
-  const { data: review } = await supabase.from('reviews').select('*').eq('id', req.params.id).maybeSingle();
+  const { data: review } = await supabase.from('reviews').select('*').eq('id', req.params.id).single();
   res.json({ ok: true, review });
 });
 
@@ -762,7 +727,7 @@ app.delete('/api/reviews/:id', authCheck, async (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/requests', limiterPublic, async (req, res) => {
+app.post('/api/requests', async (req, res) => {
   const { name, phone, problem } = req.body;
   if (!phone) return res.status(400).json({ error: 'phone required' });
   if (!supabase) return res.status(500).json({ error: 'DB error' });
@@ -784,7 +749,7 @@ app.post('/api/requests', limiterPublic, async (req, res) => {
       for (const m of (masters || [])) {
         if (m.telegram_chat_id) {
           bot.sendMessage(m.telegram_chat_id,
-            `📥 <b>Новая заявка!</b>\n👤 ${escapeTgHtml(payload.name)}\n📞 ${escapeTgHtml(payload.phone)}\n🔧 ${escapeTgHtml(payload.problem) || '—'}`,
+            `📥 <b>Новая заявка!</b>\n👤 ${payload.name}\n📞 ${payload.phone}\n🔧 ${payload.problem || '—'}`,
             { parse_mode: 'HTML' }
           ).catch(()=>{});
         }
@@ -798,18 +763,15 @@ app.post('/api/requests', limiterPublic, async (req, res) => {
 app.get('/api/requests', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   const { data: requests } = await supabase.from('requests').select('*').order('created_at', { ascending: false });
-  // Map snake_case created_at → camelCase createdAt for frontend compatibility
-  const mapped = (requests || []).map(r => ({ ...r, createdAt: r.created_at }));
-  res.json({ ok: true, requests: mapped });
+  res.json({ ok: true, requests });
 });
 
 app.put('/api/requests/:id/status', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   const { status } = req.body;
   await supabase.from('requests').update({ status }).eq('id', req.params.id);
-  const { data: request } = await supabase.from('requests').select('*').eq('id', req.params.id).maybeSingle();
-  const mapped = request ? { ...request, createdAt: request.created_at } : null;
-  res.json({ ok: true, request: mapped });
+  const { data: request } = await supabase.from('requests').select('*').eq('id', req.params.id).single();
+  res.json({ ok: true, request });
 });
 
 app.delete('/api/requests/:id', authCheck, async (req, res) => {
@@ -864,27 +826,8 @@ app.get('/api/client/me', clientAuth, async (req, res) => {
   delete masterInfo.telegramBotToken;
   masterInfo.contacts = cRow?.data || {};
 
-  // Проверяем, является ли данный клиент Мастером
-  let adminToken = null;
-  try {
-    const vkUsername = client.vk_id ? `vk_${client.vk_id}` : null;
-    const tgUsername = client.telegram_id ? `tg_${client.telegram_id}` : null;
-    let conditions = [];
-    conditions.push(`id.eq.${client.id}`);
-    if (vkUsername) conditions.push(`username.eq.${vkUsername}`);
-    if (tgUsername) conditions.push(`username.eq.${tgUsername}`);
-    if (client.telegram_chat_id) conditions.push(`telegram_chat_id.eq.${client.telegram_chat_id}`);
-    
-    const { data: masterRec } = await supabase.from('masters').select('*').or(conditions.join(',')).maybeSingle();
-
-    if (masterRec) {
-      adminToken = jwt.sign({ username: masterRec.username, id: masterRec.id }, JWT_SECRET, { expiresIn: '30d' });
-    }
-  } catch (err) {
-    console.error('Error checking master status in /api/client/me:', err);
-  }
-
-  res.json({ ok: true, client: safeClient, masterInfo, ...(adminToken ? { adminToken } : {}) });
+  // Админский токен выдается исключительно через явный /api/auth (SEC-04)
+  res.json({ ok: true, client: safeClient, masterInfo });
 });
 
 app.put('/api/client/reminder/:rid', clientAuth, async (req, res) => {
@@ -1037,7 +980,7 @@ app.post('/api/clients/:id/repairs', authCheck, upload.array('photos', 5), async
     };
   }
 
-  const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.params.id).maybeSingle();
+  const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.params.id).single();
   if (!client) return res.status(404).json({ error: 'Client not found' });
   const updatedRepairs = [...(client.repairs || []), repair];
   
@@ -1047,7 +990,7 @@ app.post('/api/clients/:id/repairs', authCheck, upload.array('photos', 5), async
 
 app.delete('/api/clients/:id/repairs/:rid', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
-  const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.params.id).maybeSingle();
+  const { data: client } = await supabase.from('clients').select('repairs').eq('id', req.params.id).single();
   if (!client) return res.status(404).json({ error: 'Client not found' });
   
   const updatedRepairs = (client.repairs || []).filter(r => String(r.id) !== String(req.params.rid));
@@ -1101,11 +1044,10 @@ app.get('/api/analytics', authCheck, async (req, res) => {
 
   for (const c of clientList) {
     for (const r of (c.repairs || [])) {
-      const cost = Number(r.cost) || 0;
-      totalRevenue += cost;
+      if (typeof r.cost === 'number') totalRevenue += r.cost;
       if (r.date && r.date >= thirtyDaysAgo) {
         monthVisits++;
-        monthRevenue += cost;
+        if (typeof r.cost === 'number') monthRevenue += r.cost;
       }
       if (r.type) serviceFreq[r.type] = (serviceFreq[r.type] || 0) + 1;
       if (r.date) {
@@ -1119,18 +1061,13 @@ app.get('/api/analytics', authCheck, async (req, res) => {
   const churnClients = clientList.filter(c => {
     const repairs = c.repairs || [];
     if (!repairs.length) return false;
-    // Sort by date to get the actual last repair (not just last array element)
-    const sorted = [...repairs].filter(r => r.date).sort((a, b) => a.date > b.date ? -1 : 1);
-    if (!sorted.length) return false;
-    return sorted[0].date < churnCutoff;
-  }).map(c => {
-    const sorted = [...(c.repairs || [])].filter(r => r.date).sort((a, b) => a.date > b.date ? -1 : 1);
-    return {
-      name: c.name,
-      phone: c.phone,
-      lastRepairDate: sorted[0]?.date || null
-    };
-  });
+    const last = repairs[repairs.length - 1];
+    return last.date && last.date < churnCutoff;
+  }).map(c => ({
+    name: c.name,
+    phone: c.phone,
+    lastRepairDate: (c.repairs || []).slice(-1)[0]?.date || null
+  }));
 
   const newRequests = requestList.filter(r => r.status === 'new').length;
 
@@ -1408,342 +1345,49 @@ app.get('/api/client/auth/telegram/magic/status', limiterTgAuth, async (req, res
   }
 });
 
-/* ── VK Auth Helper: Resolve registered redirect URI ── */
-function getVkRedirectUri(req) {
-  if (process.env.VK_REDIRECT_URI) return process.env.VK_REDIRECT_URI;
-  return 'https://auto-electrician-landing.vercel.app/api/client/auth/vk/callback';
-}
-
-/* ── 4. VK ID One Tap Token Verification & Exchange ── */
-app.post('/api/client/auth/vk', limiterVkAuth, async (req, res) => {
-  const { access_token, user_id } = req.body;
-  if (!access_token) {
-    return res.status(400).json({ ok: false, error: 'access_token_required' });
-  }
-
-  if (!supabase) {
-    return res.status(503).json({
-      ok: false,
-      error: 'db_unavailable',
-      message: 'База данных временно недоступна'
-    });
-  }
-
-  try {
-    let userData = null;
-
-    // 1. First attempt: VK ID OAuth2 user_info endpoint
-    try {
-      const userInfoUrl = `https://id.vk.com/oauth2/user_info?client_id=${VK_APP_ID}`;
-      const postData = new URLSearchParams({ access_token }).toString();
-      const vr = await new Promise((resolve, reject) => {
-        const r = https.request(userInfoUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Content-Length': Buffer.byteLength(postData)
-          }
-        }, resp => {
-          let d = '';
-          resp.on('data', chunk => d += chunk);
-          resp.on('end', () => {
-            try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
-          });
-        });
-        r.on('error', reject);
-        r.write(postData);
-        r.end();
-      });
-
-      if (vr && vr.user) {
-        userData = vr.user;
-      }
-    } catch (e) {
-      console.warn('VK ID user_info fetch warning:', e.message);
-    }
-
-    // 2. Fallback: traditional api.vk.com users.get
-    if (!userData && user_id) {
-      try {
-        const usersGetUrl = `https://api.vk.com/method/users.get?user_ids=${user_id}&fields=photo_100,contacts&access_token=${access_token}&v=5.199`;
-        const ugRes = await new Promise((resolve, reject) => {
-          https.get(usersGetUrl, r => {
-            let d = '';
-            r.on('data', c => d += c);
-            r.on('end', () => {
-              try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
-            });
-          }).on('error', reject);
-        });
-        if (ugRes && ugRes.response && ugRes.response[0]) {
-          const u = ugRes.response[0];
-          userData = {
-            user_id: String(u.id),
-            first_name: u.first_name,
-            last_name: u.last_name,
-            avatar: u.photo_100,
-            phone: u.mobile_phone || u.home_phone || ''
-          };
-        }
-      } catch (e) {
-        console.warn('VK users.get fallback warning:', e.message);
-      }
-    }
-
-    if (!userData) {
-      return res.status(401).json({ ok: false, error: 'invalid_token', message: 'Не удалось подтвердить токен VK' });
-    }
-
-    const vkId = String(userData.user_id || user_id);
-    const firstName = userData.first_name || '';
-    const lastName = userData.last_name || '';
-    const fullName = [firstName, lastName].filter(Boolean).join(' ') || `VK Пользователь ${vkId}`;
-    const phone = userData.phone || '';
-    const email = userData.email || '';
-
-    // Search client in Supabase by vk_id
-    let { data: client, error: findErr } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('vk_id', vkId)
-      .maybeSingle();
-
-    if (findErr) {
-      console.error('Find VK client error:', findErr);
-      return res.status(503).json({ ok: false, error: 'db_error', message: findErr.message });
-    }
-
-    // If client not found by vk_id, but phone is present, link vk_id to existing account
-    if (!client && phone) {
-      const { data: phoneClient } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('phone', phone)
-        .maybeSingle();
-      if (phoneClient) {
-        client = phoneClient;
-        await supabase.from('clients').update({ vk_id: vkId }).eq('id', client.id);
-      }
-    }
-
-    // If still not found, create new client
-    if (!client) {
-      const newClient = {
-        id: crypto.randomUUID(),
-        name: fullName,
-        phone: phone || '',
-        email: email || '',
-        vk_id: vkId,
-        telegram_id: '',
-        telegram_username: '',
-        telegram_chat_id: '',
-        cars: [],
-        repairs: [],
-        created_at: new Date().toISOString()
-      };
-      const { error: insErr } = await supabase.from('clients').insert([newClient]);
-      if (insErr) {
-        return res.status(500).json({ ok: false, error: 'db_error', message: insErr.message });
-      }
-      client = newClient;
-    }
-
-    const token = await createSession(client.id);
-    res.json({ ok: true, token, clientId: client.id, name: client.name });
-  } catch (err) {
-    console.error('VK auth endpoint error:', err);
-    res.status(500).json({ ok: false, error: 'internal_error', message: err.message });
-  }
-});
-
-/* ── Stateless Cryptographic PKCE state helper ── */
-function createPkceState(verifier, returnUrl) {
-  const payload = {
-    v: verifier,
-    r: returnUrl || 'https://xn--c1adkgvmp7a.xn--p1ai/profile.html',
-    t: Date.now()
-  };
-  const json = JSON.stringify(payload);
-  const data = Buffer.from(json).toString('base64url');
-  const hmac = crypto.createHmac('sha256', VK_APP_SECRET).update(data).digest('base64url');
-  return `${data}.${hmac}`;
-}
-
-function verifyPkceState(stateStr) {
-  if (!stateStr || typeof stateStr !== 'string') return null;
-  const parts = stateStr.split('.');
-  if (parts.length !== 2) return null;
-  const [data, sig] = parts;
-  const expectedSig = crypto.createHmac('sha256', VK_APP_SECRET).update(data).digest('base64url');
-  if (sig !== expectedSig) return null;
-  try {
-    const json = Buffer.from(data, 'base64url').toString('utf8');
-    const parsed = JSON.parse(json);
-    // Expire after 15 minutes
-    if (Date.now() - parsed.t > 15 * 60 * 1000) return null;
-    return parsed;
-  } catch (e) {
-    return null;
-  }
-}
-
-/* ── 5. VK ID Direct Login Redirect (with OAuth 2.1 PKCE) ── */
-app.get('/api/client/auth/vk/login', (req, res) => {
-  const redirectUri = getVkRedirectUri(req);
-  const verifier = crypto.randomBytes(32).toString('base64url');
-  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
-
-  const host = req.headers['x-forwarded-host'] || req.headers.host || 'xn--c1adkgvmp7a.xn--p1ai';
-  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-  const returnUrl = `${proto}://${host}/profile.html`;
-
-  const state = createPkceState(verifier, returnUrl);
-
-  const vkAuthUrl = `https://id.vk.ru/authorize?app_id=${VK_APP_ID}&client_id=${VK_APP_ID}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&code_challenge=${challenge}&code_challenge_method=s256&state=${encodeURIComponent(state)}&origin=https%3A%2F%2Fxn--c1adkgvmp7a.xn--p1ai&v=2.6.8&sdk_type=vkid`;
-  res.redirect(vkAuthUrl);
-});
-
-/* ── 6. VK OAuth / VK ID Callback ── */
 app.get('/api/client/auth/vk/callback', async (req, res) => {
-  const { code, state, device_id, error, error_description } = req.query;
-  if (error) {
-    console.error('VK OAuth callback error:', error, error_description);
-    return res.redirect(`/profile.html?auth=error&reason=${encodeURIComponent(error)}`);
-  }
+  const { code } = req.query;
   if (!code) return res.redirect('/profile.html');
 
   try {
-    const redirectUri = getVkRedirectUri(req);
-    let accessToken = null;
-    let userId = null;
-    let email = '';
-    let returnUrl = '/profile.html';
+    const tokenUrl = `https://oauth.vk.com/access_token?client_id=${process.env.VK_APP_ID || VK_APP_ID}&client_secret=${process.env.VK_APP_SECRET || VK_APP_SECRET}&redirect_uri=${process.env.VK_REDIRECT_URI || VK_REDIRECT_URI}&code=${code}`;
+    const tokenResponse = await new Promise((resolve, reject) => {
+      https.get(tokenUrl, r => {
+        let d = '';
+        r.on('data', chunk => d += chunk);
+        r.on('end', () => resolve(JSON.parse(d)));
+      }).on('error', reject);
+    });
 
-    const pkce = verifyPkceState(state);
-    if (pkce && pkce.v) {
-      returnUrl = pkce.r || '/profile.html';
-      // Modern VK ID OAuth 2.1 PKCE code exchange
-      try {
-        const tokenExchangeUrl = 'https://id.vk.com/oauth2/auth';
-        const postData = new URLSearchParams({
-          grant_type: 'authorization_code',
-          client_id: VK_APP_ID,
-          code_verifier: pkce.v,
-          redirect_uri: redirectUri,
-          code,
-          state: state || '',
-          device_id: device_id || ''
-        }).toString();
-
-        const exchangeRes = await new Promise((resolve, reject) => {
-          const r = https.request(tokenExchangeUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'Content-Length': Buffer.byteLength(postData)
-            }
-          }, resp => {
-            let d = '';
-            resp.on('data', c => d += c);
-            resp.on('end', () => {
-              try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
-            });
-          });
-          r.on('error', reject);
-          r.write(postData);
-          r.end();
-        });
-
-        if (exchangeRes && exchangeRes.access_token) {
-          accessToken = exchangeRes.access_token;
-          userId = exchangeRes.user_id;
-          email = exchangeRes.email || '';
-        }
-      } catch (err) {
-        console.warn('VK ID PKCE code exchange warning:', err.message);
-      }
+    if (tokenResponse.error) {
+      console.error('VK Token Error:', tokenResponse.error_description);
+      return res.redirect('/profile.html?error=vk_token');
     }
 
-    // Fallback exchange via oauth.vk.com/access_token if PKCE exchange did not return token
-    if (!accessToken) {
-      const tokenUrl = `https://oauth.vk.com/access_token?client_id=${VK_APP_ID}&client_secret=${VK_APP_SECRET}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`;
-      const tokenResponse = await new Promise((resolve, reject) => {
-        https.get(tokenUrl, r => {
-          let d = '';
-          r.on('data', chunk => d += chunk);
-          r.on('end', () => {
-            try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
-          });
-        }).on('error', reject);
-      });
+    const { access_token, user_id, email } = tokenResponse;
+    const vkId = String(user_id);
 
-      if (tokenResponse && tokenResponse.access_token) {
-        accessToken = tokenResponse.access_token;
-        userId = tokenResponse.user_id;
-        email = tokenResponse.email || '';
-      }
-    }
+    const apiReqUrl = `https://api.vk.com/method/users.get?user_ids=${vkId}&fields=photo_100,contacts&access_token=${access_token}&v=5.199`;
+    const apiResponse = await new Promise((resolve, reject) => {
+      https.get(apiReqUrl, r => {
+        let d = '';
+        r.on('data', chunk => d += chunk);
+        r.on('end', () => resolve(JSON.parse(d)));
+      }).on('error', reject);
+    });
 
-    if (!accessToken) {
-      console.error('VK Token Exchange Failed');
-      const sep = returnUrl.includes('?') ? '&' : '?';
-      return res.redirect(`${returnUrl}${sep}auth=error&reason=vk_token`);
-    }
+    const user = apiResponse.response?.[0];
+    if (!user) return res.redirect('/profile.html?error=vk_api');
 
-    const vkId = String(userId);
-    let name = `VK Пользователь ${vkId}`;
-    let phone = '';
-
-    // Fetch user details from VK ID user_info or api.vk.com
-    try {
-      const userInfoUrl = `https://id.vk.com/oauth2/user_info?client_id=${VK_APP_ID}`;
-      const postData = new URLSearchParams({ access_token: accessToken }).toString();
-      const uInfo = await new Promise((resolve, reject) => {
-        const r = https.request(userInfoUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Content-Length': Buffer.byteLength(postData)
-          }
-        }, resp => {
-          let d = '';
-          resp.on('data', c => d += c);
-          resp.on('end', () => {
-            try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
-          });
-        });
-        r.on('error', reject);
-        r.write(postData);
-        r.end();
-      });
-      if (uInfo && uInfo.user) {
-        const u = uInfo.user;
-        name = [u.first_name, u.last_name].filter(Boolean).join(' ') || name;
-        phone = u.phone || '';
-      }
-    } catch (e) {
-      console.warn('VK user_info fetch warning in callback:', e.message);
-    }
-
-    if (!supabase) {
-      const sep = returnUrl.includes('?') ? '&' : '?';
-      return res.redirect(`${returnUrl}${sep}auth=error&reason=db`);
-    }
+    if (!supabase) return res.redirect('/profile.html?error=db');
     let { data: client } = await supabase.from('clients').select('*').eq('vk_id', vkId).maybeSingle();
 
-    if (!client && phone) {
-      const { data: pClient } = await supabase.from('clients').select('*').eq('phone', phone).maybeSingle();
-      if (pClient) {
-        client = pClient;
-        await supabase.from('clients').update({ vk_id: vkId }).eq('id', client.id);
-      }
-    }
-
     if (!client) {
+      const name = `${user.first_name || ''} ${user.last_name || ''}`.trim();
       client = {
         id: crypto.randomUUID(),
-        name,
-        phone: phone || '',
+        name: name || 'VK Пользователь',
+        phone: user.mobile_phone || user.home_phone || '',
         email: email || '',
         vk_id: vkId,
         telegram_id: '',
@@ -1757,46 +1401,27 @@ app.get('/api/client/auth/vk/callback', async (req, res) => {
     }
 
     const token = await createSession(client.id);
-    const sep = returnUrl.includes('?') ? '&' : '?';
-    res.redirect(`${returnUrl}${sep}auth=vk&token=${token}&name=${encodeURIComponent(client.name)}`);
+    res.redirect(`/profile.html?auth=vk&token=${token}&name=${encodeURIComponent(client.name)}`);
 
   } catch (err) {
-    console.error('VK Callback Exception:', err);
-    res.redirect('/profile.html?auth=error&reason=server_error');
+    console.error('VK Callback Error:', err);
+    res.redirect('/profile.html?error=internal');
   }
 });
 
 async function clientAuth(req, res, next) {
   const token = req.headers['x-client-token'];
   if (!token) return res.status(401).json({ error: 'No token' });
-  if (!supabase) return res.status(503).json({ error: 'db_unavailable' });
+  if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
   
-  try {
-    const { data: session, error: sessionErr } = await supabase
-      .from('auth_sessions').select('*').eq('token', token).maybeSingle();
-    
-    // DB error (fetch failed, ENOTFOUND, etc.) → return 503 so client doesn't clear token
-    if (sessionErr) {
-      const isDbDown = sessionErr.message && (
-        sessionErr.message.includes('fetch failed') || 
-        sessionErr.message.includes('ENOTFOUND') ||
-        sessionErr.message.includes('FetchError')
-      );
-      return res.status(503).json({ error: isDbDown ? 'db_unavailable' : 'db_error' });
-    }
-    
-    if (!session || new Date(session.expires_at).getTime() < Date.now()) {
-      if (session) await supabase.from('auth_sessions').delete().eq('token', token);
-      return res.status(401).json({ error: 'Session expired' });
-    }
-    
-    req.clientId = session.client_id;
-    next();
-  } catch (err) {
-    // Network / unexpected error → do NOT return 401 to avoid wiping client token
-    const isDbDown = err.message && (err.message.includes('fetch failed') || err.message.includes('ENOTFOUND'));
-    return res.status(503).json({ error: isDbDown ? 'db_unavailable' : 'internal_error' });
+  const { data: session } = await supabase.from('auth_sessions').select('*').eq('token', token).maybeSingle();
+  if (!session || new Date(session.expires_at).getTime() < Date.now()) {
+    if (session) await supabase.from('auth_sessions').delete().eq('token', token);
+    return res.status(401).json({ error: 'Session expired' });
   }
+  
+  req.clientId = session.client_id;
+  next();
 }
 
 module.exports = app;
