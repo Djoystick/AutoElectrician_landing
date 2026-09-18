@@ -105,19 +105,15 @@ function bindEvents() {
     } else toast('Ошибка сохранения', 'error');
   });
 
-  // AUTH (Login form submit handler)
-  document.getElementById('login-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const user = document.getElementById('login-user')?.value?.trim();
-    const pwd = document.getElementById('login-pwd')?.value?.trim();
-    const err = document.getElementById('login-err');
-    if (!pwd) return;
-    if (err) err.classList.add('hidden');
+  // AUTH
+  document.getElementById('auth-btn')?.addEventListener('click', async () => {
+    const user = document.getElementById('auth-username').value;
+    const pwd = document.getElementById('auth-password').value;
+    const err = document.getElementById('auth-error');
+    if (!user || !pwd) return;
     try {
       const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: user || undefined, password: pwd })
+        method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: user, password: pwd })
       });
       const json = await res.json();
       if (json.ok && json.token) { 
@@ -125,17 +121,9 @@ function bindEvents() {
         localStorage.setItem('ae_admin_token', TOKEN); 
         loadAndShow(); 
       } else {
-        if (err) {
-          err.textContent = json.error || 'Неверный логин или пароль';
-          err.classList.remove('hidden');
-        }
-      }
-    } catch {
-      if (err) {
-        err.textContent = 'Ошибка соединения с сервером';
         err.classList.remove('hidden');
       }
-    }
+    } catch { err.textContent = 'Ошибка соединения'; err.classList.remove('hidden'); }
   });
 
   document.getElementById('logout-btn')?.addEventListener('click', () => {

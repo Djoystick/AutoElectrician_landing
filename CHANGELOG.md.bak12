@@ -2,31 +2,6 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.2.1] - 2026-09-19
-
-### 🎯 Full Auditor Consolidation & CRM Frontend/Auth Polish
-
-#### public/admin.html & public/js/admin.js:
-- **[CRITICAL BUG] Восстановлена форма входа в панель мастера**:
-  - Устранено критическое несоответствие: `admin.js` ожидал `#auth-btn`, `#auth-username`, `#auth-password`, которых не было в `admin.html`. Из-за этого при клике на «Войти» форма нативно перезагружала страницу без авторизации.
-  - В `admin.html` добавлено опциональное поле логина (`#login-user`) и поле пароля (`#login-pwd`), форма привязана к `#login-form`.
-  - В `admin.js` обработчик переведен на `form.addEventListener('submit')` с `e.preventDefault()`, чтением логина/пароля и выводом ошибок в `#login-err`.
-
-#### api/index.js:
-- **[FEATURE] Гибкая авторизация мастера (`POST /api/auth`)**:
-  - Поддержка входа как по паре `(username, password)`, так и по одному только `password` (с перебором зарегистрированных мастеров по bcrypt).
-- **[CRM] Клиенты и дубликаты (`POST /api/clients`)**:
-  - Добавлена проверка на дубликаты по телефону (`client_exists`), предотвращающая дублирование профилей.
-  - Добавлена генерация 6-значного `accessCode` — в тосте фронтенда теперь выводится реальный код (`Клиент создан. Код: 123456`), а не `undefined`.
-  - Добавлена нормализация телефона (`normalizePhone`).
-  - В `GET /api/clients` добавлена обработка ошибок Supabase.
-- **[OTP Auth] Нормализация телефона в клиентском портале**:
-  - В `POST /api/client/auth/request` и `POST /api/client/auth` подключена нормализация `normalizePhone` с поиском по нормализованному и исходному форматам.
-
-#### public/js/profile.js:
-- **[CLEANUP] Удален спам 404 к `/api/debug`**:
-  - В обработчиках ошибок `window.onerror` и `unhandledrejection` вызовы несуществующего `/api/debug` заменены на `console.error`.
-
 ## [1.2.0] - 2026-09-18
 
 ### 🔒 Critical Security & Stability Fixes (Backend API Audit)

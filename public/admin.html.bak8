@@ -68,15 +68,11 @@
     <h1 class="text-lg font-bold text-center text-white mb-6">Вход в панель мастера</h1>
     <form id="login-form" class="space-y-4">
       <div>
-        <label class="label">Логин (необязательно)</label>
-        <input id="login-user" type="text" class="input" placeholder="Оставьте пустым или введите логин" autocomplete="username" />
-      </div>
-      <div>
         <label class="label">Пароль</label>
-        <input id="login-pwd" type="password" required class="input" placeholder="Введите пароль мастера" autocomplete="current-password" />
+        <input id="login-pwd" type="password" required class="input" placeholder="Введите пароль" />
       </div>
-      <div id="login-err" class="hidden text-red-400 text-sm text-center">Неверный логин или пароль</div>
-      <button id="login-submit" type="submit" class="btn-primary w-full justify-center py-3">Войти</button>
+      <div id="login-err" class="hidden text-red-400 text-sm text-center">Неверный пароль</div>
+      <button type="submit" class="btn-primary w-full justify-center py-3">Войти</button>
     </form>
   </div>
 </div>

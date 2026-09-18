@@ -268,17 +268,6 @@ app.use(express.static(PUBLIC_DIR));
 /* ── Telegram HTML Escape (SEC: prevent HTML-injection in bot notifications) ── */
 const escapeTgHtml = (str) => String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-/* ── Phone normalization helper (RU + standard E.164) ── */
-const normalizePhone = (phone) => {
-  if (!phone) return '';
-  const raw = String(phone).replace(/[\s\-()]/g, '');
-  if (!raw) return '';
-  if (raw.startsWith('8') && raw.length === 11) {
-    return '+7' + raw.slice(1);
-  }
-  return raw.startsWith('+') ? raw : '+' + raw;
-};
-
 /* ── Rate limiters ── */
 const limiterOtpRequest = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
@@ -591,31 +580,11 @@ app.get('/api/data', async (req, res) => {
 
 app.post('/api/auth', limiterAdmin, async (req, res) => {
   const { username, password } = req.body;
-  if (!password) return res.status(400).json({ ok: false, error: 'Введите пароль' });
-  if (!supabase) return res.status(500).json({ ok: false, error: 'База данных недоступна' });
-
-  let master = null;
-  if (username) {
-    const { data: m } = await supabase.from('masters').select('*').eq('username', username).maybeSingle();
-    master = m;
-  } else {
-    // Если передан только пароль — проверяем против зарегистрированных мастеров
-    const { data: allMasters } = await supabase.from('masters').select('*');
-    if (allMasters && allMasters.length > 0) {
-      for (const m of allMasters) {
-        const isH = m.password && m.password.startsWith('$2');
-        const match = isH ? bcrypt.compareSync(password, m.password) : (password === m.password);
-        if (match) {
-          master = m;
-          break;
-        }
-      }
-    }
-  }
-
+  if (!supabase) return res.status(500).json({ ok: false });
+  const { data: master } = await supabase.from('masters').select('*').eq('username', username).maybeSingle();
   if (!master) return res.status(401).json({ ok: false, error: 'Неверный логин или пароль' });
   
-  const isHash = master.password && master.password.startsWith('$2');
+  const isHash = master.password.startsWith('$2');
   const ok = isHash ? bcrypt.compareSync(password, master.password) : (password === master.password);
   
   if (ok) {
@@ -938,30 +907,19 @@ app.put('/api/client/reminder/:rid', clientAuth, async (req, res) => {
 
 app.get('/api/clients', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
-  const { data: clients, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false });
-  if (error) return res.status(500).json({ ok: false, error: error.message });
-  res.json({ ok: true, clients: clients || [] });
+  const { data: clients } = await supabase.from('clients').select('*').order('created_at', { ascending: false });
+  res.json({ ok: true, clients });
 });
 
 app.post('/api/clients', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   const { name, phone, email, cars } = req.body;
-  const cleanPhone = normalizePhone(phone);
-
-  if (cleanPhone) {
-    const { data: existing } = await supabase.from('clients').select('id, name').eq('phone', cleanPhone).maybeSingle();
-    if (existing) {
-      return res.status(400).json({ ok: false, error: 'client_exists' });
-    }
-  }
-
-  const accessCode = String(Math.floor(100000 + Math.random() * 900000));
+  
   const payload = {
     id: uid(),
     name: name || 'Аноним',
-    phone: cleanPhone || phone || '',
+    phone: phone || '',
     email: email || '',
-    accessCode,
     vk_id: '',
     telegram_id: '',
     telegram_username: '',
@@ -970,8 +928,7 @@ app.post('/api/clients', authCheck, async (req, res) => {
     repairs: [],
     created_at: new Date().toISOString()
   };
-  const { error: insErr } = await supabase.from('clients').insert(payload);
-  if (insErr) return res.status(500).json({ ok: false, error: insErr.message });
+  await supabase.from('clients').insert(payload);
   res.json({ ok: true, client: payload });
 });
 
@@ -1204,17 +1161,12 @@ app.post('/api/client/auth/request', limiterOtpRequest, async (req, res) => {
   if (!phone) return res.status(400).json({ error: 'phone required' });
 
   if (!supabase) return res.status(500).json({ ok: false, error: 'DB not connected' });
-  const cleanPhone = normalizePhone(phone);
-  let { data: client } = await supabase.from('clients').select('*').eq('phone', cleanPhone).maybeSingle();
-  if (!client && cleanPhone !== phone) {
-    const { data: c2 } = await supabase.from('clients').select('*').eq('phone', phone).maybeSingle();
-    if (c2) client = c2;
-  }
+  const { data: client } = await supabase.from('clients').select('*').eq('phone', phone).maybeSingle();
   if (!client) return res.status(404).json({ ok: false, error: 'client_not_found' });
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-  await supabase.from('auth_otps').upsert({ phone: cleanPhone, code, expires_at: expiresAt });
+  await supabase.from('auth_otps').upsert({ phone, code, expires_at: expiresAt });
 
   const bot        = await getBot();
   const chatId     = client.telegram_chat_id;
@@ -1247,31 +1199,19 @@ app.post('/api/client/auth', limiterOtpVerify, async (req, res) => {
   if (!phone || !code) return res.status(400).json({ error: 'phone and code required' });
 
   if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
-  const cleanPhone = normalizePhone(phone);
-  let { data: otpRow } = await supabase.from('auth_otps').select('*').eq('phone', cleanPhone).maybeSingle();
-  if (!otpRow && cleanPhone !== phone) {
-    const { data: o2 } = await supabase.from('auth_otps').select('*').eq('phone', phone).maybeSingle();
-    if (o2) otpRow = o2;
-  }
-
+  const { data: otpRow } = await supabase.from('auth_otps').select('*').eq('phone', phone).maybeSingle();
   if (!otpRow) return res.status(400).json({ ok: false, error: 'code_expired' });
   if (new Date(otpRow.expires_at).getTime() < Date.now()) {
-    await supabase.from('auth_otps').delete().eq('phone', cleanPhone);
-    if (cleanPhone !== phone) await supabase.from('auth_otps').delete().eq('phone', phone);
+    await supabase.from('auth_otps').delete().eq('phone', phone);
     return res.status(401).json({ ok: false, error: 'code_expired' });
   }
   if (String(otpRow.code) !== String(code)) {
     return res.status(401).json({ ok: false, error: 'wrong_code' });
   }
 
-  await supabase.from('auth_otps').delete().eq('phone', cleanPhone);
-  if (cleanPhone !== phone) await supabase.from('auth_otps').delete().eq('phone', phone);
+  await supabase.from('auth_otps').delete().eq('phone', phone);
 
-  let { data: client } = await supabase.from('clients').select('*').eq('phone', cleanPhone).maybeSingle();
-  if (!client && cleanPhone !== phone) {
-    const { data: c2 } = await supabase.from('clients').select('*').eq('phone', phone).maybeSingle();
-    if (c2) client = c2;
-  }
+  const { data: client } = await supabase.from('clients').select('*').eq('phone', phone).maybeSingle();
   if (!client) return res.status(404).json({ ok: false, error: 'client_not_found' });
 
   const token = await createSession(client.id);
