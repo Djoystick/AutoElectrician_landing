@@ -1507,16 +1507,33 @@ app.post('/api/client/auth/vk', limiterVkAuth, async (req, res) => {
   }
 });
 
-/* ── 5. VK OAuth Direct Login Redirect (Fallback) ── */
+/* ── In-memory PKCE store for direct OAuth redirect flow ── */
+const vkPkceStore = new Map();
+
+/* ── 5. VK ID Direct Login Redirect (with OAuth 2.1 PKCE) ── */
 app.get('/api/client/auth/vk/login', (req, res) => {
   const redirectUri = getVkRedirectUri(req);
-  const vkAuthUrl = `https://oauth.vk.com/authorize?client_id=${VK_APP_ID}&display=page&redirect_uri=${encodeURIComponent(redirectUri)}&scope=phone,email&response_type=code&v=5.199`;
+  const verifier = crypto.randomBytes(32).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  const state = crypto.randomBytes(16).toString('hex');
+
+  vkPkceStore.set(state, { verifier, redirectUri, expiresAt: Date.now() + 10 * 60 * 1000 });
+
+  // Clean old entries
+  if (vkPkceStore.size > 100) {
+    const now = Date.now();
+    for (const [k, v] of vkPkceStore.entries()) {
+      if (v.expiresAt < now) vkPkceStore.delete(k);
+    }
+  }
+
+  const vkAuthUrl = `https://id.vk.ru/auth?app_id=${VK_APP_ID}&response_type=code&redirect_uri=${encodeURI(redirectUri)}&code_challenge=${challenge}&code_challenge_method=s256&state=${state}`;
   res.redirect(vkAuthUrl);
 });
 
-/* ── 6. VK OAuth Callback (Fallback) ── */
+/* ── 6. VK OAuth / VK ID Callback ── */
 app.get('/api/client/auth/vk/callback', async (req, res) => {
-  const { code, error, error_description } = req.query;
+  const { code, state, device_id, error, error_description } = req.query;
   if (error) {
     console.error('VK OAuth callback error:', error, error_description);
     return res.redirect(`/profile.html?auth=error&reason=${encodeURIComponent(error)}`);
@@ -1525,39 +1542,114 @@ app.get('/api/client/auth/vk/callback', async (req, res) => {
 
   try {
     const redirectUri = getVkRedirectUri(req);
-    const tokenUrl = `https://oauth.vk.com/access_token?client_id=${VK_APP_ID}&client_secret=${VK_APP_SECRET}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`;
-    const tokenResponse = await new Promise((resolve, reject) => {
-      https.get(tokenUrl, r => {
-        let d = '';
-        r.on('data', chunk => d += chunk);
-        r.on('end', () => {
-          try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
-        });
-      }).on('error', reject);
-    });
+    let accessToken = null;
+    let userId = null;
+    let email = '';
 
-    if (tokenResponse.error) {
-      console.error('VK Token Error:', tokenResponse.error_description || tokenResponse.error);
+    const storedPkce = state ? vkPkceStore.get(state) : null;
+    if (storedPkce) {
+      vkPkceStore.delete(state);
+      // Modern VK ID OAuth 2.1 code exchange
+      try {
+        const tokenExchangeUrl = 'https://id.vk.com/oauth2/auth';
+        const postData = new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: VK_APP_ID,
+          code_verifier: storedPkce.verifier,
+          redirect_uri: storedPkce.redirectUri || redirectUri,
+          code,
+          state: state || '',
+          device_id: device_id || ''
+        }).toString();
+
+        const exchangeRes = await new Promise((resolve, reject) => {
+          const r = https.request(tokenExchangeUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Content-Length': Buffer.byteLength(postData)
+            }
+          }, resp => {
+            let d = '';
+            resp.on('data', c => d += c);
+            resp.on('end', () => {
+              try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
+            });
+          });
+          r.on('error', reject);
+          r.write(postData);
+          r.end();
+        });
+
+        if (exchangeRes && exchangeRes.access_token) {
+          accessToken = exchangeRes.access_token;
+          userId = exchangeRes.user_id;
+          email = exchangeRes.email || '';
+        }
+      } catch (err) {
+        console.warn('VK ID PKCE code exchange warning:', err.message);
+      }
+    }
+
+    // Fallback exchange via oauth.vk.com/access_token if PKCE exchange did not return token
+    if (!accessToken) {
+      const tokenUrl = `https://oauth.vk.com/access_token?client_id=${VK_APP_ID}&client_secret=${VK_APP_SECRET}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`;
+      const tokenResponse = await new Promise((resolve, reject) => {
+        https.get(tokenUrl, r => {
+          let d = '';
+          r.on('data', chunk => d += chunk);
+          r.on('end', () => {
+            try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
+          });
+        }).on('error', reject);
+      });
+
+      if (tokenResponse && tokenResponse.access_token) {
+        accessToken = tokenResponse.access_token;
+        userId = tokenResponse.user_id;
+        email = tokenResponse.email || '';
+      }
+    }
+
+    if (!accessToken) {
+      console.error('VK Token Exchange Failed');
       return res.redirect('/profile.html?auth=error&reason=vk_token');
     }
 
-    const { access_token, user_id, email } = tokenResponse;
-    const vkId = String(user_id);
+    const vkId = String(userId);
+    let name = `VK Пользователь ${vkId}`;
+    let phone = '';
 
-    const apiReqUrl = `https://api.vk.com/method/users.get?user_ids=${vkId}&fields=photo_100,contacts&access_token=${access_token}&v=5.199`;
-    const apiResponse = await new Promise((resolve, reject) => {
-      https.get(apiReqUrl, r => {
-        let d = '';
-        r.on('data', chunk => d += chunk);
-        r.on('end', () => {
-          try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
+    // Fetch user details from VK ID user_info or api.vk.com
+    try {
+      const userInfoUrl = `https://id.vk.com/oauth2/user_info?client_id=${VK_APP_ID}`;
+      const postData = new URLSearchParams({ access_token: accessToken }).toString();
+      const uInfo = await new Promise((resolve, reject) => {
+        const r = https.request(userInfoUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': Buffer.byteLength(postData)
+          }
+        }, resp => {
+          let d = '';
+          resp.on('data', c => d += c);
+          resp.on('end', () => {
+            try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
+          });
         });
-      }).on('error', reject);
-    });
-
-    const user = apiResponse.response?.[0];
-    const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : `VK Пользователь ${vkId}`;
-    const phone = user?.mobile_phone || user?.home_phone || '';
+        r.on('error', reject);
+        r.write(postData);
+        r.end();
+      });
+      if (uInfo && uInfo.user) {
+        const u = uInfo.user;
+        name = [u.first_name, u.last_name].filter(Boolean).join(' ') || name;
+        phone = u.phone || '';
+      }
+    } catch (e) {
+      console.warn('VK user_info fetch warning in callback:', e.message);
+    }
 
     if (!supabase) return res.redirect('/profile.html?auth=error&reason=db');
     let { data: client } = await supabase.from('clients').select('*').eq('vk_id', vkId).maybeSingle();
@@ -1573,7 +1665,7 @@ app.get('/api/client/auth/vk/callback', async (req, res) => {
     if (!client) {
       client = {
         id: crypto.randomUUID(),
-        name: name || 'VK Пользователь',
+        name,
         phone: phone || '',
         email: email || '',
         vk_id: vkId,

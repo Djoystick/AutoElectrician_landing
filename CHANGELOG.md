@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.3] - 2026-09-18
+
+### 🛠️ VK ID 2.0 PKCE & SDK Hardening
+- **Устранение «Ошибка загрузки» (Код 9 VK ID)**: Заменен устаревший вызов `oauth.vk.com/authorize` на современный протокол VK ID OAuth 2.1 с генерацией PKCE (`code_challenge`, `code_challenge_method=s256`, `state`) через эндпоинт `id.vk.ru/auth`.
+- **Клиентский вызов VKID.Auth.login()**: Кнопка входа «Войти через ВКонтакте» теперь вызывает нативный метод SDK `VKID.Auth.login()` со встроенной генерацией PKCE-параметров, открывая форму входа без редиректа на устаревший интерфейс.
+- **Стабилизация загрузки SDK**: Фиксирована точная версия скрипта `@vkid/sdk@2.6.8` (убран спецсимвол `<` из тега `src`, вызывавший задержки и 302-редиректы CDN).
+- **Синхронизация Redirect URI**: Строго зафиксирован `redirectUrl: 'https://чекгорит.рф/api/client/auth/vk/callback'` в точном соответствии с настройками панели VK ID.
+
 ## [1.1.2] - 2026-09-18
 
 ### ⚡ VK ID One Tap & OAuth Integration

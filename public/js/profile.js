@@ -669,11 +669,11 @@ function initVkIdAuth() {
 
   const container = document.getElementById('vk-onetap-container');
   const fallbackBtn = document.getElementById('vk-fallback-btn');
-  if (!container) return;
+  if (!container && !fallbackBtn) return;
 
   if (typeof window.VKIDSDK === 'undefined') {
-    // Retry once in 400ms in case CDN script is still downloading
-    setTimeout(initVkIdAuth, 400);
+    // Retry in 300ms in case CDN script is still downloading
+    setTimeout(initVkIdAuth, 300);
     return;
   }
 
@@ -681,7 +681,8 @@ function initVkIdAuth() {
     isVkIdInitialized = true;
     const VKID = window.VKIDSDK;
 
-    const redirectUrl = window.location.origin + '/api/client/auth/vk/callback';
+    // Use exact registered redirect URL matching VK ID console settings
+    const redirectUrl = 'https://чекгорит.рф/api/client/auth/vk/callback';
 
     VKID.Config.init({
       app: 54777601,
@@ -691,55 +692,70 @@ function initVkIdAuth() {
       scope: '',
     });
 
-    const oneTap = new VKID.OneTap();
-
-    oneTap.render({
-      container: container,
-      showAlternativeLogin: true,
-    })
-    .on(VKID.WidgetEvents.ERROR, (err) => {
-      console.warn('VK OneTap Widget Error/Notice:', err);
-      // Ensure fallback direct OAuth button is accessible
-      if (fallbackBtn) fallbackBtn.classList.remove('hidden');
-    })
-    .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, async (payload) => {
-      hideAuthError();
-      try {
-        const code = payload.code;
-        const deviceId = payload.device_id;
-
-        const tokenData = await VKID.Auth.exchangeCode(code, deviceId);
-        if (!tokenData || !tokenData.access_token) {
-          throw new Error('Не получен access_token от VK ID');
+    // Wire fallback button to VKID.Auth.login() for seamless SDK popup auth
+    if (fallbackBtn) {
+      fallbackBtn.onclick = (e) => {
+        e.preventDefault();
+        hideAuthError();
+        try {
+          VKID.Auth.login().catch(err => {
+            console.warn('VKID.Auth.login error, falling back to server redirect:', err);
+            window.location.href = '/api/client/auth/vk/login';
+          });
+        } catch (err) {
+          window.location.href = '/api/client/auth/vk/login';
         }
+      };
+    }
 
-        const res = await fetch('/api/client/auth/vk', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            access_token: tokenData.access_token,
-            user_id: tokenData.user_id,
-            id_token: tokenData.id_token
-          })
-        });
+    if (container) {
+      const oneTap = new VKID.OneTap();
 
-        const data = await res.json();
-        if (data.ok && data.token) {
-          TOKEN = data.token;
-          localStorage.setItem(TOKEN_KEY, TOKEN);
-          await loadProfile();
-        } else {
-          showAuthError('Ошибка входа через VK ID: ' + (data.message || data.error || 'не удалось подтвердить сессию'));
+      oneTap.render({
+        container: container,
+        showAlternativeLogin: true,
+      })
+      .on(VKID.WidgetEvents.ERROR, (err) => {
+        console.warn('VK OneTap Widget Notice:', err);
+      })
+      .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, async (payload) => {
+        hideAuthError();
+        try {
+          const code = payload.code;
+          const deviceId = payload.device_id;
+
+          const tokenData = await VKID.Auth.exchangeCode(code, deviceId);
+          if (!tokenData || !tokenData.access_token) {
+            throw new Error('Не получен access_token от VK ID');
+          }
+
+          const res = await fetch('/api/client/auth/vk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              access_token: tokenData.access_token,
+              user_id: tokenData.user_id,
+              id_token: tokenData.id_token
+            })
+          });
+
+          const data = await res.json();
+          if (data.ok && data.token) {
+            TOKEN = data.token;
+            localStorage.setItem(TOKEN_KEY, TOKEN);
+            await loadProfile();
+          } else {
+            showAuthError('Ошибка входа через VK ID: ' + (data.message || data.error || 'не удалось подтвердить сессию'));
+          }
+        } catch (err) {
+          console.error('VK ID Login process error:', err);
+          showAuthError('Ошибка авторизации через VK: ' + (err.error_description || err.message || 'попробуйте войти по кнопке ниже'));
         }
-      } catch (err) {
-        console.error('VK ID Login process error:', err);
-        showAuthError('Ошибка авторизации через VK: ' + (err.error_description || err.message || 'попробуйте войти по кнопке ниже'));
-      }
-    });
+      });
+    }
 
   } catch (e) {
-    console.warn('Failed to init VK ID One Tap widget:', e);
-    if (fallbackBtn) fallbackBtn.classList.remove('hidden');
+    console.warn('Failed to init VK ID widget:', e);
   }
 }
 
