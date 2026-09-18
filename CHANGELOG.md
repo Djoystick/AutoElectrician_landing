@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.6] - 2026-09-18
+
+### ⚡ Diagnostic Performance HUD & Loading Analysis
+- **Встроенный счётчик производительности (`perf-widget.js`)**: Добавлен ненавязчивый плавающий инспектор скорости загрузки страниц в левом нижнем углу (`⚡ 0.85s`), с детальной раскладкой по клику (TTFB сервера, время парсинга DOM, сетевые задержки DNS/TLS, вес страницы и топ самых медленных ресурсов).
+- **Консольная телеметрия**: Детальная таблица `console.table()` со всеми этапами загрузки по Navigation Timing API автоматически пишется в DevTools.
+- **Оптимизация критического пути рендеринга (`profile.html`)**:
+  - Убран блокирующий 302-редирект от `lucide@latest`, библиотека зафиксирована на точной версии `lucide@0.468.0` с атрибутом `defer`.
+  - Добавлен атрибут `defer` на внешний SDK VK ID (`@vkid/sdk@2.6.8`), предотвращающий зависание парсера HTML.
+  - Настроены preconnect-соединения для шрифтов Google Fonts.
+
 ## [1.1.5] - 2026-09-18
 
 ### 🛡️ Cross-Browser Origin Stabilization & Direct VK ID Flow

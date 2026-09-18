@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Мой профиль — AutoElectro</title>
   <meta name="description" content="Личный кабинет клиента AutoElectro. История ремонтов, ваш гараж и напоминания о ТО." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -15,8 +17,8 @@
       }, fontFamily: { sans: ['Montserrat','sans-serif'] } } }
     }
   </script>
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-  <script src="https://unpkg.com/@vkid/sdk@2.6.8/dist-sdk/umd/index.js"></script>
+  <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
+  <script src="https://unpkg.com/@vkid/sdk@2.6.8/dist-sdk/umd/index.js" defer></script>
   <style>
     body { background:#0d1117; color:#e6edf3; font-family:'Montserrat',sans-serif; }
     .input { width:100%; background:#0d1117; border:1px solid #30363d; border-radius:.75rem;
@@ -302,5 +304,6 @@
 </div>
 
 <script src="/js/profile.js"></script>
+<script src="/js/perf-widget.js" defer></script>
 </body>
 </html>
