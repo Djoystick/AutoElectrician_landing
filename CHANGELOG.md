@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.5] - 2026-09-18
+
+### 🛡️ Cross-Browser Origin Stabilization & Direct VK ID Flow
+- **Устранение «В настройках ресурса не указан данный базовый домен»**: Заменен вызов `VKID.Auth.login()` в кнопке входа на прямой серверный маршрут `/api/client/auth/vk/login`. Это полностью исключает передачу несовместимого `origin` из сторонних браузеров и доменов (например, `auto-electrician-landing.vercel.app` или ненормализованной кириллицы), гарантируя отправку валидного Punycode-ориджина `https://xn--c1adkgvmp7a.xn--p1ai`.
+- **Автоматическая нормализация домена**: Клиенты, открывшие сайт по техническому адресу Vercel, автоматически перенаправляются на канонический боевой домен `чекгорит.рф`.
+
 ## [1.1.4] - 2026-09-18
 
 ### 🚀 VK ID Serverless PKCE & Redirect URL Alignment

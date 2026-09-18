@@ -4,6 +4,11 @@
 ============================================================ */
 'use strict';
 
+// Canonical domain normalization: automatically redirect technical Vercel domain to чекгорит.рф
+if (window.location.hostname === 'auto-electrician-landing.vercel.app') {
+  window.location.replace('https://xn--c1adkgvmp7a.xn--p1ai' + window.location.pathname + window.location.search + window.location.hash);
+}
+
 window.onerror = function(msg, url, lineNo, columnNo, error) {
   fetch('/api/debug', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'onerror', msg, url, lineNo, columnNo, stack: error?.stack }) });
 };
@@ -692,19 +697,12 @@ function initVkIdAuth() {
       scope: '',
     });
 
-    // Wire fallback button to VKID.Auth.login() for seamless SDK popup auth
+    // Wire fallback button directly to /api/client/auth/vk/login for rock-solid PKCE auth with registered origin
     if (fallbackBtn) {
       fallbackBtn.onclick = (e) => {
         e.preventDefault();
         hideAuthError();
-        try {
-          VKID.Auth.login().catch(err => {
-            console.warn('VKID.Auth.login error, falling back to server redirect:', err);
-            window.location.href = '/api/client/auth/vk/login';
-          });
-        } catch (err) {
-          window.location.href = '/api/client/auth/vk/login';
-        }
+        window.location.href = '/api/client/auth/vk/login';
       };
     }
 
