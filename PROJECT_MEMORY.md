@@ -135,4 +135,37 @@
 5. При переходе в `/admin.html` панель автоматически открывает CRM без повторного ввода логина/пароля.
 6. В шапке `/admin.html` добавлена кнопка **«Профиль»** для мгновенного возврата в кабинет клиента.
 
+---
 
+## 🎨 UI/UX Спецификация & Библиотека Промптов: VibePrompt (`vibeprompts.dev`)
+
+> **Сервис:** [VibePrompt](https://vibeprompts.dev/) (`https://vibeprompts.dev/`)  
+> **Назначение:** Официальный эталонный каталог генерации интерфейсов, редизайна и формулирования промптов для субагентов.  
+> **Формат:** 286 готовых промптов в 15 категориях с чистой Tailwind CSS разметкой и легковесным Vanilla JavaScript.
+
+### 📌 Регламент делегирования задач субагентам (Design-to-Agent Workflow)
+При постановке задач субагентам на разработку, редизайн или внедрение новых механик:
+1. **Выбирать профильный паттерн** из библиотеки VibePrompt по соответствующей категории (Dashboards, Auth, Bento, Pricing и др.).
+2. **Внедрять формулировку промпта из VibePrompt** в задачу субагента в качестве точного контракта интерфейса и UX-поведения.
+3. **Соблюдать стек проекта:** Чистый Tailwind CSS + Vanilla JS, темная тема (`#0d1117`, `#161b22`, границы `#30363d`), неоновые акценты (`#00b4fd`, `#7dd3fc`), отзывчивость и микроинтерактивность.
+
+### 🗂️ Каталог целевых паттернов для экосистемы AutoElectro:
+
+#### 1. CRM Панель Мастера (`admin.html` / `admin.js`):
+* **Таблицы клиентов и заявок:** [Data table with toolbar](https://vibeprompts.dev/dashboards/dashboards-data-table-with-toolbar/) — живой поиск, сортировка кликом по заголовкам (Имя, Авто, Статус, Дата) с индикаторами стрелок, статусная подсветка, динамический счетчик строк, состояние «Ничего не найдено».
+* **Обзор метрик и KPI дашборда:** [Sidebar + stat cards](https://vibeprompts.dev/dashboards/dashboards-sidebar-stat-cards/) & [Analytics overview with range chips](https://vibeprompts.dev/dashboards/dashboards-analytics-overview-with-range-chips/) — переключатели диапазонов (месяц, квартал, полгода), карточки выручки, среднего чека, новых заявок и оттока.
+* **Пайплайн заявок (Воронка):** [Kanban board with drag and drop](https://vibeprompts.dev/dashboards/dashboards-kanban-board-with-drag-and-drop/) — 4 колонки стадий (`Новая` → `В работе` → `Выполнена` → `Отменена`) с живыми счетчиками и перетаскиванием карточек заявок.
+* **Карточка заявки и конверсия в ремонт:** [Approvals queue with detail drawer](https://vibeprompts.dev/dashboards/dashboards-approvals-queue-with-detail-drawer/) — список заявок слева, выдвижная карточка справа для быстрого создания клиента и оформления ремонта.
+* **Лента истории ремонтов и действий:** [Activity feed panel](https://vibeprompts.dev/dashboards/dashboards-activity-feed-panel/) — хронологическая лента событий с аватарами, датами и статусами.
+
+#### 2. Клиентский портал (`profile.html` / `profile.js`):
+* **Вход по SMS/коду:** [One-time code (OTP)](https://vibeprompts.dev/auth/auth-one-time-code-otp/) — 6-значный раздельный ввод с автопереходом фокуса и таймером повторной отправки.
+* **Вход через Telegram:** [Magic link request](https://vibeprompts.dev/auth/auth-magic-link-request/) — карточка с индикацией статуса подтверждения и таймером сессии.
+* **Управление связанными аккаунтами:** [Active sessions manager](https://vibeprompts.dev/auth/auth-active-sessions-manager/) & [Account chooser](https://vibeprompts.dev/auth/auth-account-chooser/) — статус привязки (VK ID, Telegram, Телефон), переключение и безопасная отвязка.
+* **Шкала лояльности и скидок:** [Usage and billing meters](https://vibeprompts.dev/dashboards/dashboards-usage-and-billing-meters/) — визуальная шкала визитов и прогресс-бар достижения уровней (`Новый` → `Лояльный` → `Постоянный` → `VIP`).
+
+#### 3. Публичный лендинг (`index.html` / `main.js`):
+* **Витрина услуг и преимуществ:** [Bento grid](https://vibeprompts.dev/features/features-bento-grid/) & [Three-column icons](https://vibeprompts.dev/features/features-three-column-icons/) — стильная асимметричная сетка с карточками разного размера и акцентной подсветкой.
+* **Калькулятор стоимости ремонта:** [Usage-based estimator](https://vibeprompts.dev/pricing/pricing-usage-based-estimator/) — интерактивный подбор проблемы/услуги со слайдером и расчетом ориентировочной стоимости работ.
+* **Блоки Hero с мгновенной заявкой:** [Search-first hero](https://vibeprompts.dev/hero/hero-search-first-hero/) / [Booking hero with date fields](https://vibeprompts.dev/hero/hero-booking-hero-with-date-fields/) — ввод проблемы или выбор времени прямо на первом экране.
+* **Сравнение «До / После» ремонта:** [Before and after split](https://vibeprompts.dev/features/features-before-and-after-split/) — слайдер сравнения состояния проводки до ремонта и после профессионального восстановления.
