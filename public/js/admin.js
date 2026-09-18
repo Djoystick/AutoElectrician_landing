@@ -490,7 +490,7 @@ function bindRepairForm() {
     const fd = new FormData(e.target);
     const res = await fetch(`/api/clients/${clientId}/repairs`, {
       method: 'POST',
-      headers: { 'x-admin-password': TOKEN },
+      headers: { 'Authorization': 'Bearer ' + TOKEN, 'x-admin-password': TOKEN },
       body: fd,
     });
     const json = await res.json();
@@ -842,7 +842,7 @@ function bindReviewForm() {
     } else {
       const fd  = new FormData(e.target);
       const res = await fetch('/api/reviews', {
-        method: 'POST', headers: { 'x-admin-password': TOKEN }, body: fd,
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + TOKEN, 'x-admin-password': TOKEN }, body: fd,
       });
       const json = await res.json();
       if (json.ok) { DATA.reviews.push(json.review); renderReviewsAdmin(); closeModal('modal-review'); toast(); e.target.reset(); }
@@ -873,7 +873,7 @@ window.openReviewModal = (id) => {
 
 window.deleteReview = async (id) => {
   if (!confirm('Удалить отзыв и фото?')) return;
-  const res = await fetch(`/api/reviews/${id}`, { method:'DELETE', headers:{'x-admin-password':TOKEN} });
+  const res = await fetch(`/api/reviews/${id}`, { method:'DELETE', headers:{'Authorization': 'Bearer ' + TOKEN, 'x-admin-password':TOKEN} });
   const json = await res.json();
   if (json.ok) { DATA.reviews = DATA.reviews.filter(r => r.id !== id); renderReviewsAdmin(); toast('Удалено'); }
 };

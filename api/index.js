@@ -521,7 +521,11 @@ async function createSession(clientId) {
 
 /* ── Middleware: Admin Auth Check ── */
 const authCheck = async (req, res, next) => {
-  const token = req.headers['authorization']?.split(' ')[1];
+  const authHeader = req.headers['authorization'];
+  const token = (authHeader && authHeader.startsWith('Bearer '))
+    ? authHeader.slice(7).trim()
+    : (authHeader || req.headers['x-admin-password']);
+
   if (!token) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
@@ -838,8 +842,26 @@ app.get('/api/client/me', clientAuth, async (req, res) => {
   delete masterInfo.telegramBotToken;
   masterInfo.contacts = cRow?.data || {};
 
-  // Админский токен выдается исключительно через явный /api/auth (SEC-04)
-  res.json({ ok: true, client: safeClient, masterInfo });
+  // Проверяем, является ли данный клиент Мастером
+  let adminToken = null;
+  try {
+    const vkUsername = client.vk_id ? `vk_${client.vk_id}` : null;
+    let masterQuery = supabase.from('masters').select('*');
+    if (vkUsername) {
+      masterQuery = masterQuery.or(`id.eq.${client.id},username.eq.${vkUsername}`);
+    } else {
+      masterQuery = masterQuery.eq('id', client.id);
+    }
+    const { data: masterRec } = await masterQuery.maybeSingle();
+
+    if (masterRec) {
+      adminToken = jwt.sign({ username: masterRec.username, id: masterRec.id }, JWT_SECRET, { expiresIn: '30d' });
+    }
+  } catch (err) {
+    console.error('Error checking master status in /api/client/me:', err);
+  }
+
+  res.json({ ok: true, client: safeClient, masterInfo, ...(adminToken ? { adminToken } : {}) });
 });
 
 app.put('/api/client/reminder/:rid', clientAuth, async (req, res) => {
