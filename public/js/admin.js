@@ -166,8 +166,29 @@ function switchTab(name) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   OVERVIEW
+   OVERVIEW & REQUEST BADGE
 ══════════════════════════════════════════════════════════ */
+function updateRequestsBadge(count) {
+  if (count === undefined) {
+    count = (DATA.requests || []).filter(r => r.status === 'new').length;
+  }
+  if (ANALYTICS) ANALYTICS.newRequests = count;
+  const kpiVal = document.getElementById('kpi-requests-val');
+  if (kpiVal) kpiVal.textContent = count;
+
+  const badge = document.getElementById('new-requests-badge');
+  if (badge) {
+    badge.textContent = count;
+    if (count > 0) {
+      badge.classList.remove('hidden');
+      badge.classList.add('badge-pulse');
+    } else {
+      badge.classList.add('hidden');
+      badge.classList.remove('badge-pulse');
+    }
+  }
+}
+
 function renderOverview() {
   // KPI
   document.getElementById('kpi-requests-val').textContent = ANALYTICS.newRequests ?? 0;
@@ -175,27 +196,33 @@ function renderOverview() {
   document.getElementById('kpi-visits-val').textContent   = ANALYTICS.monthVisits ?? 0;
   document.getElementById('kpi-churn-val').textContent    = ANALYTICS.churnCount ?? 0;
 
-  // Badge on requests tab
-  if (ANALYTICS.newRequests > 0) {
-    const badge = document.getElementById('new-requests-badge');
-    badge.textContent = ANALYTICS.newRequests;
-    badge.classList.remove('hidden');
-  }
+  // Reactive badge
+  updateRequestsBadge();
 
   // Recent requests (last 5)
   const reqContainer = document.getElementById('overview-recent-requests');
   const reqs = (DATA.requests || []).slice(0, 5);
   if (!reqs.length) { reqContainer.innerHTML = '<p class="text-gray-500 text-sm">Заявок пока нет</p>'; }
   else {
-    reqContainer.innerHTML = reqs.map(r => `
-      <div class="flex items-center justify-between py-2 border-b border-border last:border-0">
-        <div>
-          <span class="font-semibold text-white">${esc(r.name)}</span>
-          <span class="text-gray-500 ml-2">${esc(r.phone)}</span>
-          ${r.problem ? `<span class="text-gray-500 ml-2">— ${esc(r.problem.slice(0,40))}</span>` : ''}
+    reqContainer.innerHTML = reqs.map(r => {
+      const dateStr = fmtDateTime(r.createdAt || r.created_at);
+      return `
+      <div class="flex items-center justify-between py-2.5 border-b border-border last:border-0 gap-3">
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-semibold text-white text-sm">${esc(r.name)}</span>
+            <span class="text-gray-400 text-xs font-mono">${esc(r.phone)}</span>
+            <span class="text-gray-400 text-xs flex items-center gap-1 bg-surface/80 px-2 py-0.5 rounded border border-border/60">
+              <i data-lucide="clock" class="w-3 h-3 text-accent inline"></i>
+              ${dateStr}
+            </span>
+          </div>
+          ${r.problem ? `<p class="text-gray-400 text-xs mt-1 truncate">${esc(r.problem)}</p>` : ''}
         </div>
-        <span class="status-badge status-${r.status} px-2 py-0.5 rounded-full text-xs font-semibold shrink-0">${statusLabel(r.status)}</span>
-      </div>`).join('');
+        <span class="status-badge status-${r.status} px-2.5 py-1 rounded-full text-xs font-semibold shrink-0">${statusLabel(r.status)}</span>
+      </div>`;
+    }).join('');
+    lucide.createIcons();
   }
 
   // Churn clients
@@ -228,31 +255,40 @@ async function loadRequests() {
 function renderRequests() {
   const list = document.getElementById('requests-list');
   const reqs = DATA.requests || [];
+  updateRequestsBadge();
   if (!reqs.length) {
     list.innerHTML = '<p class="text-gray-500 text-sm py-4">Заявок нет</p>';
     return;
   }
-  list.innerHTML = reqs.map(r => `
-    <div class="card p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+  list.innerHTML = reqs.map(r => {
+    const dateStr = fmtDateTime(r.createdAt || r.created_at);
+    return `
+    <div class="card p-5 flex flex-col sm:flex-row sm:items-center gap-4">
       <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2 mb-1">
-          <span class="font-bold text-white">${esc(r.name)}</span>
-          <span class="status-badge status-${r.status} px-2 py-0.5 rounded-full text-xs font-semibold">${statusLabel(r.status)}</span>
+        <div class="flex items-center gap-2 mb-1 flex-wrap">
+          <span class="font-bold text-white text-base">${esc(r.name)}</span>
+          <span class="status-badge status-${r.status} px-2.5 py-0.5 rounded-full text-xs font-semibold">${statusLabel(r.status)}</span>
         </div>
-        <a href="tel:${r.phone}" class="text-accent text-sm hover:underline">${esc(r.phone)}</a>
-        ${r.problem ? `<p class="text-gray-400 text-sm mt-1">${esc(r.problem)}</p>` : ''}
-        <p class="text-gray-600 text-xs mt-1">${fmtDateTime(r.createdAt)}</p>
+        <a href="tel:${r.phone}" class="text-accent text-sm hover:underline font-medium font-mono">${esc(r.phone)}</a>
+        ${r.problem ? `<p class="text-gray-300 text-sm mt-2 leading-relaxed bg-bg/60 p-2.5 rounded-xl border border-border/60">${esc(r.problem)}</p>` : ''}
+        <div class="flex items-center gap-2 text-xs text-gray-400 mt-2.5">
+          <span class="flex items-center gap-1.5 bg-surface border border-border px-2.5 py-1 rounded-lg">
+            <i data-lucide="calendar" class="w-3.5 h-3.5 text-accent"></i>
+            <span>Заявка от: <strong class="text-white">${dateStr}</strong></span>
+          </span>
+        </div>
       </div>
-      <div class="flex flex-wrap gap-2 shrink-0">
+      <div class="flex flex-wrap gap-2 shrink-0 sm:self-center">
         ${r.status !== 'new'    ? `<button onclick="setRequestStatus('${r.id}','new')"    class="btn-ghost text-xs py-1.5 text-blue-400">🔵 Новая</button>` : ''}
         ${r.status !== 'work'   ? `<button onclick="setRequestStatus('${r.id}','work')"   class="btn-ghost text-xs py-1.5 text-amber-400">🟡 В работе</button>` : ''}
         ${r.status !== 'done'   ? `<button onclick="setRequestStatus('${r.id}','done')"   class="btn-ghost text-xs py-1.5 text-green-400">🟢 Выполнена</button>` : ''}
         ${r.status !== 'cancel' ? `<button onclick="setRequestStatus('${r.id}','cancel')" class="btn-ghost text-xs py-1.5 text-red-400">⛔ Отмена</button>` : ''}
-        <button onclick="deleteRequest('${r.id}')" class="btn-danger text-xs py-1.5">
+        <button onclick="deleteRequest('${r.id}')" class="btn-danger text-xs py-1.5" title="Удалить заявку">
           <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
         </button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   lucide.createIcons();
 }
 
@@ -263,15 +299,7 @@ window.setRequestStatus = async (id, status) => {
     if (req) req.status = status;
     renderRequests();
     // Update badge & overview
-    const newCnt = (DATA.requests || []).filter(r => r.status === 'new').length;
-    if (ANALYTICS) ANALYTICS.newRequests = newCnt;
-    const badge = document.getElementById('new-requests-badge');
-    if (badge) {
-      badge.textContent = newCnt;
-      badge.classList.toggle('hidden', newCnt === 0);
-    }
-    const kpiVal = document.getElementById('kpi-requests-val');
-    if (kpiVal) kpiVal.textContent = newCnt;
+    updateRequestsBadge();
     renderOverview();
     await loadAnalytics();
     toast('Статус обновлён');
@@ -291,13 +319,7 @@ window.deleteRequest = async (id) => {
   if (res && res.ok) {
     DATA.requests = (DATA.requests || []).filter(r => r.id !== id);
     renderRequests();
-    const newCnt = (DATA.requests || []).filter(r => r.status === 'new').length;
-    if (ANALYTICS) ANALYTICS.newRequests = newCnt;
-    const badge = document.getElementById('new-requests-badge');
-    if (badge) {
-      badge.textContent = newCnt;
-      badge.classList.toggle('hidden', newCnt === 0);
-    }
+    updateRequestsBadge();
     renderOverview();
     await loadAnalytics();
     toast('Заявка удалена');
@@ -627,84 +649,213 @@ window.openRepairModal = async (clientId, prefill = null) => {
     await loadClients();
   }
 
-  const clientSelect = document.getElementById('repair-client-select');
-  clientSelect.innerHTML = '<option value="">— Выберите клиента —</option>';
+  const clientSearchInput = document.getElementById('repair-client-search');
+  const clientClearBtn   = document.getElementById('repair-client-clear-btn');
+  const clientDropdown   = document.getElementById('repair-client-dropdown');
+  const clientCountEl    = document.getElementById('repair-client-count');
+  const clientIdInput    = document.getElementById('repair-client-id');
+  const clientSelect     = document.getElementById('repair-client-select');
+
+  const allClients = DATA.clients || [];
+  if (clientCountEl) {
+    clientCountEl.textContent = allClients.length ? `Всего в базе: ${allClients.length}` : '';
+  }
 
   let selectedId = clientId || '';
+  let selectedLabel = '';
 
   // 1. Поиск существующего клиента по номеру телефона
   if (!selectedId && prefill && prefill.phone) {
     const rawDigits = String(prefill.phone).replace(/[^\d]/g, '');
-    const found = (DATA.clients || []).find(c => {
+    const found = allClients.find(c => {
       const cp = String(c.phone || '').replace(/[^\d]/g, '');
       return cp && rawDigits && (cp === rawDigits || (cp.length >= 10 && rawDigits.endsWith(cp.slice(-10))));
     });
     if (found) {
       selectedId = found.id;
+      selectedLabel = `${found.name} (${found.phone || 'без тел.'})`;
     }
   }
 
-  // 2. Если клиент не найден по телефону, предлагаем создать нового
+  // 2. Если клиент не найден по телефону, предлагаем создать нового из входящей заявки
   if (!selectedId && prefill && (prefill.name || prefill.phone)) {
-    const opt = document.createElement('option');
-    opt.value = '__NEW_FROM_REQUEST__';
-    opt.textContent = `✨ Создать клиента: ${prefill.name || 'Клиент'} (${prefill.phone || 'без тел.'})`;
-    opt.selected = true;
-    clientSelect.appendChild(opt);
     selectedId = '__NEW_FROM_REQUEST__';
+    selectedLabel = `✨ Создать клиента: ${prefill.name || 'Клиент'} (${prefill.phone || 'без тел.'})`;
+  } else if (selectedId && !selectedLabel) {
+    const existing = allClients.find(c => c.id === selectedId);
+    if (existing) selectedLabel = `${existing.name} (${existing.phone || 'без тел.'})`;
   }
 
-  // 3. Заполняем всех существующих клиентов
-  (DATA.clients || []).forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = `${c.name} (${c.phone || 'без тел.'})`;
-    if (c.id === selectedId) opt.selected = true;
-    clientSelect.appendChild(opt);
-  });
+  if (clientIdInput) clientIdInput.value = selectedId;
+  if (clientSearchInput) clientSearchInput.value = selectedLabel;
+  if (clientSelect) clientSelect.value = selectedId;
+  if (clientClearBtn) clientClearBtn.classList.toggle('hidden', !selectedLabel);
 
-  // 4. Опция ручного создания нового клиента
-  const optManual = document.createElement('option');
-  optManual.value = '__MANUAL_NEW__';
-  optManual.textContent = '➕ Создать нового клиента вручную...';
-  clientSelect.appendChild(optManual);
-
-  document.getElementById('repair-client-id').value = selectedId;
   await updateRepairCars(selectedId);
 
-  clientSelect.onchange = async (e) => {
-    const val = e.target.value;
-    if (val === '__MANUAL_NEW__') {
-      const name = prompt('Имя и фамилия нового клиента:');
-      if (!name) { e.target.value = document.getElementById('repair-client-id').value; return; }
-      const phone = prompt('Номер телефона:');
-      if (!phone) { e.target.value = document.getElementById('repair-client-id').value; return; }
-      const res = await api('POST', '/api/clients', { name, phone });
-      if (res.ok && res.client) {
-        await loadClients();
-        await openRepairModal(res.client.id, currentRepairPrefill);
-        toast(`Клиент ${res.client.name} создан`);
-      } else if (res.error === 'client_exists') {
-        // Find existing client by phone and select them
-        const rawP = phone.replace(/[^\d]/g, '');
-        const existing = (DATA.clients || []).find(c => String(c.phone).replace(/[^\d]/g, '').endsWith(rawP.slice(-10)));
-        if (existing) {
-          await openRepairModal(existing.id, currentRepairPrefill);
-          toast(`Найден существующий клиент: ${existing.name}`);
-        } else {
-          toast('Клиент с таким номером уже существует', true);
-          e.target.value = document.getElementById('repair-client-id').value;
-        }
-      } else {
-        toast('Ошибка создания клиента', true);
-        e.target.value = document.getElementById('repair-client-id').value;
-      }
-      return;
+  // Helper to select a client
+  async function selectClient(id, label) {
+    selectedId = id;
+    selectedLabel = label;
+    if (clientIdInput) clientIdInput.value = id;
+    if (clientSearchInput) clientSearchInput.value = label;
+    if (clientSelect) clientSelect.value = id;
+    if (clientClearBtn) clientClearBtn.classList.remove('hidden');
+    if (clientDropdown) clientDropdown.classList.add('hidden');
+    await updateRepairCars(id);
+  }
+
+  // Render dropdown items
+  function renderDropdown(filterText = '') {
+    if (!clientDropdown) return;
+    const q = filterText.trim().toLowerCase();
+    const qDigits = q.replace(/[^\d]/g, '');
+
+    const filtered = allClients.filter(c => {
+      if (!q) return true;
+      const nameMatch = c.name && c.name.toLowerCase().includes(q);
+      const phoneDigits = String(c.phone || '').replace(/[^\d]/g, '');
+      const phoneMatch = phoneDigits.includes(qDigits) || (c.phone && c.phone.toLowerCase().includes(q));
+      return nameMatch || (qDigits && phoneMatch);
+    });
+
+    let html = '';
+
+    // If prefill from request is available, show quick creation option at the top
+    if (prefill && (prefill.name || prefill.phone)) {
+      const isSel = selectedId === '__NEW_FROM_REQUEST__';
+      html += `
+        <div class="p-3 cursor-pointer hover:bg-accent/15 flex items-center justify-between text-xs transition-colors border-b border-border/60 ${isSel ? 'bg-accent/20 text-accent font-bold' : 'text-accent'}"
+             data-client-id="__NEW_FROM_REQUEST__"
+             data-client-label="✨ Создать клиента: ${esc(prefill.name || 'Клиент')} (${esc(prefill.phone || 'без тел.')})">
+          <div class="flex items-center gap-2 truncate">
+            <span class="text-base">✨</span>
+            <div class="truncate">
+              <span class="font-bold text-white">Создать из заявки:</span> ${esc(prefill.name || 'Клиент')}
+              <span class="text-gray-400 ml-1 font-mono">${esc(prefill.phone || '')}</span>
+            </div>
+          </div>
+          <span class="text-[10px] uppercase font-bold bg-accent/20 px-2 py-0.5 rounded text-accent shrink-0 ml-2">Новый</span>
+        </div>`;
     }
 
-    document.getElementById('repair-client-id').value = val;
-    await updateRepairCars(val);
+    if (filtered.length === 0) {
+      html += `<div class="p-3 text-center text-xs text-gray-500">Клиенты не найдены</div>`;
+    } else {
+      filtered.forEach(c => {
+        const isSel = c.id === selectedId;
+        const carCount = c.cars ? c.cars.length : 0;
+        const label = `${c.name} (${c.phone || 'без тел.'})`;
+        html += `
+          <div class="p-2.5 cursor-pointer hover:bg-[#21262d] flex items-center justify-between text-xs transition-colors ${isSel ? 'bg-accent/15 text-accent font-semibold' : 'text-gray-200'}"
+               data-client-id="${c.id}"
+               data-client-label="${esc(label)}">
+            <div class="truncate">
+              <span class="font-medium text-white">${esc(c.name)}</span>
+              <span class="text-gray-400 ml-1.5 font-mono">${esc(c.phone || 'без тел.')}</span>
+            </div>
+            <span class="text-gray-500 text-[10px] shrink-0 ml-2">${carCount > 0 ? `${carCount} авто` : ''}</span>
+          </div>`;
+      });
+    }
+
+    // Manual client creation action at the bottom
+    html += `
+      <div class="p-2.5 cursor-pointer hover:bg-surface flex items-center gap-2 text-xs text-accent font-semibold transition-colors bg-bg/60 border-t border-border/60"
+           data-client-id="__MANUAL_NEW__">
+        <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+        <span>➕ Создать нового клиента вручную...</span>
+      </div>`;
+
+    clientDropdown.innerHTML = html;
+    lucide.createIcons();
+
+    // Attach click listeners to dropdown options
+    clientDropdown.querySelectorAll('[data-client-id]').forEach(el => {
+      el.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const cid = el.getAttribute('data-client-id');
+        const clabel = el.getAttribute('data-client-label');
+
+        if (cid === '__MANUAL_NEW__') {
+          clientDropdown.classList.add('hidden');
+          const name = prompt('Имя и фамилия нового клиента:');
+          if (!name) return;
+          const phone = prompt('Номер телефона:');
+          if (!phone) return;
+          const res = await api('POST', '/api/clients', { name, phone });
+          if (res.ok && res.client) {
+            await loadClients();
+            await openRepairModal(res.client.id, currentRepairPrefill);
+            toast(`Клиент ${res.client.name} создан`);
+          } else if (res.error === 'client_exists') {
+            const rawP = phone.replace(/[^\d]/g, '');
+            const existing = (DATA.clients || []).find(c => String(c.phone).replace(/[^\d]/g, '').endsWith(rawP.slice(-10)));
+            if (existing) {
+              await openRepairModal(existing.id, currentRepairPrefill);
+              toast(`Найден существующий клиент: ${existing.name}`);
+            } else {
+              toast('Клиент с таким номером уже существует', true);
+            }
+          } else {
+            toast('Ошибка создания клиента', true);
+          }
+          return;
+        }
+
+        await selectClient(cid, clabel);
+      });
+    });
+  }
+
+  // Input events: focus / click opens dropdown
+  if (clientSearchInput) {
+    clientSearchInput.onfocus = () => {
+      renderDropdown(clientSearchInput.value === selectedLabel ? '' : clientSearchInput.value);
+      clientDropdown.classList.remove('hidden');
+    };
+    clientSearchInput.onclick = (e) => {
+      e.stopPropagation();
+      renderDropdown(clientSearchInput.value === selectedLabel ? '' : clientSearchInput.value);
+      clientDropdown.classList.remove('hidden');
+    };
+    clientSearchInput.oninput = () => {
+      const val = clientSearchInput.value;
+      if (clientClearBtn) clientClearBtn.classList.toggle('hidden', !val);
+      renderDropdown(val);
+      clientDropdown.classList.remove('hidden');
+    };
+  }
+
+  // Clear button click
+  if (clientClearBtn) {
+    clientClearBtn.onclick = async (e) => {
+      e.stopPropagation();
+      selectedId = '';
+      selectedLabel = '';
+      if (clientIdInput) clientIdInput.value = '';
+      if (clientSearchInput) clientSearchInput.value = '';
+      clientClearBtn.classList.add('hidden');
+      await updateRepairCars('');
+      renderDropdown('');
+      clientDropdown.classList.remove('hidden');
+      if (clientSearchInput) clientSearchInput.focus();
+    };
+  }
+
+  // Click outside closes dropdown
+  const onDocClick = (e) => {
+    const combobox = document.getElementById('repair-client-combobox');
+    if (combobox && !combobox.contains(e.target)) {
+      if (clientDropdown) clientDropdown.classList.add('hidden');
+      if (selectedId && selectedLabel && clientSearchInput) {
+        clientSearchInput.value = selectedLabel;
+      }
+    }
   };
+  document.removeEventListener('click', window._repairComboboxDocClick);
+  window._repairComboboxDocClick = onDocClick;
+  document.addEventListener('click', onDocClick);
 
   openModal('modal-repair');
 };
@@ -716,7 +867,7 @@ function bindRepairForm() {
     if (submitBtn) submitBtn.disabled = true;
 
     try {
-      let clientId = document.getElementById('repair-client-select').value || document.getElementById('repair-client-id').value;
+      let clientId = document.getElementById('repair-client-id')?.value || document.getElementById('repair-client-select')?.value;
       if (!clientId) { toast('Выберите клиента', true); return; }
 
       // Если клиент создается на лету из входящей заявки

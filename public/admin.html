@@ -13,7 +13,7 @@
       }}}
     }
   </script>
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
   <link rel="stylesheet" href="/css/style.css" />
   <style>
     body { font-family: 'Inter', sans-serif; background:#0d1117; color:#e6edf3; }
@@ -49,6 +49,15 @@
     .modal-overlay { background:rgba(0,0,0,.8); backdrop-filter:blur(4px); }
     .pulse { animation: pulse-dot 2s ease-in-out infinite; }
     @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.4} }
+    @keyframes badge-pulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      50% { transform: scale(1.08); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+    }
+    .badge-pulse {
+      animation: badge-pulse 1.8s ease-in-out infinite;
+      background-color: #ef4444 !important;
+      color: #ffffff !important;
+    }
     .timeline-item::before { content:''; position:absolute; left:-1.15rem; top:.4rem;
       width:.55rem; height:.55rem; border-radius:50%; background:#00b4fd; }
     .timeline-item { position:relative; padding-left:1rem; border-left:2px solid #30363d; }
@@ -117,7 +126,7 @@
       </button>
       <button class="tab-btn whitespace-nowrap px-4 py-2 text-sm text-gray-400 hover:bg-surface" data-tab="requests">
         <i data-lucide="inbox" class="w-4 h-4 inline -mt-0.5 mr-1"></i>Заявки
-        <span id="new-requests-badge" class="hidden ml-1 px-1.5 py-0.5 rounded-full text-xs bg-accent text-bg font-bold pulse"></span>
+        <span id="new-requests-badge" class="hidden ml-1.5 px-2 py-0.5 rounded-full text-xs font-black badge-pulse"></span>
       </button>
       <button class="tab-btn whitespace-nowrap px-4 py-2 text-sm text-gray-400 hover:bg-surface" data-tab="clients">
         <i data-lucide="users" class="w-4 h-4 inline -mt-0.5 mr-1"></i>Клиенты
@@ -521,10 +530,33 @@
     <form id="form-repair" class="space-y-4" enctype="multipart/form-data">
       <input type="hidden" name="clientId" id="repair-client-id" />
       <div>
-        <label class="label">Клиент <span class="text-accent">*</span></label>
-        <select id="repair-client-select" class="input" required>
-          <option value="">— Выберите клиента —</option>
-        </select>
+        <div class="flex items-center justify-between mb-1">
+          <label class="label mb-0">Клиент <span class="text-accent">*</span></label>
+          <span id="repair-client-count" class="text-xs text-gray-500"></span>
+        </div>
+        <div class="relative" id="repair-client-combobox">
+          <div class="relative">
+            <input type="text"
+                   id="repair-client-search"
+                   class="input pr-9 text-sm font-medium"
+                   placeholder="🔍 Поиск по имени или телефону..."
+                   autocomplete="off" />
+            <button type="button"
+                    id="repair-client-clear-btn"
+                    class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white hidden p-1 text-xs"
+                    title="Очистить выбор">
+              ✕
+            </button>
+          </div>
+          <!-- Hidden select for fallback -->
+          <select id="repair-client-select" class="hidden">
+            <option value="">— Выберите клиента —</option>
+          </select>
+          <!-- Custom Searchable Dropdown List -->
+          <div id="repair-client-dropdown"
+               class="absolute left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto bg-[#161b22] border border-[#30363d] rounded-xl shadow-2xl hidden divide-y divide-[#30363d]/50">
+          </div>
+        </div>
       </div>
       <div>
         <div class="flex items-center justify-between mb-1">
