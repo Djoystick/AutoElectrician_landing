@@ -20,6 +20,18 @@ document.addEventListener('DOMContentLoaded', () => {
 /* ══════════════════════════════════════════════════════════
    LOAD & SHOW
 ══════════════════════════════════════════════════════════ */
+async function loadAnalytics() {
+  try {
+    const res = await api('GET', '/api/analytics');
+    if (res && res.ok) {
+      ANALYTICS = res;
+      renderAnalytics();
+      renderOverview();
+      lucide.createIcons();
+    }
+  } catch (e) {}
+}
+
 async function loadAndShow() {
   const [pubData, analyticsRes, clientsRes, requestsRes, servicesRes] = await Promise.all([
     fetch('/api/data').then(r => r.json()).catch(() => ({})),
@@ -65,11 +77,6 @@ function bindEvents() {
     el.addEventListener('click', () => switchTab(el.dataset.goto));
   });
 
-  // Overview "all requests" link
-  document.querySelectorAll('[data-goto]').forEach(el => {
-    if (el.tagName === 'BUTTON') el.addEventListener('click', () => switchTab(el.dataset.goto));
-  });
-
   bindServiceForm();
   bindReviewForm();
   bindClientForm();
@@ -93,9 +100,9 @@ function bindEvents() {
     e.preventDefault();
     const { newPassword, ...rest } = formToObj(e.target);
     rest.acceptingRequests = document.getElementById('cb-accepting').checked;
-    // BUG FIX (SEC-07): do NOT replace TOKEN with plain text password.
-    // Pass new password to backend which will hash it and return a new JWT.
     if (newPassword) rest.password = newPassword;
+    // BUG FIX (P0): Don't overwrite bot token if field is left empty
+    if (!rest.telegramBotToken) delete rest.telegramBotToken;
     const res = await api('PUT', '/api/settings', rest);
     if (res.ok) {
       // If backend issued a new JWT (after password change), update our token
@@ -141,8 +148,9 @@ function bindEvents() {
   document.getElementById('logout-btn')?.addEventListener('click', () => {
     TOKEN = ''; 
     localStorage.removeItem('ae_admin_token');
-    // Return to client profile (where they might still be logged in)
-    window.location.href = '/profile.html';
+    document.getElementById('dashboard')?.classList.add('hidden');
+    document.getElementById('login-screen')?.classList.remove('hidden');
+    document.getElementById('login-form')?.reset();
   });
 }
 
@@ -236,8 +244,9 @@ function renderRequests() {
         <p class="text-gray-600 text-xs mt-1">${fmtDateTime(r.createdAt)}</p>
       </div>
       <div class="flex flex-wrap gap-2 shrink-0">
-        ${r.status !== 'work'   ? `<button onclick="setRequestStatus('${r.id}','work')"   class="btn-ghost text-xs py-1.5">🟡 В работе</button>` : ''}
-        ${r.status !== 'done'   ? `<button onclick="setRequestStatus('${r.id}','done')"   class="btn-ghost text-xs py-1.5">🟢 Выполнена</button>` : ''}
+        ${r.status !== 'new'    ? `<button onclick="setRequestStatus('${r.id}','new')"    class="btn-ghost text-xs py-1.5 text-blue-400">🔵 Новая</button>` : ''}
+        ${r.status !== 'work'   ? `<button onclick="setRequestStatus('${r.id}','work')"   class="btn-ghost text-xs py-1.5 text-amber-400">🟡 В работе</button>` : ''}
+        ${r.status !== 'done'   ? `<button onclick="setRequestStatus('${r.id}','done')"   class="btn-ghost text-xs py-1.5 text-green-400">🟢 Выполнена</button>` : ''}
         ${r.status !== 'cancel' ? `<button onclick="setRequestStatus('${r.id}','cancel')" class="btn-ghost text-xs py-1.5 text-red-400">⛔ Отмена</button>` : ''}
         <button onclick="deleteRequest('${r.id}')" class="btn-danger text-xs py-1.5">
           <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
@@ -253,6 +262,18 @@ window.setRequestStatus = async (id, status) => {
     const req = DATA.requests.find(r => r.id === id);
     if (req) req.status = status;
     renderRequests();
+    // Update badge & overview
+    const newCnt = (DATA.requests || []).filter(r => r.status === 'new').length;
+    if (ANALYTICS) ANALYTICS.newRequests = newCnt;
+    const badge = document.getElementById('new-requests-badge');
+    if (badge) {
+      badge.textContent = newCnt;
+      badge.classList.toggle('hidden', newCnt === 0);
+    }
+    const kpiVal = document.getElementById('kpi-requests-val');
+    if (kpiVal) kpiVal.textContent = newCnt;
+    renderOverview();
+    await loadAnalytics();
     toast('Статус обновлён');
     // If done → offer to add repair
     if (status === 'done') {
@@ -266,9 +287,23 @@ window.setRequestStatus = async (id, status) => {
 
 window.deleteRequest = async (id) => {
   if (!confirm('Удалить заявку?')) return;
-  await api('DELETE', `/api/requests/${id}`);
-  DATA.requests = (DATA.requests || []).filter(r => r.id !== id);
-  renderRequests();
+  const res = await api('DELETE', `/api/requests/${id}`);
+  if (res && res.ok) {
+    DATA.requests = (DATA.requests || []).filter(r => r.id !== id);
+    renderRequests();
+    const newCnt = (DATA.requests || []).filter(r => r.status === 'new').length;
+    if (ANALYTICS) ANALYTICS.newRequests = newCnt;
+    const badge = document.getElementById('new-requests-badge');
+    if (badge) {
+      badge.textContent = newCnt;
+      badge.classList.toggle('hidden', newCnt === 0);
+    }
+    renderOverview();
+    await loadAnalytics();
+    toast('Заявка удалена');
+  } else {
+    toast('Ошибка при удалении заявки', true);
+  }
 };
 
 function bindRequestForm() {
@@ -448,7 +483,11 @@ function renderClientDetail(c) {
         <p class="label">Телефон</p>
         <a href="tel:${c.phone}" class="text-white font-semibold hover:text-accent">${esc(c.phone || '—')}</a>
         <p class="label mt-3">Уровень</p>
-        <p class="text-white font-semibold">${levelBadge(c.level)}</p>
+        <p class="text-white font-semibold">${(() => {
+          const repairCount = (c.repairs || []).filter(r => r.type !== 'Напоминание').length;
+          const lvl = c.level || (repairCount >= 10 ? 'VIP' : (repairCount >= 5 ? 'Постоянный' : (repairCount >= 2 ? 'Лояльный' : 'Новый')));
+          return levelBadge(lvl);
+        })()}</p>
       </div>
       <div class="card p-4">
         <p class="label">Код доступа к профилю</p>
@@ -470,17 +509,15 @@ function renderClientDetail(c) {
       <div class="card p-3">${carsHtml}</div>
     </div>
 
-    <!-- Add repair -->
-    <div class="flex gap-2 mb-5">
-      <button onclick="openRepairModal('${c.id}', null)" class="btn-primary">
-        <i data-lucide="plus" class="w-4 h-4"></i> Добавить запись о ремонте
-      </button>
-    </div>
-
-    <!-- Repair timeline -->
+    <!-- Repairs History -->
     <div>
-      <h4 class="font-bold text-white text-sm mb-4">📋 История ремонтов (${(c.repairs||[]).length})</h4>
-      <div class="pl-2">${repairsHtml}</div>
+      <div class="flex items-center justify-between mb-3">
+        <h4 class="font-bold text-white text-sm">📋 История ремонтов</h4>
+        <button onclick="openRepairModal('${c.id}')" class="btn-primary text-xs py-1.5">
+          <i data-lucide="plus" class="w-3.5 h-3.5"></i> Добавить ремонт
+        </button>
+      </div>
+      <div class="space-y-3">${repairsHtml}</div>
     </div>
 
     <!-- Delete client -->
@@ -516,7 +553,12 @@ window.deleteCar = async (clientId, carId) => {
 window.deleteRepair = async (clientId, repairId) => {
   if (!confirm('Удалить запись о ремонте?')) return;
   const res = await api('DELETE', `/api/clients/${clientId}/repairs/${repairId}`);
-  if (res.ok) { await loadClients(); await openClientDetail(clientId); toast('Удалено'); }
+  if (res.ok) {
+    await loadClients();
+    await openClientDetail(clientId);
+    await loadAnalytics();
+    toast('Удалено');
+  }
 };
 
 window.deleteClient = async (clientId) => {
@@ -525,6 +567,7 @@ window.deleteClient = async (clientId) => {
   if (res.ok) {
     closeModal('modal-client-detail');
     await loadClients();
+    await loadAnalytics();
     toast('Клиент удален');
   } else {
     toast('Ошибка удаления клиента', true);
@@ -563,10 +606,20 @@ async function updateRepairCars(clientId) {
 window.openRepairModal = async (clientId, prefill = null) => {
   currentRepairPrefill = prefill;
   const form = document.getElementById('form-repair');
-  form.reset();
-  document.getElementById('repair-date').value = new Date().toISOString().slice(0, 10);
 
-  if (prefill && prefill.problem) {
+  // Stash any existing user inputs in case of client switch/create
+  const prevDesc = form.elements.description?.value;
+  const prevCost = form.elements.cost?.value;
+  const prevType = form.elements.type?.value;
+  const prevDate = form.elements.date?.value;
+
+  form.reset();
+  document.getElementById('repair-date').value = prevDate || new Date().toISOString().slice(0, 10);
+  if (prevDesc) form.elements.description.value = prevDesc;
+  if (prevCost) form.elements.cost.value = prevCost;
+  if (prevType) form.elements.type.value = prevType;
+
+  if (prefill && prefill.problem && !prevDesc) {
     form.elements.description.value = prefill.problem;
   }
 
@@ -631,6 +684,17 @@ window.openRepairModal = async (clientId, prefill = null) => {
         await loadClients();
         await openRepairModal(res.client.id, currentRepairPrefill);
         toast(`Клиент ${res.client.name} создан`);
+      } else if (res.error === 'client_exists') {
+        // Find existing client by phone and select them
+        const rawP = phone.replace(/[^\d]/g, '');
+        const existing = (DATA.clients || []).find(c => String(c.phone).replace(/[^\d]/g, '').endsWith(rawP.slice(-10)));
+        if (existing) {
+          await openRepairModal(existing.id, currentRepairPrefill);
+          toast(`Найден существующий клиент: ${existing.name}`);
+        } else {
+          toast('Клиент с таким номером уже существует', true);
+          e.target.value = document.getElementById('repair-client-id').value;
+        }
       } else {
         toast('Ошибка создания клиента', true);
         e.target.value = document.getElementById('repair-client-id').value;
@@ -648,40 +712,63 @@ window.openRepairModal = async (clientId, prefill = null) => {
 function bindRepairForm() {
   document.getElementById('form-repair').addEventListener('submit', async e => {
     e.preventDefault();
-    let clientId = document.getElementById('repair-client-select').value || document.getElementById('repair-client-id').value;
-    if (!clientId) { toast('Выберите клиента', true); return; }
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
 
-    // Если клиент создается на лету из входящей заявки
-    if (clientId === '__NEW_FROM_REQUEST__') {
-      const newName = currentRepairPrefill?.name || 'Клиент';
-      const newPhone = currentRepairPrefill?.phone || '';
-      const cRes = await api('POST', '/api/clients', { name: newName, phone: newPhone });
-      if (cRes.ok && cRes.client) {
-        clientId = cRes.client.id;
-        document.getElementById('repair-client-id').value = clientId;
-        await loadClients();
-      } else {
-        toast('Ошибка создания профиля клиента', true);
-        return;
+    try {
+      let clientId = document.getElementById('repair-client-select').value || document.getElementById('repair-client-id').value;
+      if (!clientId) { toast('Выберите клиента', true); return; }
+
+      // Если клиент создается на лету из входящей заявки
+      if (clientId === '__NEW_FROM_REQUEST__') {
+        const newName = currentRepairPrefill?.name || 'Клиент';
+        const newPhone = currentRepairPrefill?.phone || '';
+        const cRes = await api('POST', '/api/clients', { name: newName, phone: newPhone });
+        if (cRes.ok && cRes.client) {
+          clientId = cRes.client.id;
+          document.getElementById('repair-client-id').value = clientId;
+          await loadClients();
+        } else if (cRes.error === 'client_exists') {
+          // Client already in DB, find matching client
+          const rawP = String(newPhone).replace(/[^\d]/g, '');
+          const existing = (DATA.clients || []).find(c => String(c.phone).replace(/[^\d]/g, '').endsWith(rawP.slice(-10)));
+          if (existing) {
+            clientId = existing.id;
+            document.getElementById('repair-client-id').value = clientId;
+          } else {
+            toast('Клиент с таким номером уже существует в базе', true);
+            return;
+          }
+        } else {
+          toast('Ошибка создания профиля клиента', true);
+          return;
+        }
       }
-    }
 
-    const fd = new FormData(e.target);
-    const res = await fetch(`/api/clients/${clientId}/repairs`, {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + TOKEN, 'x-admin-password': TOKEN },
-      body: fd,
-    });
-    const json = await res.json();
-    if (json.ok) {
-      closeModal('modal-repair');
-      closeModal('modal-client-detail');
-      e.target.reset();
-      await loadClients();
-      currentRepairPrefill = null;
-      toast('✅ Запись добавлена! Клиент видит её в своём профиле.');
-    } else {
-      toast('Ошибка сохранения ремонта', true);
+      const fd = new FormData(e.target);
+      const res = await fetch(`/api/clients/${clientId}/repairs`, {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + TOKEN, 'x-admin-password': TOKEN },
+        body: fd,
+      });
+      const json = await res.json();
+      if (json.ok) {
+        closeModal('modal-repair');
+        // Do NOT close client detail modal; refresh it if open
+        const detailModal = document.getElementById('modal-client-detail');
+        if (detailModal && !detailModal.classList.contains('hidden')) {
+          await openClientDetail(clientId);
+        }
+        e.target.reset();
+        await loadClients();
+        await loadAnalytics();
+        currentRepairPrefill = null;
+        toast('✅ Запись добавлена! Клиент видит её в своём профиле.');
+      } else {
+        toast('Ошибка сохранения ремонта', true);
+      }
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
     }
   });
 }
@@ -927,6 +1014,7 @@ window.toggleService = async (id) => {
   const s = DATA.services.find(s => s.id === id);
   if (!s) return;
   s.active = s.active === false ? true : false;
+  s.sortOrder = s.sort_order !== undefined ? s.sort_order : 0;
   const res = await api('POST', '/api/services', s);
   if (res.ok) { DATA.services = res.services; renderServicesAdmin(); }
 };
@@ -936,6 +1024,9 @@ function bindServiceForm() {
     e.preventDefault();
     const body = formToObj(e.target);
     body.active = document.getElementById('svc-active').checked;
+    if (body.sort_order !== undefined && body.sort_order !== '') {
+      body.sortOrder = Number(body.sort_order);
+    }
     const res  = await api('POST', '/api/services', body);
     if (res.ok) { DATA.services = res.services; renderServicesAdmin(); closeModal('modal-service'); toast(); }
   });
@@ -950,6 +1041,9 @@ window.openServiceModal = (id) => {
     const s = DATA.services.find(s => s.id === id);
     if (s) {
       form.elements.id.value          = s.id;
+      if (form.elements.sort_order) {
+        form.elements.sort_order.value = s.sort_order !== undefined ? s.sort_order : (s.sortOrder !== undefined ? s.sortOrder : 0);
+      }
       form.elements.title.value       = s.title;
       form.elements.description.value = s.description;
       form.elements.price.value       = s.price;
@@ -960,6 +1054,7 @@ window.openServiceModal = (id) => {
     }
   } else {
     form.elements.id.value = '';
+    if (form.elements.sort_order) form.elements.sort_order.value = '0';
     title.textContent = 'Новая услуга';
   }
   openModal('modal-service');
@@ -985,13 +1080,18 @@ function updateIconPreview(name) {
 /* ══════════════════════════════════════════════════════════
    REVIEWS (with edit)
 ══════════════════════════════════════════════════════════ */
+window.openReviewImage = (src) => {
+  if (src) window.open(src, '_blank');
+};
+
 function renderReviewsAdmin() {
   const grid = document.getElementById('reviews-admin-grid');
   grid.innerHTML = (DATA.reviews || []).map(r => `
     <div class="card overflow-hidden">
       <img src="${esc(r.image)}" alt="${esc(r.name)}"
            class="w-full h-40 object-cover cursor-pointer hover:opacity-80 transition-opacity"
-           onclick="window.open('${esc(r.image)}','_blank')" />
+           data-src="${esc(r.image)}"
+           onclick="openReviewImage(this.dataset.src)" />
       <div class="p-4">
         <p class="font-bold text-white text-sm mb-1">${esc(r.name)}</p>
         <p class="text-gray-400 text-xs line-clamp-2">${esc(r.text)}</p>
@@ -1018,16 +1118,22 @@ function bindReviewForm() {
       const res  = await api('PUT', `/api/reviews/${reviewId}`, body);
       if (res.ok) {
         const idx = DATA.reviews.findIndex(r => r.id === reviewId);
-        if (idx !== -1) DATA.reviews[idx] = res.review;
-        renderReviewsAdmin(); closeModal('modal-review'); toast();
+        if (idx >= 0) DATA.reviews[idx] = res.review;
+        renderReviewsAdmin();
+        closeModal('modal-review');
+        toast('Отзыв обновлён');
       }
     } else {
+      // Create new with image
       const fd  = new FormData(e.target);
-      const res = await fetch('/api/reviews', {
-        method: 'POST', headers: { 'Authorization': 'Bearer ' + TOKEN, 'x-admin-password': TOKEN }, body: fd,
-      });
+      const res = await fetch('/api/reviews', { method:'POST', headers:{'Authorization':`Bearer ${TOKEN}`}, body: fd });
       const json = await res.json();
-      if (json.ok) { DATA.reviews.push(json.review); renderReviewsAdmin(); closeModal('modal-review'); toast(); e.target.reset(); }
+      if (json.ok) {
+        DATA.reviews = json.reviews;
+        renderReviewsAdmin();
+        closeModal('modal-review');
+        toast('Отзыв добавлен');
+      }
     }
   });
 }
@@ -1037,27 +1143,27 @@ window.openReviewModal = (id) => {
   const title = document.getElementById('modal-review-title');
   const imgSec = document.getElementById('review-image-section');
   form.reset();
-  form.elements.reviewId.value = '';
-  imgSec.classList.remove('hidden');
-  title.textContent = 'Новый отзыв';
   if (id) {
-    const r = DATA.reviews.find(r => r.id === id);
+    const r = DATA.reviews.find(x => x.id === id);
     if (r) {
       form.elements.reviewId.value = r.id;
       form.elements.name.value     = r.name;
       form.elements.text.value     = r.text;
+      imgSec.classList.add('hidden'); // can't replace image on edit
       title.textContent = 'Редактировать отзыв';
-      imgSec.classList.add('hidden'); // don't show file upload on edit
     }
+  } else {
+    form.elements.reviewId.value = '';
+    imgSec.classList.remove('hidden');
+    title.textContent = 'Новый отзыв';
   }
   openModal('modal-review');
 };
 
 window.deleteReview = async (id) => {
-  if (!confirm('Удалить отзыв и фото?')) return;
-  const res = await fetch(`/api/reviews/${id}`, { method:'DELETE', headers:{'Authorization': 'Bearer ' + TOKEN, 'x-admin-password':TOKEN} });
-  const json = await res.json();
-  if (json.ok) { DATA.reviews = DATA.reviews.filter(r => r.id !== id); renderReviewsAdmin(); toast('Удалено'); }
+  if (!confirm('Удалить отзыв?')) return;
+  const res = await api('DELETE', `/api/reviews/${id}`);
+  if (res.ok) { DATA.reviews = res.reviews; renderReviewsAdmin(); toast('Отзыв удалён'); }
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -1079,6 +1185,14 @@ async function api(method, url, body) {
   const opts = { method, headers: { 'Authorization': 'Bearer ' + TOKEN } };
   if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
   const res = await fetch(url, opts);
+  if (res.status === 401) {
+    TOKEN = '';
+    localStorage.removeItem('ae_admin_token');
+    document.getElementById('dashboard')?.classList.add('hidden');
+    document.getElementById('login-screen')?.classList.remove('hidden');
+    toast('Сессия истекла. Войдите снова', true);
+    return { ok: false, error: 'Unauthorized' };
+  }
   return res.json();
 }
 
@@ -1104,12 +1218,15 @@ function sanitizePhone(phone) {
 
 function formToObj(form) { return Object.fromEntries(new FormData(form)); }
 
+let toastTimer = null;
 function toast(msg = 'Сохранено', isError = false) {
   const el = document.getElementById('toast');
+  if (!el) return;
+  if (toastTimer) clearTimeout(toastTimer);
   el.textContent = (isError ? '❌ ' : '✅ ') + msg;
   el.className = `fixed top-4 right-4 z-50 text-white px-5 py-3 rounded-xl shadow-xl text-sm font-semibold transition-transform duration-300 ${isError ? 'bg-red-600' : 'bg-green-600'}`;
   el.classList.remove('translate-x-[150%]');
-  setTimeout(() => el.classList.add('translate-x-[150%]'), 3000);
+  toastTimer = setTimeout(() => el.classList.add('translate-x-[150%]'), 3000);
 }
 
 function fmtDate(str) {
@@ -1129,7 +1246,18 @@ function statusLabel(s) {
 }
 
 function levelBadge(level) {
-  return { newcomer:'🔩 Новичок', regular:'⚡ Постоянный', veteran:'🏆 Ветеран' }[level] || level;
+  if (!level) return '—';
+  if (typeof level === 'object') level = level.name || level.id;
+  const map = {
+    newcomer: '🔩 Новый',
+    regular: '⚡ Лояльный',
+    veteran: '🏆 VIP',
+    'Новый': '🔩 Новый',
+    'Лояльный': '⚡ Лояльный',
+    'Постоянный': '⭐ Постоянный',
+    'VIP': '🏆 VIP'
+  };
+  return map[level] || level;
 }
 
 function typeColor(type) {

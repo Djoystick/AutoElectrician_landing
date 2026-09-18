@@ -55,6 +55,7 @@ let TelegramBot = null;
 try { const pkg = require('node-telegram-bot-api'); TelegramBot = pkg.default || pkg; } catch {}
 
 const app  = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 const PUBLIC_DIR = path.join(__dirname, '../public');
@@ -307,6 +308,12 @@ const limiterTgAuth = rateLimit({
   message: { ok: false, error: 'too_many_requests' },
   standardHeaders: true, legacyHeaders: false,
 });
+const limiterTgMagicStatus = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 min
+  max: 200, // позволяет опрос раз в 2-3 сек в течение 10 минут
+  message: { status: 'rate_limited', error: 'too_many_requests' },
+  standardHeaders: true, legacyHeaders: false,
+});
 const limiterVkAuth = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 min
   max: 30,
@@ -403,6 +410,13 @@ app.post('/api/telegram-webhook', async (req, res) => {
     }
 
     if (sessionCode) {
+      sessionCode = sessionCode.trim();
+      // SEC: Validate format to prevent PostgREST syntax injection
+      if (!/^[a-zA-Z0-9_-]{1,64}$/.test(sessionCode)) {
+        await bot.sendMessage(chatId, '❌ Неверный формат кода авторизации.');
+        return;
+      }
+
       const { data: session, error: sessErr } = await supabase
         .from('auth_magic_links')
         .select('*')
@@ -647,6 +661,10 @@ app.post('/api/masters', authCheck, async (req, res) => {
 
 app.delete('/api/masters/:id', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
+  // Prevent master from accidentally deleting their own account
+  if (req.master && String(req.master.id) === String(req.params.id)) {
+    return res.status(400).json({ ok: false, error: 'cannot_delete_self' });
+  }
   const { error } = await supabase.from('masters').delete().eq('id', req.params.id);
   if (error) return res.status(500).json({ ok: false, error: error.message });
   res.json({ ok: true });
@@ -669,10 +687,14 @@ app.put('/api/settings', authCheck, async (req, res) => {
     newToken_jwt = jwt.sign({ username: req.master.username, id: req.master.id }, JWT_SECRET, { expiresIn: '30d' });
   }
   
-  if (newToken !== undefined) {
-    currentSettings.telegramBotToken = newToken;
-    if (tgBot) { try { tgBot.stopPolling(); } catch {} tgBot = null; }
-    if (newToken) setTimeout(async () => { try { await getBot(); } catch {} }, 500);
+  // BUG FIX (P0): Do NOT wipe telegramBotToken if an empty string or undefined was sent
+  if (newToken !== undefined && typeof newToken === 'string' && newToken.trim() !== '') {
+    const cleanToken = newToken.trim();
+    if (cleanToken !== currentSettings.telegramBotToken) {
+      currentSettings.telegramBotToken = cleanToken;
+      if (tgBot) { try { tgBot.stopPolling(); } catch {} tgBot = null; }
+      setTimeout(async () => { try { await getBot(); } catch {} }, 500);
+    }
   }
   
   if (sRow) await supabase.from('settings').update({ data: currentSettings }).eq('id', sRow.id);
@@ -712,7 +734,7 @@ app.post('/api/services', authCheck, async (req, res) => {
     icon: service.icon,
     price: service.price,
     active: service.active,
-    sort_order: service.sortOrder || 0
+    sort_order: service.sortOrder !== undefined ? Number(service.sortOrder) : (service.sort_order !== undefined ? Number(service.sort_order) : 0)
   };
   await supabase.from('services').upsert(payload);
   const { data: services } = await supabase.from('services').select('*').order('sort_order');
@@ -878,7 +900,7 @@ app.get('/api/client/me', clientAuth, async (req, res) => {
   if (!client) return res.status(404).json({ error: 'Not found' });
 
   const { accessCode, telegram_chat_id, ...safeClient } = client;
-  const repairCount = (client.repairs || []).length;
+  const repairCount = (client.repairs || []).filter(r => r.type !== 'Напоминание').length;
   
   const ll = (cnt) => {
     if (cnt >= 10) return { name: 'VIP', percent: 15 };
@@ -1144,6 +1166,7 @@ app.get('/api/analytics', authCheck, async (req, res) => {
 
   for (const c of clientList) {
     for (const r of (c.repairs || [])) {
+      if (r.type === 'Напоминание') continue;
       const cost = Number(r.cost) || 0;
       totalRevenue += cost;
       if (r.date && r.date >= thirtyDaysAgo) {
@@ -1158,17 +1181,18 @@ app.get('/api/analytics', authCheck, async (req, res) => {
     }
   }
 
-  const churnCutoff = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+  const churnCutoff = new Date(Date.now() - 180 * 86400000).toISOString().slice(0, 10);
   const churnClients = clientList.filter(c => {
-    const repairs = c.repairs || [];
+    const repairs = (c.repairs || []).filter(r => r.type !== 'Напоминание');
     if (!repairs.length) return false;
     // Sort by date to get the actual last repair (not just last array element)
     const sorted = [...repairs].filter(r => r.date).sort((a, b) => a.date > b.date ? -1 : 1);
     if (!sorted.length) return false;
     return sorted[0].date < churnCutoff;
   }).map(c => {
-    const sorted = [...(c.repairs || [])].filter(r => r.date).sort((a, b) => a.date > b.date ? -1 : 1);
+    const sorted = [...(c.repairs || [])].filter(r => r.type !== 'Напоминание' && r.date).sort((a, b) => a.date > b.date ? -1 : 1);
     return {
+      id: c.id,
       name: c.name,
       phone: c.phone,
       lastRepairDate: sorted[0]?.date || null
@@ -1423,7 +1447,7 @@ app.get('/api/client/auth/telegram/magic', limiterTgAuth, async (req, res) => {
 });
 
 /* ── 3. Telegram Magic Link Status Polling ── */
-app.get('/api/client/auth/telegram/magic/status', limiterTgAuth, async (req, res) => {
+app.get('/api/client/auth/telegram/magic/status', limiterTgMagicStatus, async (req, res) => {
   const { session } = req.query;
   if (!session || typeof session !== 'string') {
     return res.status(400).json({ status: 'invalid_session' });

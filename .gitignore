@@ -4,7 +4,7 @@ public/uploads/
 *.log
 
 *.pdf
-*.bak
+*.bak*
 *.tmp
 run_agents*.py
 openrouter_agent_*.md

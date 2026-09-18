@@ -177,35 +177,58 @@ function renderGreeting() {
   document.getElementById('header-name').textContent = CLIENT.name;
 
   // Level badge
-  const levelObj = CLIENT.level || { name: 'Новичок', percent: 0 };
-  const levelName = levelObj.name || 'Новичок';
+  const levelObj = CLIENT.level || { name: 'Новый', percent: 0 };
+  const levelName = levelObj.name || 'Новый';
   
   let cssClass = 'level-newcomer';
-  if (levelName === 'Постоянный' || levelName === 'Лояльный') cssClass = 'level-regular';
-  if (levelName === 'VIP') cssClass = 'level-veteran';
+  if (levelName === 'Лояльный') cssClass = 'level-loyal';
+  else if (levelName === 'Постоянный') cssClass = 'level-regular';
+  else if (levelName === 'VIP') cssClass = 'level-veteran';
 
   document.getElementById('level-badge-el').innerHTML =
     `<span class="level-badge ${cssClass}">★ ${levelName}</span>`;
 
   // Progress bar
-  const levelKey = (levelName === 'VIP') ? 'veteran' : (levelName === 'Постоянный' || levelName === 'Лояльный') ? 'regular' : 'newcomer';
-  const repairs = (CLIENT.repairs || []).length;
-  const targets = { newcomer: [0, 3], regular: [3, 6], veteran: [6, 6] };
-  const [from, to] = targets[levelKey] || [0, 3];
-  const pct = to > from ? Math.min(100, Math.round((repairs - from) / (to - from) * 100)) : 100;
-  const nextLabels = { newcomer: 'До уровня "Постоянный"', regular: 'До уровня "Ветеран"', veteran: 'Максимальный уровень!' };
+  const validRepairs = (CLIENT.repairs || []).filter(r => r.type !== 'Напоминание');
+  const repairsCount = validRepairs.length;
+
+  let from = 0, to = 2, nextLabel = 'До уровня "Лояльный"';
+  let isMax = false;
+
+  if (repairsCount >= 10 || levelName === 'VIP') {
+    isMax = true;
+  } else if (repairsCount >= 5 || levelName === 'Постоянный') {
+    from = 5;
+    to = 10;
+    nextLabel = 'До уровня "VIP"';
+  } else if (repairsCount >= 2 || levelName === 'Лояльный') {
+    from = 2;
+    to = 5;
+    nextLabel = 'До уровня "Постоянный"';
+  } else {
+    from = 0;
+    to = 2;
+    nextLabel = 'До уровня "Лояльный"';
+  }
+
   const ps = document.getElementById('level-progress-section');
-  if (levelKey !== 'veteran') {
+  if (isMax) {
     ps.classList.remove('hidden');
-    document.getElementById('level-progress-label').textContent = nextLabels[levelKey];
-    document.getElementById('level-progress-val').textContent = `${repairs - from} / ${to - from} визитов`;
+    document.getElementById('level-progress-label').textContent = 'Максимальный уровень: VIP! 🏆';
+    document.getElementById('level-progress-val').textContent = `${repairsCount} визитов`;
+    setTimeout(() => { document.getElementById('level-progress-fill').style.width = '100%'; }, 300);
+  } else {
+    const pct = Math.max(0, Math.min(100, Math.round(((repairsCount - from) / (to - from)) * 100)));
+    ps.classList.remove('hidden');
+    document.getElementById('level-progress-label').textContent = nextLabel;
+    document.getElementById('level-progress-val').textContent = `${repairsCount - from} / ${to - from} визитов`;
     setTimeout(() => { document.getElementById('level-progress-fill').style.width = pct + '%'; }, 300);
   }
 }
 
 function renderStats() {
-  const repairs   = CLIENT.repairs || [];
-  const total     = repairs.reduce((s, r) => s + (r.cost || 0), 0);
+  const repairs   = (CLIENT.repairs || []).filter(r => r.type !== 'Напоминание');
+  const total     = repairs.reduce((s, r) => s + (Number(r.cost) || 0), 0);
   const avg       = repairs.length ? Math.round(total / repairs.length) : 0;
   const lastDate  = repairs.length ? new Date(repairs[repairs.length - 1].date) : null;
   const daysAgo   = lastDate ? Math.floor((Date.now() - lastDate.getTime()) / 86400000) : '—';
@@ -373,8 +396,21 @@ closeProfileModal?.addEventListener('click', () => {
 formProfileReq?.addEventListener('submit', async e => {
   e.preventDefault();
   const problem = new FormData(e.target).get('problem');
-  document.getElementById('preq-ok').classList.add('hidden');
-  document.getElementById('preq-err').classList.add('hidden');
+  const errEl = document.getElementById('preq-err');
+  const okEl  = document.getElementById('preq-ok');
+  okEl.classList.add('hidden');
+  errEl.classList.add('hidden');
+
+  if (!CLIENT.phone) {
+    errEl.textContent = 'Укажите номер телефона в профиле выше, чтобы мастер мог связаться с вами.';
+    errEl.classList.remove('hidden');
+    if (phoneMissingBanner) {
+      phoneMissingBanner.scrollIntoView({ behavior: 'smooth' });
+      missingPhoneInput?.focus();
+    }
+    return;
+  }
+
   try {
     const res  = await fetch('/api/requests', {
       method: 'POST',
@@ -383,17 +419,21 @@ formProfileReq?.addEventListener('submit', async e => {
     });
     const json = await res.json();
     if (json.ok) {
-      document.getElementById('preq-ok').classList.remove('hidden');
+      okEl.classList.remove('hidden');
       e.target.reset();
       setTimeout(() => {
         profileModal.classList.add('hidden');
         profileModal.classList.remove('flex');
       }, 2000);
     } else {
-      document.getElementById('preq-err').classList.remove('hidden');
+      errEl.textContent = json.error === 'phone required' 
+        ? 'Укажите номер телефона в профиле' 
+        : (json.error || 'Ошибка. Позвоните мастеру.');
+      errEl.classList.remove('hidden');
     }
   } catch {
-    document.getElementById('preq-err').classList.remove('hidden');
+    errEl.textContent = 'Ошибка сети. Позвоните мастеру.';
+    errEl.classList.remove('hidden');
   }
 });
 
@@ -624,6 +664,10 @@ async function initTelegramMagicLink(isUserTriggered = false) {
     magicPollInterval = setInterval(async () => {
       try {
         const pRes = await fetch(`/api/client/auth/telegram/magic/status?session=${data.sessionId}`);
+        if (pRes.status === 429) {
+          console.warn('Magic link polling rate limited');
+          return;
+        }
         const pData = await pRes.json();
         if (pData.status === 'success') {
           clearInterval(magicPollInterval);
@@ -640,7 +684,7 @@ async function initTelegramMagicLink(isUserTriggered = false) {
       } catch (e) {
         // Network noise
       }
-    }, 2000);
+    }, 2500);
 
   } catch (e) {
     console.error('Failed to init Telegram magic link', e);

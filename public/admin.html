@@ -377,6 +377,11 @@
                 Для получения уведомлений, мастер должен отправить боту команду <code>/admin [свой_пароль]</code> в Telegram.
               </p>
             </div>
+          </div>
+          <div class="border-t border-border pt-4 space-y-2">
+            <label class="label">Сменить пароль текущего мастера (оставьте пустым, если не меняете)</label>
+            <input type="password" name="newPassword" class="input" placeholder="Новый пароль" autocomplete="new-password" />
+          </div>
           <div class="flex justify-end pt-2">
             <button type="submit" class="btn-primary">Сохранить настройки</button>
           </div>
@@ -393,6 +398,7 @@
     <h3 id="modal-service-title" class="text-xl font-black text-white mb-6">Новая услуга</h3>
     <form id="form-service" class="space-y-4">
       <input type="hidden" name="id" />
+      <input type="hidden" name="sort_order" />
       <div><label class="label">Название</label><input type="text" name="title" required class="input" /></div>
       <div><label class="label">Описание</label><textarea name="description" rows="3" required class="input resize-none"></textarea></div>
       <div class="grid grid-cols-2 gap-4">
