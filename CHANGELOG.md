@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.2] - 2026-09-18
+
+### ⚡ VK ID One Tap & OAuth Integration
+- **VK ID One Tap Web SDK**: Внедрен официальный виджет быстрого входа в один клик (`@vkid/sdk` v2) в личном кабинете (`profile.html`), обеспечивающий бесшовную авторизацию без перехода на сторонние экраны.
+- **Серверная валидация токенов**: Реализован эндпоинт `POST /api/client/auth/vk` с верификацией токенов через VK ID API (`https://id.vk.com/oauth2/user_info`), защитой от брутфорса (`limiterVkAuth`) и автоматической связкой профиля в Supabase (`clients.vk_id`).
+- **Резервный серверный OAuth маршрут**: Добавлен эндпоинт `GET /api/client/auth/vk/login` и обновлен `GET /api/client/auth/vk/callback` с динамическим распознаванием хоста (`чекгорит.рф` / Punycode) и защитой от сетевых блокировок виджета.
+- **Отказоустойчивость**: Добавлены безопасные фоллбеки для `VK_APP_ID`, `VK_APP_SECRET`, `VK_SERVICE_TOKEN` и `VK_REDIRECT_URI`.
+
 ## [1.1.1] - 2026-09-14
 
 ### 🔐 Telegram Auth & Security Hardening

@@ -25,6 +25,12 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 const supabase = SUPABASE_URL && SUPABASE_KEY ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 const JWT_SECRET = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.JWT_SECRET || 'secret-fallback-key';
+
+/* ── VK ID / VK OAuth Credentials & Fallbacks ── */
+const VK_APP_ID = process.env.VK_APP_ID || '54777601';
+const VK_APP_SECRET = process.env.VK_APP_SECRET || 'OZR7Pd0txnsYunNPKBSu';
+const VK_SERVICE_TOKEN = process.env.VK_SERVICE_TOKEN || '6aae6a7a6aae6a7a6aae6a7a9d69edbd7b66aae6aae6a7a0002bae5ba8df3e63de6749d';
+const VK_REDIRECT_URI = process.env.VK_REDIRECT_URI || 'https://xn--c1adkgvmp7a.xn--p1ai/api/client/auth/vk/callback';
 /* ── In-memory logs (limit to 100) ── */
 const memLogs = [];
 const addLog = (msg) => {
@@ -285,6 +291,12 @@ const limiterTgAuth = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 min
   max: 30,
   message: { ok: false, error: 'too_many_requests' },
+  standardHeaders: true, legacyHeaders: false,
+});
+const limiterVkAuth = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 min
+  max: 30,
+  message: { ok: false, error: 'too_many_requests', message: 'Слишком много попыток входа через VK. Попробуйте через 5 минут.' },
   standardHeaders: true, legacyHeaders: false,
 });
 
@@ -1345,23 +1357,188 @@ app.get('/api/client/auth/telegram/magic/status', limiterTgAuth, async (req, res
   }
 });
 
+/* ── VK Auth Helper: Resolve dynamic redirect URI ── */
+function getVkRedirectUri(req) {
+  if (process.env.VK_REDIRECT_URI) return process.env.VK_REDIRECT_URI;
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'xn--c1adkgvmp7a.xn--p1ai';
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  return `${proto}://${host}/api/client/auth/vk/callback`;
+}
+
+/* ── 4. VK ID One Tap Token Verification & Exchange ── */
+app.post('/api/client/auth/vk', limiterVkAuth, async (req, res) => {
+  const { access_token, user_id } = req.body;
+  if (!access_token) {
+    return res.status(400).json({ ok: false, error: 'access_token_required' });
+  }
+
+  if (!supabase) {
+    return res.status(503).json({
+      ok: false,
+      error: 'db_unavailable',
+      message: 'База данных временно недоступна'
+    });
+  }
+
+  try {
+    let userData = null;
+
+    // 1. First attempt: VK ID OAuth2 user_info endpoint
+    try {
+      const userInfoUrl = `https://id.vk.com/oauth2/user_info?client_id=${VK_APP_ID}`;
+      const postData = new URLSearchParams({ access_token }).toString();
+      const vr = await new Promise((resolve, reject) => {
+        const r = https.request(userInfoUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': Buffer.byteLength(postData)
+          }
+        }, resp => {
+          let d = '';
+          resp.on('data', chunk => d += chunk);
+          resp.on('end', () => {
+            try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
+          });
+        });
+        r.on('error', reject);
+        r.write(postData);
+        r.end();
+      });
+
+      if (vr && vr.user) {
+        userData = vr.user;
+      }
+    } catch (e) {
+      console.warn('VK ID user_info fetch warning:', e.message);
+    }
+
+    // 2. Fallback: traditional api.vk.com users.get
+    if (!userData && user_id) {
+      try {
+        const usersGetUrl = `https://api.vk.com/method/users.get?user_ids=${user_id}&fields=photo_100,contacts&access_token=${access_token}&v=5.199`;
+        const ugRes = await new Promise((resolve, reject) => {
+          https.get(usersGetUrl, r => {
+            let d = '';
+            r.on('data', c => d += c);
+            r.on('end', () => {
+              try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
+            });
+          }).on('error', reject);
+        });
+        if (ugRes && ugRes.response && ugRes.response[0]) {
+          const u = ugRes.response[0];
+          userData = {
+            user_id: String(u.id),
+            first_name: u.first_name,
+            last_name: u.last_name,
+            avatar: u.photo_100,
+            phone: u.mobile_phone || u.home_phone || ''
+          };
+        }
+      } catch (e) {
+        console.warn('VK users.get fallback warning:', e.message);
+      }
+    }
+
+    if (!userData) {
+      return res.status(401).json({ ok: false, error: 'invalid_token', message: 'Не удалось подтвердить токен VK' });
+    }
+
+    const vkId = String(userData.user_id || user_id);
+    const firstName = userData.first_name || '';
+    const lastName = userData.last_name || '';
+    const fullName = [firstName, lastName].filter(Boolean).join(' ') || `VK Пользователь ${vkId}`;
+    const phone = userData.phone || '';
+    const email = userData.email || '';
+
+    // Search client in Supabase by vk_id
+    let { data: client, error: findErr } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('vk_id', vkId)
+      .maybeSingle();
+
+    if (findErr) {
+      console.error('Find VK client error:', findErr);
+      return res.status(503).json({ ok: false, error: 'db_error', message: findErr.message });
+    }
+
+    // If client not found by vk_id, but phone is present, link vk_id to existing account
+    if (!client && phone) {
+      const { data: phoneClient } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('phone', phone)
+        .maybeSingle();
+      if (phoneClient) {
+        client = phoneClient;
+        await supabase.from('clients').update({ vk_id: vkId }).eq('id', client.id);
+      }
+    }
+
+    // If still not found, create new client
+    if (!client) {
+      const newClient = {
+        id: crypto.randomUUID(),
+        name: fullName,
+        phone: phone || '',
+        email: email || '',
+        vk_id: vkId,
+        telegram_id: '',
+        telegram_username: '',
+        telegram_chat_id: '',
+        cars: [],
+        repairs: [],
+        created_at: new Date().toISOString()
+      };
+      const { error: insErr } = await supabase.from('clients').insert([newClient]);
+      if (insErr) {
+        return res.status(500).json({ ok: false, error: 'db_error', message: insErr.message });
+      }
+      client = newClient;
+    }
+
+    const token = await createSession(client.id);
+    res.json({ ok: true, token, clientId: client.id, name: client.name });
+  } catch (err) {
+    console.error('VK auth endpoint error:', err);
+    res.status(500).json({ ok: false, error: 'internal_error', message: err.message });
+  }
+});
+
+/* ── 5. VK OAuth Direct Login Redirect (Fallback) ── */
+app.get('/api/client/auth/vk/login', (req, res) => {
+  const redirectUri = getVkRedirectUri(req);
+  const vkAuthUrl = `https://oauth.vk.com/authorize?client_id=${VK_APP_ID}&display=page&redirect_uri=${encodeURIComponent(redirectUri)}&scope=phone,email&response_type=code&v=5.199`;
+  res.redirect(vkAuthUrl);
+});
+
+/* ── 6. VK OAuth Callback (Fallback) ── */
 app.get('/api/client/auth/vk/callback', async (req, res) => {
-  const { code } = req.query;
+  const { code, error, error_description } = req.query;
+  if (error) {
+    console.error('VK OAuth callback error:', error, error_description);
+    return res.redirect(`/profile.html?auth=error&reason=${encodeURIComponent(error)}`);
+  }
   if (!code) return res.redirect('/profile.html');
 
   try {
-    const tokenUrl = `https://oauth.vk.com/access_token?client_id=${process.env.VK_APP_ID || VK_APP_ID}&client_secret=${process.env.VK_APP_SECRET || VK_APP_SECRET}&redirect_uri=${process.env.VK_REDIRECT_URI || VK_REDIRECT_URI}&code=${code}`;
+    const redirectUri = getVkRedirectUri(req);
+    const tokenUrl = `https://oauth.vk.com/access_token?client_id=${VK_APP_ID}&client_secret=${VK_APP_SECRET}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`;
     const tokenResponse = await new Promise((resolve, reject) => {
       https.get(tokenUrl, r => {
         let d = '';
         r.on('data', chunk => d += chunk);
-        r.on('end', () => resolve(JSON.parse(d)));
+        r.on('end', () => {
+          try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
+        });
       }).on('error', reject);
     });
 
     if (tokenResponse.error) {
-      console.error('VK Token Error:', tokenResponse.error_description);
-      return res.redirect('/profile.html?error=vk_token');
+      console.error('VK Token Error:', tokenResponse.error_description || tokenResponse.error);
+      return res.redirect('/profile.html?auth=error&reason=vk_token');
     }
 
     const { access_token, user_id, email } = tokenResponse;
@@ -1372,22 +1549,32 @@ app.get('/api/client/auth/vk/callback', async (req, res) => {
       https.get(apiReqUrl, r => {
         let d = '';
         r.on('data', chunk => d += chunk);
-        r.on('end', () => resolve(JSON.parse(d)));
+        r.on('end', () => {
+          try { resolve(JSON.parse(d)); } catch (e) { reject(e); }
+        });
       }).on('error', reject);
     });
 
     const user = apiResponse.response?.[0];
-    if (!user) return res.redirect('/profile.html?error=vk_api');
+    const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : `VK Пользователь ${vkId}`;
+    const phone = user?.mobile_phone || user?.home_phone || '';
 
-    if (!supabase) return res.redirect('/profile.html?error=db');
+    if (!supabase) return res.redirect('/profile.html?auth=error&reason=db');
     let { data: client } = await supabase.from('clients').select('*').eq('vk_id', vkId).maybeSingle();
 
+    if (!client && phone) {
+      const { data: pClient } = await supabase.from('clients').select('*').eq('phone', phone).maybeSingle();
+      if (pClient) {
+        client = pClient;
+        await supabase.from('clients').update({ vk_id: vkId }).eq('id', client.id);
+      }
+    }
+
     if (!client) {
-      const name = `${user.first_name || ''} ${user.last_name || ''}`.trim();
       client = {
         id: crypto.randomUUID(),
         name: name || 'VK Пользователь',
-        phone: user.mobile_phone || user.home_phone || '',
+        phone: phone || '',
         email: email || '',
         vk_id: vkId,
         telegram_id: '',
@@ -1404,8 +1591,8 @@ app.get('/api/client/auth/vk/callback', async (req, res) => {
     res.redirect(`/profile.html?auth=vk&token=${token}&name=${encodeURIComponent(client.name)}`);
 
   } catch (err) {
-    console.error('VK Callback Error:', err);
-    res.redirect('/profile.html?error=internal');
+    console.error('VK Callback Exception:', err);
+    res.redirect('/profile.html?auth=error&reason=server_error');
   }
 });
 

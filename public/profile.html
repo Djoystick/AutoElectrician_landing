@@ -16,6 +16,7 @@
     }
   </script>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js"></script>
   <style>
     body { background:#0d1117; color:#e6edf3; font-family:'Montserrat',sans-serif; }
     .input { width:100%; background:#0d1117; border:1px solid #30363d; border-radius:.75rem;
@@ -98,8 +99,13 @@
       </a>
 
 
-      <!-- VK OAuth (Stub for now) -->
-      <a href="#" onclick="alert('Авторизация через ВКонтакте будет доступна в ближайшее время.'); return false;"
+      <!-- VK ID One Tap Widget Container -->
+      <div id="vk-onetap-wrap" class="w-full flex flex-col items-center">
+        <div id="vk-onetap-container" class="w-full"></div>
+      </div>
+
+      <!-- VK OAuth Direct Fallback Button -->
+      <a id="vk-fallback-btn" href="/api/client/auth/vk/login"
          class="w-full flex items-center justify-center gap-3 py-3 rounded-xl
                 bg-[#4C75A3]/10 border border-[#4C75A3]/40 text-[#4C75A3]
                 font-semibold text-sm hover:bg-[#4C75A3]/20 transition-colors">

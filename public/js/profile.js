@@ -130,6 +130,7 @@ function showLoginScreen() {
     initTelegramMagicLink();
     isTgMagicLinkInitialized = true;
   }
+  initVkIdAuth();
 }
 
 function showProfileScreen() {
@@ -438,12 +439,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     showLoginScreen();
     const reason = urlParams.get('reason') || 'unknown';
     const msgs = {
-      not_configured: 'ВК авторизация ещё не настроена — используйте номер телефона.',
-      access_denied:  'Вы отказались от авторизации.',
-      server_error:   'Ошибка сервера. Попробуйте ещё раз.',
+      not_configured: 'ВК авторизация ещё не настроена — используйте номер телефона или Telegram.',
+      access_denied:  'Вы отказались от авторизации в VK.',
+      vk_token:       'Не удалось получить токен авторизации VK.',
+      server_error:   'Ошибка сервера при входе через VK. Попробуйте ещё раз.',
     };
-    phoneErr.textContent = msgs[reason] || `Ошибка: ${reason}`;
-    phoneErr.classList.remove('hidden');
+    showAuthError(msgs[reason] || `Ошибка авторизации VK: ${reason}`);
     window.history.replaceState({}, '', '/profile.html');
     return;
   }
@@ -657,3 +658,88 @@ window.onTelegramAuth = async function(user) {
     showAuthError('Ошибка соединения: ' + e.message);
   }
 };
+
+/* ══════════════════════════════════════════════════════════
+   VK ID AUTH (ONE TAP & LOWCODE SDK)
+══════════════════════════════════════════════════════════ */
+let isVkIdInitialized = false;
+
+function initVkIdAuth() {
+  if (isVkIdInitialized) return;
+
+  const container = document.getElementById('vk-onetap-container');
+  const fallbackBtn = document.getElementById('vk-fallback-btn');
+  if (!container) return;
+
+  if (typeof window.VKIDSDK === 'undefined') {
+    // Retry once in 400ms in case CDN script is still downloading
+    setTimeout(initVkIdAuth, 400);
+    return;
+  }
+
+  try {
+    isVkIdInitialized = true;
+    const VKID = window.VKIDSDK;
+
+    const redirectUrl = window.location.origin + '/api/client/auth/vk/callback';
+
+    VKID.Config.init({
+      app: 54777601,
+      redirectUrl: redirectUrl,
+      responseMode: VKID.ConfigResponseMode.Callback,
+      source: VKID.ConfigSource.LOWCODE,
+      scope: '',
+    });
+
+    const oneTap = new VKID.OneTap();
+
+    oneTap.render({
+      container: container,
+      showAlternativeLogin: true,
+    })
+    .on(VKID.WidgetEvents.ERROR, (err) => {
+      console.warn('VK OneTap Widget Error/Notice:', err);
+      // Ensure fallback direct OAuth button is accessible
+      if (fallbackBtn) fallbackBtn.classList.remove('hidden');
+    })
+    .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, async (payload) => {
+      hideAuthError();
+      try {
+        const code = payload.code;
+        const deviceId = payload.device_id;
+
+        const tokenData = await VKID.Auth.exchangeCode(code, deviceId);
+        if (!tokenData || !tokenData.access_token) {
+          throw new Error('Не получен access_token от VK ID');
+        }
+
+        const res = await fetch('/api/client/auth/vk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            access_token: tokenData.access_token,
+            user_id: tokenData.user_id,
+            id_token: tokenData.id_token
+          })
+        });
+
+        const data = await res.json();
+        if (data.ok && data.token) {
+          TOKEN = data.token;
+          localStorage.setItem(TOKEN_KEY, TOKEN);
+          await loadProfile();
+        } else {
+          showAuthError('Ошибка входа через VK ID: ' + (data.message || data.error || 'не удалось подтвердить сессию'));
+        }
+      } catch (err) {
+        console.error('VK ID Login process error:', err);
+        showAuthError('Ошибка авторизации через VK: ' + (err.error_description || err.message || 'попробуйте войти по кнопке ниже'));
+      }
+    });
+
+  } catch (e) {
+    console.warn('Failed to init VK ID One Tap widget:', e);
+    if (fallbackBtn) fallbackBtn.classList.remove('hidden');
+  }
+}
+
