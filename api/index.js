@@ -1548,7 +1548,7 @@ app.get('/api/client/auth/vk/login', (req, res) => {
 
   const state = createPkceState(verifier, returnUrl);
 
-  const vkAuthUrl = `https://id.vk.ru/auth?app_id=${VK_APP_ID}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&code_challenge=${challenge}&code_challenge_method=s256&state=${encodeURIComponent(state)}`;
+  const vkAuthUrl = `https://id.vk.ru/authorize?app_id=${VK_APP_ID}&client_id=${VK_APP_ID}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&code_challenge=${challenge}&code_challenge_method=s256&state=${encodeURIComponent(state)}&origin=https%3A%2F%2Fxn--c1adkgvmp7a.xn--p1ai&v=2.6.8&sdk_type=vkid`;
   res.redirect(vkAuthUrl);
 });
 
