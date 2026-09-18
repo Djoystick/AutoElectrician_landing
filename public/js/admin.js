@@ -272,18 +272,21 @@ function bindRequestForm() {
 ══════════════════════════════════════════════════════════ */
 async function loadClients() {
   const res = await api('GET', '/api/clients');
-  DATA.clientsSummary = res.clients || [];
+  DATA.clients = res.clients || [];
+  DATA.clientsSummary = DATA.clients;
   renderClients();
 }
 
 function renderClients(filter = '') {
-  const list    = document.getElementById('clients-list');
-  let clients   = DATA.clientsSummary || [];
+  const list  = document.getElementById('clients-list');
+  let clients = DATA.clients || DATA.clientsSummary || [];
   if (filter) {
     const q = filter.toLowerCase();
     clients = clients.filter(c =>
       c.name?.toLowerCase().includes(q) ||
       c.phone?.includes(q) ||
+      c.telegram_username?.toLowerCase().includes(q) ||
+      c.vk_id?.includes(q) ||
       (c.cars || []).some(car => `${car.brand} ${car.model} ${car.plate}`.toLowerCase().includes(q))
     );
   }
@@ -292,30 +295,55 @@ function renderClients(filter = '') {
     return;
   }
   list.innerHTML = clients.map(c => {
-    const carStr  = c.cars?.length ? c.cars.map(car => `${car.brand} ${car.model}`).join(', ') : 'Нет авто';
-    const badge   = levelBadge(c.level);
-    const retCls  = `retention-${c.retention || 'none'}`;
+    const repairs        = c.repairs || [];
+    const repairCount    = c.repairCount ?? repairs.length;
+    const lastRepairDate = c.lastRepairDate || (repairs.length ? repairs[repairs.length - 1].date : null);
+    
+    // Level calculation
+    let level = c.level;
+    if (!level) {
+      if (repairCount >= 10) level = 'veteran';
+      else if (repairCount >= 5) level = 'regular';
+      else level = 'newcomer';
+    }
+
+    // Retention calculation
+    let retention = c.retention || 'none';
+    if (!c.retention && lastRepairDate) {
+      const days = (Date.now() - new Date(lastRepairDate).getTime()) / 86400000;
+      retention = days < 90 ? 'green' : days < 180 ? 'yellow' : 'red';
+    }
+
+    const carStr   = c.cars?.length ? c.cars.map(car => `${car.brand} ${car.model}`).join(', ') : 'Нет авто';
+    const badge    = levelBadge(level);
+    const retCls   = `retention-${retention}`;
+    const tgLinked = c.telegram_chat_id || c.telegram_id || c.telegramChatId;
+    const vkLinked = c.vk_id;
+    const contactText = c.phone || (c.telegram_username ? '@' + c.telegram_username : (c.vk_id ? 'VK ID: ' + c.vk_id : 'Без телефона'));
+
     return `
     <div class="card p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${retCls} pl-5">
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 mb-1 flex-wrap">
           <span class="font-bold text-white text-sm">${esc(c.name)}</span>
           <span class="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-semibold">${badge}</span>
-          ${c.telegramLinked ? '<span class="text-xs text-blue-400">✈ TG</span>' : ''}
+          ${tgLinked ? '<span class="text-xs text-blue-400 font-semibold px-2 py-0.5 rounded-full bg-blue-500/10">✈ TG</span>' : ''}
+          ${vkLinked ? '<span class="text-xs text-blue-500 font-semibold px-2 py-0.5 rounded-full bg-blue-600/10">VK</span>' : ''}
         </div>
         <div class="text-sm text-gray-400 flex flex-wrap gap-3">
-          <span>${esc(c.phone)}</span>
+          <span>${esc(contactText)}</span>
           <span class="text-gray-600">•</span>
           <span>${esc(carStr)}</span>
           <span class="text-gray-600">•</span>
-          <span>${c.repairCount} визит${pluralRu(c.repairCount)}</span>
-          ${c.lastRepairDate ? `<span class="text-gray-600">• Последний: ${fmtDate(c.lastRepairDate)}</span>` : ''}
+          <span>${repairCount} визит${pluralRu(repairCount)}</span>
+          ${lastRepairDate ? `<span class="text-gray-600">• Последний: ${fmtDate(lastRepairDate)}</span>` : ''}
         </div>
       </div>
       <div class="flex gap-2 shrink-0">
-        <a href="tel:${c.phone}" class="btn-ghost text-xs py-1.5">
+        ${c.phone ? `
+        <a href="tel:${c.phone}" class="btn-ghost text-xs py-1.5" title="Позвонить">
           <i data-lucide="phone" class="w-3.5 h-3.5"></i>
-        </a>
+        </a>` : ''}
         <button onclick="openClientDetail('${c.id}')" class="btn-primary text-xs py-1.5">
           <i data-lucide="folder-open" class="w-3.5 h-3.5"></i> Открыть
         </button>
