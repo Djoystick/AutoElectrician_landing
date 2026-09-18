@@ -511,7 +511,16 @@
     <form id="form-repair" class="space-y-4" enctype="multipart/form-data">
       <input type="hidden" name="clientId" id="repair-client-id" />
       <div>
-        <label class="label">Автомобиль</label>
+        <label class="label">Клиент <span class="text-accent">*</span></label>
+        <select id="repair-client-select" class="input" required>
+          <option value="">— Выберите клиента —</option>
+        </select>
+      </div>
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="label mb-0">Автомобиль</label>
+          <button type="button" id="btn-repair-add-car" class="text-xs text-accent hover:underline hidden">+ Добавить авто клиенту</button>
+        </div>
         <select name="carId" id="repair-car-select" class="input">
           <option value="">— Без привязки к авто —</option>
         </select>

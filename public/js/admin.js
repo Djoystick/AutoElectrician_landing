@@ -239,9 +239,7 @@ window.setRequestStatus = async (id, status) => {
     if (status === 'done') {
       const r = DATA.requests.find(r => r.id === id);
       if (r && confirm(`Заявка выполнена. Добавить запись о ремонте для клиента ${r.name}?`)) {
-        // Prefill repair modal
-        document.getElementById('repair-client-id').value = '';
-        openRepairModal(null, { name: r.name, phone: r.phone });
+        openRepairModal(null, { name: r.name, phone: r.phone, problem: r.problem, requestId: r.id });
       }
     }
   }
@@ -401,16 +399,16 @@ function renderClientDetail(c) {
     <div class="grid sm:grid-cols-2 gap-4 mb-5">
       <div class="card p-4">
         <p class="label">Телефон</p>
-        <a href="tel:${c.phone}" class="text-white font-semibold hover:text-accent">${esc(c.phone)}</a>
+        <a href="tel:${c.phone}" class="text-white font-semibold hover:text-accent">${esc(c.phone || '—')}</a>
         <p class="label mt-3">Уровень</p>
         <p class="text-white font-semibold">${levelBadge(c.level)}</p>
       </div>
       <div class="card p-4">
         <p class="label">Код доступа к профилю</p>
         <p class="text-2xl font-black text-accent tracking-widest">${c.accessCode || '—'}</p>
-        <p class="text-xs text-gray-500 mt-1">Сообщите клиенту для входа в профиль</p>
-        <p class="label mt-3">Telegram</p>
-        <p class="text-sm">${c.telegramChatId ? '✅ Привязан — коды приходят автоматически' : '⚠️ Не привязан — клиент должен написать боту /start'}</p>
+        <p class="text-xs text-gray-500 mt-1">Используется для быстрого доступа</p>
+        <p class="label mt-3">Привязка соцсетей</p>
+        <p class="text-sm">${c.telegram_chat_id || c.telegramChatId ? '✅ Telegram: ' + (c.telegram_username ? '@' + esc(c.telegram_username) : esc(c.telegram_chat_id || c.telegramChatId)) : (c.vk_id ? '✅ VK ID: ' + esc(c.vk_id) : '⚠️ Соцсети не привязаны')}</p>
       </div>
     </div>
 
@@ -436,48 +434,166 @@ function renderClientDetail(c) {
     <div>
       <h4 class="font-bold text-white text-sm mb-4">📋 История ремонтов (${(c.repairs||[]).length})</h4>
       <div class="pl-2">${repairsHtml}</div>
+    </div>
+
+    <!-- Delete client -->
+    <div class="mt-8 pt-4 border-t border-border flex justify-end">
+      <button onclick="deleteClient('${c.id}')" class="btn-danger text-xs py-1.5 px-3">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5 inline mr-1"></i> Удалить клиента
+      </button>
     </div>`;
 }
 
 window.promptAddCar = async (clientId) => {
-  const brand = prompt('Марка:'); if (!brand) return;
-  const model = prompt('Модель:'); if (!model) return;
-  const year  = prompt('Год:');
-  const plate = prompt('Гос.номер:');
+  const brand = prompt('Марка авто (например, Toyota):'); if (!brand) return;
+  const model = prompt('Модель (например, Camry):'); if (!model) return;
+  const year  = prompt('Год выпуска (необязательно):');
+  const plate = prompt('Гос.номер или VIN (необязательно):');
   const res   = await api('POST', `/api/clients/${clientId}/cars`, { brand, model, year, plate });
-  if (res.ok) { await openClientDetail(clientId); toast('Авто добавлено'); }
+  if (res.ok) {
+    await loadClients();
+    const detailModal = document.getElementById('modal-client-detail');
+    if (detailModal && !detailModal.classList.contains('hidden')) {
+      await openClientDetail(clientId);
+    }
+    toast('Авто добавлено');
+  }
 };
 
 window.deleteCar = async (clientId, carId) => {
   if (!confirm('Удалить автомобиль?')) return;
   const res = await api('DELETE', `/api/clients/${clientId}/cars/${carId}`);
-  if (res.ok) { await openClientDetail(clientId); toast('Удалено'); }
+  if (res.ok) { await loadClients(); await openClientDetail(clientId); toast('Удалено'); }
 };
 
 window.deleteRepair = async (clientId, repairId) => {
   if (!confirm('Удалить запись о ремонте?')) return;
   const res = await api('DELETE', `/api/clients/${clientId}/repairs/${repairId}`);
-  if (res.ok) { await openClientDetail(clientId); await loadClients(); toast('Удалено'); }
+  if (res.ok) { await loadClients(); await openClientDetail(clientId); toast('Удалено'); }
 };
 
-/* ── Repair modal ── */
-window.openRepairModal = async (clientId, prefill) => {
-  document.getElementById('repair-client-id').value = clientId || '';
-  document.getElementById('repair-date').value = new Date().toISOString().slice(0, 10);
-  document.getElementById('form-repair').reset();
+window.deleteClient = async (clientId) => {
+  if (!confirm('Вы уверены, что хотите удалить этого клиента и всю его историю?')) return;
+  const res = await api('DELETE', `/api/clients/${clientId}`);
+  if (res.ok) {
+    closeModal('modal-client-detail');
+    await loadClients();
+    toast('Клиент удален');
+  } else {
+    toast('Ошибка удаления клиента', true);
+  }
+};
+
+/* ── Repair modal & Car helper ── */
+let currentRepairPrefill = null;
+
+async function updateRepairCars(clientId) {
+  const sel = document.getElementById('repair-car-select');
+  const addCarBtn = document.getElementById('btn-repair-add-car');
+  sel.innerHTML = '<option value="">— Без привязки к авто —</option>';
+
+  if (!clientId || clientId.startsWith('__NEW')) {
+    if (addCarBtn) addCarBtn.classList.add('hidden');
+    return;
+  }
+
+  if (addCarBtn) {
+    addCarBtn.classList.remove('hidden');
+    addCarBtn.onclick = async () => {
+      await promptAddCar(clientId);
+      await updateRepairCars(clientId);
+    };
+  }
+
+  const client = (DATA.clients || []).find(c => c.id === clientId);
+  const cars = client?.cars || [];
+  cars.forEach(car => {
+    const text = `${esc(car.brand)} ${esc(car.model)} ${car.year || ''} ${car.plate ? '(' + esc(car.plate) + ')' : ''}`.trim();
+    sel.innerHTML += `<option value="${car.id}">${text}</option>`;
+  });
+}
+
+window.openRepairModal = async (clientId, prefill = null) => {
+  currentRepairPrefill = prefill;
+  const form = document.getElementById('form-repair');
+  form.reset();
   document.getElementById('repair-date').value = new Date().toISOString().slice(0, 10);
 
-  // Populate car dropdown
-  const sel = document.getElementById('repair-car-select');
-  sel.innerHTML = '<option value="">— Без привязки к авто —</option>';
-  if (clientId) {
-    const res = await api('GET', `/api/clients/${clientId}`);
-    if (res.ok) {
-      (res.client.cars || []).forEach(car => {
-        sel.innerHTML += `<option value="${car.id}">${esc(car.brand)} ${esc(car.model)} ${car.year || ''}</option>`;
-      });
+  if (prefill && prefill.problem) {
+    form.elements.description.value = prefill.problem;
+  }
+
+  if (!DATA.clients || !DATA.clients.length) {
+    await loadClients();
+  }
+
+  const clientSelect = document.getElementById('repair-client-select');
+  clientSelect.innerHTML = '<option value="">— Выберите клиента —</option>';
+
+  let selectedId = clientId || '';
+
+  // 1. Поиск существующего клиента по номеру телефона
+  if (!selectedId && prefill && prefill.phone) {
+    const rawDigits = String(prefill.phone).replace(/[^\d]/g, '');
+    const found = (DATA.clients || []).find(c => {
+      const cp = String(c.phone || '').replace(/[^\d]/g, '');
+      return cp && rawDigits && (cp === rawDigits || (cp.length >= 10 && rawDigits.endsWith(cp.slice(-10))));
+    });
+    if (found) {
+      selectedId = found.id;
     }
   }
+
+  // 2. Если клиент не найден по телефону, предлагаем создать нового
+  if (!selectedId && prefill && (prefill.name || prefill.phone)) {
+    const opt = document.createElement('option');
+    opt.value = '__NEW_FROM_REQUEST__';
+    opt.textContent = `✨ Создать клиента: ${prefill.name || 'Клиент'} (${prefill.phone || 'без тел.'})`;
+    opt.selected = true;
+    clientSelect.appendChild(opt);
+    selectedId = '__NEW_FROM_REQUEST__';
+  }
+
+  // 3. Заполняем всех существующих клиентов
+  (DATA.clients || []).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = `${c.name} (${c.phone || 'без тел.'})`;
+    if (c.id === selectedId) opt.selected = true;
+    clientSelect.appendChild(opt);
+  });
+
+  // 4. Опция ручного создания нового клиента
+  const optManual = document.createElement('option');
+  optManual.value = '__MANUAL_NEW__';
+  optManual.textContent = '➕ Создать нового клиента вручную...';
+  clientSelect.appendChild(optManual);
+
+  document.getElementById('repair-client-id').value = selectedId;
+  await updateRepairCars(selectedId);
+
+  clientSelect.onchange = async (e) => {
+    const val = e.target.value;
+    if (val === '__MANUAL_NEW__') {
+      const name = prompt('Имя и фамилия нового клиента:');
+      if (!name) { e.target.value = document.getElementById('repair-client-id').value; return; }
+      const phone = prompt('Номер телефона:');
+      if (!phone) { e.target.value = document.getElementById('repair-client-id').value; return; }
+      const res = await api('POST', '/api/clients', { name, phone });
+      if (res.ok && res.client) {
+        await loadClients();
+        await openRepairModal(res.client.id, currentRepairPrefill);
+        toast(`Клиент ${res.client.name} создан`);
+      } else {
+        toast('Ошибка создания клиента', true);
+        e.target.value = document.getElementById('repair-client-id').value;
+      }
+      return;
+    }
+
+    document.getElementById('repair-client-id').value = val;
+    await updateRepairCars(val);
+  };
 
   openModal('modal-repair');
 };
@@ -485,8 +601,24 @@ window.openRepairModal = async (clientId, prefill) => {
 function bindRepairForm() {
   document.getElementById('form-repair').addEventListener('submit', async e => {
     e.preventDefault();
-    const clientId = document.getElementById('repair-client-id').value;
+    let clientId = document.getElementById('repair-client-select').value || document.getElementById('repair-client-id').value;
     if (!clientId) { toast('Выберите клиента', true); return; }
+
+    // Если клиент создается на лету из входящей заявки
+    if (clientId === '__NEW_FROM_REQUEST__') {
+      const newName = currentRepairPrefill?.name || 'Клиент';
+      const newPhone = currentRepairPrefill?.phone || '';
+      const cRes = await api('POST', '/api/clients', { name: newName, phone: newPhone });
+      if (cRes.ok && cRes.client) {
+        clientId = cRes.client.id;
+        document.getElementById('repair-client-id').value = clientId;
+        await loadClients();
+      } else {
+        toast('Ошибка создания профиля клиента', true);
+        return;
+      }
+    }
+
     const fd = new FormData(e.target);
     const res = await fetch(`/api/clients/${clientId}/repairs`, {
       method: 'POST',
@@ -499,7 +631,10 @@ function bindRepairForm() {
       closeModal('modal-client-detail');
       e.target.reset();
       await loadClients();
-      toast('✅ Запись добавлена. Клиент видит её в своём профиле.');
+      currentRepairPrefill = null;
+      toast('✅ Запись добавлена! Клиент видит её в своём профиле.');
+    } else {
+      toast('Ошибка сохранения ремонта', true);
     }
   });
 }
