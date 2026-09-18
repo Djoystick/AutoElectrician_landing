@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.3] - 2026-09-19
+
+### 📱 Critical Fix: Mobile Request Modal, Global Event Handlers & Overlay Isolation
+
+#### public/index.html:
+- **[MOBILE UX] Мгновенный вызов модалки заявки**:
+  - Кнопкам `#hero-request-btn` и `#sticky-request-btn` добавлены прямые обработчики `onclick="window.openRequestModal ? window.openRequestModal() : null"` и `type="button"`.
+  - Модальному окну `#modal-request` задан гарантированный стиль `style="display: none; z-index: 99999;"`, предотвращающий конфликт с Tailwind CDN и скрытие под другими слоями.
+  - Кнопке закрытия `#close-request-modal` добавлен прямой вызов `onclick="window.closeRequestModal ? window.closeRequestModal() : null"`.
+- **[PERF/STABILITY] Удалена отладочная консоль `vConsole` из `<head>`**:
+  - Устранен блокирующий синхронный запрос к `unpkg.com`, вызывавший ошибку `TypeError: window.VConsole is not a constructor` и сбои рендеринга на мобильных устройствах при сетевых задержках/блокировках.
+- **[STABILITY] Перевод Lucide CDN на jsdelivr**:
+  - Заменен ненадежный в РФ `unpkg.com` на стабильный `cdn.jsdelivr.net`.
+
+#### public/js/main.js:
+- **[ARCHITECTURE] Глобальные и немедленные функции модалки**:
+  - `window.openRequestModal` и `window.closeRequestModal` теперь объявляются в глобальной области видимости сразу при загрузке скрипта, а не внутри отложенной `async function init()`.
+  - Добавлено глобальное делегирование событий клика и тапа (`document.addEventListener('click', ...)`), гарантирующее открытие модалки даже до завершения фонового запроса `/api/data`.
+  - Глобализован обработчик отправки формы `#form-public-request`.
+- **[RESILIENCE] Отказоустойчивость `init()`**:
+  - Все блоки инициализации (`renderHero`, `renderServices`, `renderReviews`, `renderContacts`, `lucide.createIcons`, `initNavbar`, `initAnimations`, `initLightbox`, `initCalculator`) обернуты в индивидуальные `try...catch`.
+  - Инициализация `new Swiper` защищена проверкой существования библиотеки `typeof Swiper !== 'undefined'`. Никакой сбой сторонних CDN больше не прерывает работу сайта.
+
+#### public/js/perf-widget.js:
+- **[MOBILE UX] Изоляция виджета производительности**:
+  - Добавлено ограничение `if (window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) return;`. Виджет больше не рендерится на мобильных устройствах с `z-index: 99999` и не перекрывает кнопки нижней фиксированной планки (`#sticky-cta`).
+
 ## [1.2.2] - 2026-09-19
 
 ### 🛡️ Full Auditor Resolution: Security, Loyalty Synchronization & CRM Reactivity

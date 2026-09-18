@@ -6,6 +6,11 @@
   'use strict';
 
   function initPerformanceWidget() {
+    // Disable on mobile devices or narrow viewports to avoid overlapping CTA / buttons
+    if (window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+      return;
+    }
+
     const nav = performance.getEntriesByType('navigation')[0];
     if (!nav) return;
 

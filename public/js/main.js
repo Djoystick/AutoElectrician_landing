@@ -8,6 +8,102 @@
 let DATA = {};
 
 /* ══════════════════════════════════════════════════════════
+   REQUEST MODAL & FORM (Instant global handlers)
+══════════════════════════════════════════════════════════ */
+window.openRequestModal = function(prefillProblem) {
+  const modalReq = document.getElementById('modal-request');
+  if (!modalReq) return;
+  const formPubReq = document.getElementById('form-public-request');
+  if (prefillProblem && formPubReq) {
+    const p = formPubReq.querySelector('[name="problem"]');
+    if (p) p.value = prefillProblem;
+  }
+  modalReq.style.display = 'flex';
+  modalReq.classList.remove('hidden');
+  modalReq.classList.add('flex');
+  const reqSuccess = document.getElementById('req-success');
+  const reqError = document.getElementById('req-error');
+  if (reqSuccess) reqSuccess.classList.add('hidden');
+  if (reqError) reqError.classList.add('hidden');
+};
+
+window.closeRequestModal = function() {
+  const modalReq = document.getElementById('modal-request');
+  if (!modalReq) return;
+  modalReq.style.display = 'none';
+  modalReq.classList.add('hidden');
+  modalReq.classList.remove('flex');
+};
+
+// Global click & touch delegation for opening and closing request modal
+document.addEventListener('click', function(e) {
+  const openBtn = e.target.closest('#hero-request-btn, #sticky-request-btn, [data-open-request]');
+  if (openBtn) {
+    e.preventDefault();
+    window.openRequestModal();
+    return;
+  }
+  const closeBtn = e.target.closest('#close-request-modal');
+  if (closeBtn) {
+    e.preventDefault();
+    window.closeRequestModal();
+    return;
+  }
+  const modalReq = document.getElementById('modal-request');
+  if (modalReq && e.target === modalReq) {
+    window.closeRequestModal();
+  }
+});
+
+// Global form submission handler
+document.addEventListener('submit', async function(e) {
+  const formPubReq = e.target.closest('#form-public-request');
+  if (!formPubReq) return;
+  e.preventDefault();
+
+  const submitBtn = formPubReq.querySelector('button[type="submit"]');
+  const reqSuccess = document.getElementById('req-success');
+  const reqError = document.getElementById('req-error');
+  if (submitBtn) submitBtn.disabled = true;
+  if (reqSuccess) reqSuccess.classList.add('hidden');
+  if (reqError) reqError.classList.add('hidden');
+
+  const formData = new FormData(formPubReq);
+  const payload = Object.fromEntries(formData.entries());
+
+  try {
+    const res = await fetch('/api/requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (res.ok && json.ok) {
+      if (reqSuccess) reqSuccess.classList.remove('hidden');
+      formPubReq.reset();
+      if (typeof window.onMascotCelebration === 'function') {
+        window.onMascotCelebration();
+      }
+      setTimeout(() => {
+        window.closeRequestModal();
+      }, 2200);
+    } else {
+      if (reqError) {
+        reqError.textContent = json.error || 'Ошибка при отправке заявки. Позвоните нам напрямую.';
+        reqError.classList.remove('hidden');
+      }
+    }
+  } catch (err) {
+    if (reqError) {
+      reqError.textContent = 'Ошибка соединения. Пожалуйста, позвоните мастеру.';
+      reqError.classList.remove('hidden');
+    }
+  } finally {
+    if (submitBtn) submitBtn.disabled = false;
+  }
+});
+
+/* ══════════════════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════════════════ */
 async function init() {
@@ -20,19 +116,26 @@ async function init() {
     DATA = { settings: {}, contacts: {}, services: [], reviews: [] };
   }
 
-  renderHero();
-  renderServices();
-  renderReviews();
-  renderContacts();
+  try { renderHero(); } catch (e) { console.warn('renderHero error:', e); }
+  try { renderServices(); } catch (e) { console.warn('renderServices error:', e); }
+  try { renderReviews(); } catch (e) { console.warn('renderReviews error:', e); }
+  try { renderContacts(); } catch (e) { console.warn('renderContacts error:', e); }
 
-  lucide.createIcons();          // render all lucide icons after DOM is ready
-  document.getElementById('footer-year').textContent = new Date().getFullYear();
+  try {
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      lucide.createIcons();
+    }
+  } catch (e) { console.warn('lucide error:', e); }
 
-  initNavbar();
-  initAnimations();
-  initLightbox();
-  initCalculator();
-  initRequestModal();
+  try {
+    const yr = document.getElementById('footer-year');
+    if (yr) yr.textContent = new Date().getFullYear();
+  } catch (e) {}
+
+  try { initNavbar(); } catch (e) { console.warn('initNavbar error:', e); }
+  try { initAnimations(); } catch (e) { console.warn('initAnimations error:', e); }
+  try { initLightbox(); } catch (e) { console.warn('initLightbox error:', e); }
+  try { initCalculator(); } catch (e) { console.warn('initCalculator error:', e); }
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -147,19 +250,25 @@ function renderReviews() {
     </div>
   `).join('');
 
-  new Swiper('.reviews-swiper', {
-    slidesPerView: 1,
-    spaceBetween: 20,
-    loop: DATA.reviews.length > 2,
-    autoplay: { delay: 5000, disableOnInteraction: false },
-    pagination: { el: '.swiper-pagination', clickable: true },
-    navigation: { nextEl: '.swiper-button-next', prevEl: '.swiper-button-prev' },
-    breakpoints: {
-      640:  { slidesPerView: 1.2 },
-      768:  { slidesPerView: 2   },
-      1024: { slidesPerView: 3   },
-    },
-  });
+  if (typeof Swiper !== 'undefined') {
+    try {
+      new Swiper('.reviews-swiper', {
+        slidesPerView: 1,
+        spaceBetween: 20,
+        loop: DATA.reviews.length > 2,
+        autoplay: { delay: 5000, disableOnInteraction: false },
+        pagination: { el: '.swiper-pagination', clickable: true },
+        navigation: { nextEl: '.swiper-button-next', prevEl: '.swiper-button-prev' },
+        breakpoints: {
+          640:  { slidesPerView: 1.2 },
+          768:  { slidesPerView: 2   },
+          1024: { slidesPerView: 3   },
+        },
+      });
+    } catch (e) {
+      console.warn('Swiper init error:', e);
+    }
+  }
 }
 
 function renderContacts() {
@@ -429,89 +538,6 @@ function initCalculator() {
       window.openRequestModal(summary);
     }
   });
-}
-
-/* ══════════════════════════════════════════════════════════
-   REQUEST MODAL & FORM (Decoupled from mascot)
-══════════════════════════════════════════════════════════ */
-function initRequestModal() {
-  const modalReq      = document.getElementById('modal-request');
-  const closeReqModal = document.getElementById('close-request-modal');
-  const heroReqBtn    = document.getElementById('hero-request-btn');
-  const stickyReqBtn  = document.getElementById('sticky-request-btn');
-  const formPubReq    = document.getElementById('form-public-request');
-  const reqSuccess    = document.getElementById('req-success');
-  const reqError      = document.getElementById('req-error');
-
-  window.openRequestModal = function(prefillProblem) {
-    if (!modalReq) return;
-    if (prefillProblem && formPubReq) {
-      const p = formPubReq.querySelector('[name="problem"]');
-      if (p) p.value = prefillProblem;
-    }
-    modalReq.classList.remove('hidden');
-    modalReq.classList.add('flex');
-    if (reqSuccess) reqSuccess.classList.add('hidden');
-    if (reqError) reqError.classList.add('hidden');
-  };
-
-  window.closeRequestModal = function() {
-    if (!modalReq) return;
-    modalReq.classList.add('hidden');
-    modalReq.classList.remove('flex');
-  };
-
-  heroReqBtn?.addEventListener('click', () => window.openRequestModal());
-  stickyReqBtn?.addEventListener('click', () => window.openRequestModal());
-  closeReqModal?.addEventListener('click', () => window.closeRequestModal());
-
-  modalReq?.addEventListener('click', e => {
-    if (e.target === modalReq) window.closeRequestModal();
-  });
-
-  if (formPubReq) {
-    formPubReq.addEventListener('submit', async e => {
-      e.preventDefault();
-      const submitBtn = formPubReq.querySelector('button[type="submit"]');
-      if (submitBtn) submitBtn.disabled = true;
-      if (reqSuccess) reqSuccess.classList.add('hidden');
-      if (reqError) reqError.classList.add('hidden');
-
-      const formData = new FormData(formPubReq);
-      const payload = Object.fromEntries(formData.entries());
-
-      try {
-        const res = await fetch('/api/requests', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const json = await res.json();
-        if (res.ok && json.ok) {
-          if (reqSuccess) reqSuccess.classList.remove('hidden');
-          formPubReq.reset();
-          if (typeof window.onMascotCelebration === 'function') {
-            window.onMascotCelebration();
-          }
-          setTimeout(() => {
-            window.closeRequestModal();
-          }, 2200);
-        } else {
-          if (reqError) {
-            reqError.textContent = json.error || 'Ошибка при отправке заявки. Позвоните нам напрямую.';
-            reqError.classList.remove('hidden');
-          }
-        }
-      } catch (err) {
-        if (reqError) {
-          reqError.textContent = 'Ошибка соединения. Пожалуйста, позвоните мастеру.';
-          reqError.classList.remove('hidden');
-        }
-      } finally {
-        if (submitBtn) submitBtn.disabled = false;
-      }
-    });
-  }
 }
 
 /* ── Run ── */

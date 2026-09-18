@@ -43,16 +43,8 @@
   <!-- Custom CSS -->
   <link rel="stylesheet" href="/css/style.css" />
 
-  <!-- Lucide -->
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-
-  <!-- DEBUG SYSTEM (vConsole) -->
-  <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
-  <script>
-    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-      window.vConsole = new window.VConsole();
-    }
-  </script>
+  <!-- Lucide (via reliable jsdelivr CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
 </head>
 
 <body class="bg-bg text-gray-100 font-sans antialiased overflow-x-hidden">
@@ -73,10 +65,12 @@
         Вызвать
       </a>
       <button id="sticky-request-btn"
+         type="button"
+         onclick="window.openRequestModal ? window.openRequestModal() : null"
          class="flex-1 flex items-center justify-center gap-2
                 py-3.5 rounded-2xl bg-surface text-white
                 border border-border font-semibold text-base
-                active:scale-95 transition-transform">
+                active:scale-95 transition-transform cursor-pointer">
         <i data-lucide="file-text" class="w-5 h-5"></i>
         Заявка
       </button>
@@ -200,10 +194,12 @@
               Вызвать сейчас
             </a>
             <button id="hero-request-btn"
+               type="button"
+               onclick="window.openRequestModal ? window.openRequestModal() : null"
                class="flex items-center justify-center gap-2.5
                       bg-surface hover:bg-border text-white
                       border border-border px-7 py-4 rounded-2xl font-semibold text-lg
-                      transition-colors">
+                      transition-colors cursor-pointer">
               <i data-lucide="file-text" class="w-5 h-5"></i>
               Оставить заявку
             </button>
@@ -677,9 +673,10 @@
 
   <!-- ═══ MODAL: ONLINE REQUEST ═══ -->
   <div id="modal-request"
-       class="fixed inset-0 z-[100] hidden items-center justify-center p-4
+       style="display: none; z-index: 99999;"
+       class="fixed inset-0 hidden items-center justify-center p-4
               bg-black/80 backdrop-blur-sm">
-    <div class="w-full max-w-md bg-surface border border-border rounded-3xl p-8 shadow-2xl">
+    <div class="w-full max-w-md bg-surface border border-border rounded-3xl p-8 shadow-2xl relative z-10">
       <div class="flex items-center gap-3 mb-6">
         <img src="/mascot.svg" alt="" class="w-10 h-10 object-contain" />
         <div>
@@ -717,8 +714,9 @@
         </div>
         <div class="flex gap-3 pt-1">
           <button type="button" id="close-request-modal"
+                  onclick="window.closeRequestModal ? window.closeRequestModal() : null"
                   class="flex-1 bg-border hover:bg-gray-600 text-white py-3 rounded-xl
-                         font-semibold text-sm transition-colors">
+                         font-semibold text-sm transition-colors cursor-pointer">
             Отмена
           </button>
           <button type="submit"
