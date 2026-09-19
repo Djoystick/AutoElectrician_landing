@@ -206,29 +206,160 @@ function renderHero() {
 }
 
 
-function renderServices() {
+let currentServiceCategory = 'all';
+let currentServiceSearch = '';
+
+function mapServiceCategoryKey(service) {
+  const title = (service.title || '').toLowerCase();
+  if (title.includes('диагностик') || title.includes('осциллограф') || title.includes('ошибок') || title.includes('эбу')) return 'diagnostics';
+  if (title.includes('акб') || title.includes('генератор') || title.includes('стартер') || title.includes('разряд') || title.includes('утечк') || title.includes('подогрев') || title.includes('техпомощь')) return 'start-battery';
+  if (title.includes('проводк') || title.includes('кос') || title.includes('разъем') || title.includes('блок') || title.includes('кз') || title.includes('обрыв') || title.includes('зажиган') || title.includes('бензонасос') || title.includes('датчик')) return 'wiring-blocks';
+  if (title.includes('сигнализац') || title.includes('иммо') || title.includes('секретк') || title.includes('брелок') || title.includes('метк')) return 'security-immobilizer';
+  return 'equipment-light';
+}
+
+function renderServiceFilters() {
+  const filterWrap = document.getElementById('service-filters');
+  if (!filterWrap || !DATA.services?.length) return;
+
+  const total = DATA.services.length;
+  const diagCount = DATA.services.filter(s => mapServiceCategoryKey(s) === 'diagnostics').length;
+  const startCount = DATA.services.filter(s => mapServiceCategoryKey(s) === 'start-battery').length;
+  const wireCount = DATA.services.filter(s => mapServiceCategoryKey(s) === 'wiring-blocks').length;
+  const secCount = DATA.services.filter(s => mapServiceCategoryKey(s) === 'security-immobilizer').length;
+  const equipCount = DATA.services.filter(s => mapServiceCategoryKey(s) === 'equipment-light').length;
+
+  const categories = [
+    { name: `Все (${total})`, key: 'all' },
+    { name: `Диагностика (${diagCount})`, key: 'diagnostics' },
+    { name: `Пуск & АКБ (${startCount})`, key: 'start-battery' },
+    { name: `Проводка & Блоки (${wireCount})`, key: 'wiring-blocks' },
+    { name: `Сигнализации & Иммо (${secCount})`, key: 'security-immobilizer' },
+    { name: `Свет & Комфорт (${equipCount})`, key: 'equipment-light' }
+  ];
+
+  filterWrap.innerHTML = categories.map(cat => `
+    <button type="button" class="filter-chip ${cat.key === currentServiceCategory ? 'active' : ''}" data-key="${cat.key}">
+      ${cat.name}
+    </button>
+  `).join('');
+
+  filterWrap.querySelectorAll('.filter-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      currentServiceCategory = chip.getAttribute('data-key') || 'all';
+      filterWrap.querySelectorAll('.filter-chip').forEach(c => c.classList.toggle('active', c === chip));
+      renderServicesList();
+    });
+  });
+}
+
+function renderServicesList() {
   const grid = document.getElementById('services-grid');
   if (!grid || !DATA.services?.length) return;
 
-  grid.innerHTML = DATA.services.map(s => `
-    <div class="service-card reveal
-                bg-bg border border-border rounded-3xl p-5
-                flex flex-col sm:flex-row gap-4 items-start
-                card-hover">
-      <div class="shrink-0 w-14 h-14 rounded-2xl bg-accent/10
-                  flex items-center justify-center">
-        <i data-lucide="${s.icon}" class="w-6 h-6 text-accent"></i>
+  const q = (currentServiceSearch || '').trim().toLowerCase();
+
+  const filtered = DATA.services.filter(s => {
+    const matchesCategory = (currentServiceCategory === 'all') || (mapServiceCategoryKey(s) === currentServiceCategory);
+    const matchesSearch = !q || (s.title && s.title.toLowerCase().includes(q)) || (s.description && s.description.toLowerCase().includes(q));
+    return matchesCategory && matchesSearch;
+  });
+
+  if (!filtered.length) {
+    grid.innerHTML = `
+      <div class="col-span-full py-12 text-center text-gray-400">
+        <i data-lucide="search-x" class="w-10 h-10 mx-auto mb-3 text-accent/50"></i>
+        <p class="text-base font-semibold text-white">Услуги по запросу «${currentServiceSearch}» не найдены</p>
+        <p class="text-xs text-gray-500 mt-1">Попробуйте изменить запрос или выберите категорию «Все»</p>
       </div>
-      <div>
-        <h3 class="font-bold text-white text-lg mb-2">${s.title}</h3>
-        <p class="text-gray-400 text-sm leading-relaxed mb-4">${s.description}</p>
-        <span class="inline-block bg-accent/10 text-accent
-                     font-bold text-sm px-4 py-1.5 rounded-full">
-          ${s.price}
+    `;
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      lucide.createIcons();
+    }
+    return;
+  }
+
+  grid.innerHTML = filtered.map(s => `
+    <div class="bento-card group" data-title="${s.title}">
+      <div class="flex items-start justify-between gap-3 mb-3">
+        <div class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center shrink-0">
+          <i data-lucide="${s.icon || 'wrench'}" class="w-5 h-5 text-accent"></i>
+        </div>
+        <span class="inline-block bg-[#ffb800]/15 text-[#ffb800] border border-[#ffb800]/30 font-bold text-xs px-3 py-1 rounded-full shrink-0">
+          ${s.price || 'по запросу'}
         </span>
+      </div>
+
+      <h3 class="font-bold text-white text-base leading-snug mb-1.5 group-hover:text-accent transition-colors">
+        ${s.title}
+      </h3>
+
+      <div class="flex items-center justify-between text-xs text-gray-400 mt-3 pt-2 border-t border-white/5">
+        <span class="inline-flex items-center gap-1 text-[11px] text-accent/90">
+          <i data-lucide="chevron-down" class="w-3.5 h-3.5 transition-transform duration-200 bento-arrow"></i>
+          Подробнее
+        </span>
+        <span class="text-[11px] text-gray-500">Гарантия 12 мес</span>
+      </div>
+
+      <div class="bento-details">
+        <p class="text-xs text-gray-300 leading-relaxed pt-2">
+          ${s.description || 'Выездная диагностика и устранение неисправности на месте.'}
+        </p>
+        <button type="button"
+                class="w-full mt-3 py-2.5 px-4 rounded-xl bg-accent hover:brightness-110 text-bg font-bold text-xs transition-all flex items-center justify-center gap-1.5 order-service-btn cursor-pointer">
+          <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+          Заказать эту услугу
+        </button>
       </div>
     </div>
   `).join('');
+
+  if (window.lucide && typeof window.lucide.createIcons === 'function') {
+    lucide.createIcons();
+  }
+
+  // Accordion click & Order button handler
+  grid.querySelectorAll('.bento-card').forEach(card => {
+    const orderBtn = card.querySelector('.order-service-btn');
+    const arrow = card.querySelector('.bento-arrow');
+
+    card.addEventListener('click', (e) => {
+      if (orderBtn && (e.target === orderBtn || orderBtn.contains(e.target))) return;
+      card.classList.toggle('open');
+      if (arrow) {
+        arrow.style.transform = card.classList.contains('open') ? 'rotate(180deg)' : 'none';
+      }
+    });
+
+    if (orderBtn) {
+      orderBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const serviceTitle = card.getAttribute('data-title') || 'Услуга автоэлектрика';
+        if (typeof window.openRequestModal === 'function') {
+          window.openRequestModal(`Заказ услуги: ${serviceTitle}`);
+        }
+      });
+    }
+  });
+}
+
+function renderServices() {
+  renderServiceFilters();
+  renderServicesList();
+
+  const searchInput = document.getElementById('service-search');
+  if (searchInput && !searchInput.dataset.initialized) {
+    searchInput.dataset.initialized = 'true';
+    let searchTimeout;
+    searchInput.addEventListener('input', (e) => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        currentServiceSearch = e.target.value;
+        renderServicesList();
+      }, 200);
+    });
+  }
 }
 
 function renderReviews() {
@@ -476,74 +607,139 @@ function setHref(id, href) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   EXPRESS FAULT CALCULATOR (3 STEPS)
+   INTERACTIVE DIAGNOSTIC CONFIGURATOR (4 STEPS, 2026 HUD)
 ══════════════════════════════════════════════════════════ */
 function initCalculator() {
   const step1 = document.getElementById('calc-step-1');
   const step2 = document.getElementById('calc-step-2');
-  const step3 = document.getElementById('calc-step-3');
-  const progressFill = document.getElementById('calc-progress-fill');
-  if (!step1 || !step2 || !step3) return;
+  const step3 = document.getElementById('calc-step-3-hud');
+  const step4 = document.getElementById('calc-step-4');
+  if (!step1 || !step2 || !step3 || !step4) return;
 
-  let selectedCar = 'Отечественный';
+  const stepsIndicators = document.querySelectorAll('.calc-led-step');
+
+  let selectedCar = 'Отечественный (ВАЗ, ГАЗ)';
   let carMultiplier = 1.0;
   let selectedSymptom = 'Не заводится / стартер молчит';
   let basePrice = 2000;
   let estimatedTime = '25-35 мин';
+  let zoneName = 'В пределах КАД СПб';
+  let zoneMultiplier = 1.0;
+  let zoneEta = '25-35 мин';
+  let isUrgent = false;
   let finalPrice = 2000;
 
-  // Step 1: Car Category
-  step1.querySelectorAll('.calc-opt-btn').forEach(btn => {
+  function updateSteps(activeStepIndex) {
+    stepsIndicators.forEach(st => {
+      const stepNum = parseInt(st.getAttribute('data-step'), 10);
+      st.classList.remove('active', 'completed');
+      if (stepNum === activeStepIndex) {
+        st.classList.add('active');
+      } else if (stepNum < activeStepIndex) {
+        st.classList.add('completed');
+      }
+    });
+  }
+
+  // Step 1: Car Selection
+  step1.querySelectorAll('.calc-hud-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      selectedCar = btn.getAttribute('data-val') || 'Автомобиль';
+      step1.querySelectorAll('.calc-hud-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+
+      selectedCar = btn.querySelector('.font-bold')?.textContent || 'Автомобиль';
       carMultiplier = parseFloat(btn.getAttribute('data-cost-mult')) || 1.0;
 
-      if (progressFill) progressFill.style.width = '66.66%';
+      updateSteps(2);
       step1.classList.add('hidden');
       step2.classList.remove('hidden');
     });
   });
 
-  // Step 2: Symptom
-  step2.querySelectorAll('.calc-opt-btn').forEach(btn => {
+  // Step 2: Symptom Selection
+  step2.querySelectorAll('.calc-hud-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      step2.querySelectorAll('.calc-hud-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+
       selectedSymptom = btn.getAttribute('data-symptom') || 'Неисправность';
       basePrice = parseInt(btn.getAttribute('data-base-price'), 10) || 2000;
       estimatedTime = btn.getAttribute('data-time') || '25-35 мин';
 
-      finalPrice = Math.round((basePrice * carMultiplier) / 100) * 100;
-
-      const timeEl = document.getElementById('calc-res-time');
-      const priceEl = document.getElementById('calc-res-price');
-      const descEl = document.getElementById('calc-res-desc');
-
-      if (timeEl) timeEl.textContent = `~${estimatedTime}`;
-      if (priceEl) priceEl.textContent = `от ${finalPrice.toLocaleString('ru-RU')} ₽`;
-      if (descEl) descEl.textContent = `Категория: ${selectedCar} • Поломка: ${selectedSymptom}`;
-
-      if (progressFill) progressFill.style.width = '100%';
+      updateSteps(3);
       step2.classList.add('hidden');
       step3.classList.remove('hidden');
     });
   });
 
+  // Step 3: Location Selection & Urgent toggle
+  step3.querySelectorAll('.calc-hud-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      step3.querySelectorAll('.calc-hud-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+
+      zoneName = btn.querySelector('.font-bold')?.textContent || 'В пределах КАД СПб';
+      zoneMultiplier = parseFloat(btn.getAttribute('data-zone-mult')) || 1.0;
+      zoneEta = btn.getAttribute('data-zone-eta') || '25-35 мин';
+    });
+  });
+
+  // Default select first zone in step 3
+  const firstZoneBtn = step3.querySelector('.calc-hud-btn');
+  if (firstZoneBtn) firstZoneBtn.classList.add('selected');
+
+  // Urgent toggle
+  const urgentToggle = document.getElementById('calc-urgent-toggle');
+  if (urgentToggle) {
+    urgentToggle.addEventListener('change', (e) => {
+      isUrgent = e.target.checked;
+    });
+  }
+
+  // Calculate button (Step 3 -> Step 4)
+  document.getElementById('calc-to-result')?.addEventListener('click', () => {
+    const urgentMultiplier = isUrgent ? 1.25 : 1.0;
+    finalPrice = Math.round((basePrice * carMultiplier * zoneMultiplier * urgentMultiplier) / 100) * 100;
+    
+    const finalEta = isUrgent ? '15–20 мин (Экстренно)' : zoneEta;
+
+    const timeEl = document.getElementById('calc-res-time');
+    const priceEl = document.getElementById('calc-res-price');
+    const descEl = document.getElementById('calc-res-desc');
+
+    if (timeEl) timeEl.textContent = `~${finalEta}`;
+    if (priceEl) priceEl.textContent = `от ${finalPrice.toLocaleString('ru-RU')} ₽`;
+    if (descEl) descEl.textContent = `Авто: ${selectedCar} • Поломка: ${selectedSymptom} • Локация: ${zoneName} ${isUrgent ? '(Экстренный выезд)' : ''}`;
+
+    updateSteps(4);
+    step3.classList.add('hidden');
+    step4.classList.remove('hidden');
+  });
+
   // Back button (Step 2 -> Step 1)
   document.getElementById('calc-back-1')?.addEventListener('click', () => {
-    if (progressFill) progressFill.style.width = '33.33%';
+    updateSteps(1);
     step2.classList.add('hidden');
     step1.classList.remove('hidden');
   });
 
-  // Restart button (Step 3 -> Step 1)
-  document.getElementById('calc-restart-btn')?.addEventListener('click', () => {
-    if (progressFill) progressFill.style.width = '33.33%';
+  // Back button (Step 3 -> Step 2)
+  document.getElementById('calc-back-2')?.addEventListener('click', () => {
+    updateSteps(2);
     step3.classList.add('hidden');
+    step2.classList.remove('hidden');
+  });
+
+  // Restart button (Step 4 -> Step 1)
+  document.getElementById('calc-restart-btn')?.addEventListener('click', () => {
+    updateSteps(1);
+    step4.classList.add('hidden');
     step1.classList.remove('hidden');
   });
 
-  // Apply button (Step 3 -> Open Request Modal with filled problem text)
+  // Apply button (Step 4 -> Open Request Modal with filled telemetry summary)
   document.getElementById('calc-apply-btn')?.addEventListener('click', () => {
-    const summary = `[Экспресс-калькулятор]\nКатегория авто: ${selectedCar}\nНеисправность: ${selectedSymptom}\nПредварительно: от ${finalPrice} ₽ (~${estimatedTime})`;
+    const summary = `[Бортовой конфигуратор]\nАвто: ${selectedCar}\nПоломка: ${selectedSymptom}\nЛокация: ${zoneName}\nСрочность: ${isUrgent ? 'Экстренный вызов (15-20 мин)' : 'Штатный'}\nРасчет: от ${finalPrice} ₽`;
     if (typeof window.openRequestModal === 'function') {
       window.openRequestModal(summary);
     }

@@ -44,7 +44,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
 
   <!-- Custom CSS -->
-  <link rel="stylesheet" href="/css/style.css" />
+  <link rel="stylesheet" href="/css/style.css?v=2.0.0" />
 
   <!-- Lucide (via reliable jsdelivr CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
@@ -142,32 +142,27 @@
        HERO
   ───────────────────────────────────────────── -->
   <section id="hero"
-           class="relative min-h-screen flex items-center pt-16 pb-16 md:pb-12 overflow-hidden">
+  <!-- ─────────────────────────────────────────────
+       HERO (2026 CYBER-HUD EDITION - ZERO RASTER IMAGES)
+  ───────────────────────────────────────────── -->
+  <section id="hero"
+           class="relative min-h-screen flex items-center pt-24 pb-16 md:pb-20 overflow-hidden bg-[#07090e]">
 
-    <!-- Background image with overlay -->
-    <div class="absolute inset-0 z-0">
-      <img
-        src="https://images.unsplash.com/photo-1599361885446-a2c2b5a4d6e5?auto=format&fit=crop&w=1920&q=80"
-        alt=""
-        class="w-full h-full object-cover opacity-20"
-      />
-      <div class="absolute inset-0
-                  bg-gradient-to-b from-bg/60 via-bg/80 to-bg"></div>
-    </div>
+    <!-- Pure SVG/CSS Cyber Grid Canvas (LCP < 200ms, 0 raster images) -->
+    <div class="hero-hud-bg"></div>
+    <div class="absolute inset-0 bg-gradient-to-b from-[#07090e]/40 via-[#07090e]/80 to-[#07090e] pointer-events-none"></div>
 
-    <!-- Decorative glow blobs -->
-    <div class="absolute top-1/4 right-0 w-96 h-96 rounded-full
-                bg-accent/10 blur-[120px] pointer-events-none"></div>
-    <div class="absolute bottom-0 left-1/4 w-64 h-64 rounded-full
-                bg-accent/5 blur-[80px] pointer-events-none"></div>
+    <!-- Decorative subtle neon glows -->
+    <div class="absolute top-1/4 right-10 w-96 h-96 rounded-full bg-accent/10 blur-[130px] pointer-events-none"></div>
+    <div class="absolute bottom-10 left-10 w-80 h-80 rounded-full bg-[#ffb800]/5 blur-[100px] pointer-events-none"></div>
 
     <div class="container mx-auto px-5 lg:px-10 max-w-6xl relative z-10">
-      <div class="grid lg:grid-cols-2 gap-10 items-center">
+      <div class="grid lg:grid-cols-12 gap-10 items-center">
 
-        <!-- LEFT: text content -->
-        <div>
+        <!-- LEFT (Cols 1-7): HUD Main Console -->
+        <div class="lg:col-span-7">
           <!-- Online / Live Status Badge with Radar Pulse -->
-          <div id="hero-status-wrap" class="status-wrap mb-7">
+          <div id="hero-status-wrap" class="status-wrap mb-6">
             <div id="hero-badge" class="status-indicator free" role="status" aria-live="polite">
               <span class="status-icon" aria-hidden="true"></span>
               <span id="hero-accepting-text" class="status-text font-semibold">🟢 Свободен — выезд за ~25 мин</span>
@@ -177,22 +172,23 @@
 
           <!-- Title -->
           <h1 id="hero-title"
-              class="font-black text-4xl sm:text-5xl lg:text-6xl
-                     text-white leading-[1.05] mb-5 uppercase">
+              class="font-black text-4xl sm:text-5xl lg:text-6xl text-white leading-[1.08] mb-5 uppercase tracking-tight">
+            Автоэлектрик <span class="text-accent">с выездом</span>
           </h1>
 
           <!-- Subtitle -->
           <p id="hero-subtitle"
-             class="text-gray-300 text-lg leading-relaxed mb-9 max-w-xl">
+             class="text-gray-300 text-base sm:text-lg leading-relaxed mb-8 max-w-xl">
+            Компьютерная диагностика и ремонт бортовой электрики у вашей машины в СПб и ЛО. Без эвакуаторов и очередей.
           </p>
 
-          <!-- CTA buttons -->
-          <div id="hero-btns" class="flex flex-col sm:flex-row gap-3">
+          <!-- Fast CTA buttons -->
+          <div id="hero-btns" class="flex flex-col sm:flex-row gap-3.5 mb-9">
             <a id="hero-call-btn" href="tel:+79991234567"
                class="flex items-center justify-center gap-2.5
                       bg-accent hover:brightness-110 text-bg
                       px-7 py-4 rounded-2xl font-bold text-lg
-                      transition-all accent-glow">
+                      transition-all accent-glow active:scale-98">
               <i data-lucide="phone-call" class="w-5 h-5"></i>
               Вызвать сейчас
             </a>
@@ -200,121 +196,169 @@
                type="button"
                onclick="window.openRequestModal ? window.openRequestModal() : null"
                class="flex items-center justify-center gap-2.5
-                      bg-surface hover:bg-border text-white
-                      border border-border px-7 py-4 rounded-2xl font-semibold text-lg
-                      transition-colors cursor-pointer">
-              <i data-lucide="file-text" class="w-5 h-5"></i>
+                      bg-[#141822]/80 hover:bg-[#1C2130] text-white
+                      border border-white/15 px-7 py-4 rounded-2xl font-semibold text-lg
+                      transition-colors cursor-pointer active:scale-98">
+              <i data-lucide="file-text" class="w-5 h-5 text-accent"></i>
               Оставить заявку
             </button>
           </div>
 
           <!-- Trust strip -->
-          <div class="flex flex-wrap gap-5 mt-9 text-sm text-gray-400">
-            <div class="flex items-center gap-2">
+          <div class="flex flex-wrap gap-4 text-xs sm:text-sm text-gray-400">
+            <div class="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
               <i data-lucide="clock" class="w-4 h-4 text-accent shrink-0"></i>
-              Приезжаю за 30–60 мин
+              <span>Выезд от 30 мин</span>
             </div>
-            <div class="flex items-center gap-2">
-              <i data-lucide="shield-check" class="w-4 h-4 text-accent shrink-0"></i>
-              Гарантия на работы
+            <div class="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+              <i data-lucide="shield-check" class="w-4 h-4 text-[#ffb800] shrink-0"></i>
+              <span>Гарантия 12 мес</span>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
               <i data-lucide="map-pin" class="w-4 h-4 text-accent shrink-0"></i>
-              <span id="hero-city">Выезд по городу и области</span>
+              <span id="hero-city">СПб и область до 50 км</span>
             </div>
           </div>
         </div>
 
-        <!-- RIGHT: Mascot + floating bubbles -->
-        <div class="relative hidden lg:flex items-center justify-center">
-          <!-- Mascot -->
-          <img src="/mascot.svg" alt="Электрон — помощник AutoElectro"
-               class="w-64 h-auto object-contain
-                      mascot-float z-10 relative" />
+        <!-- RIGHT (Cols 8-12): High-Tech HUD Console & Mascot -->
+        <div class="lg:col-span-5 relative flex flex-col items-center justify-center">
+          <div class="cyber-card rounded-3xl p-6 w-full max-w-md relative overflow-hidden">
+            <!-- HUD Scanner top bar -->
+            <div class="flex items-center justify-between border-b border-white/10 pb-4 mb-5">
+              <div class="flex items-center gap-3">
+                <!-- Radar Scanner -->
+                <div class="radar-scanner">
+                  <svg viewBox="0 0 90 90" class="radar-ring-svg">
+                    <circle cx="45" cy="45" r="40" class="radar-circle"></circle>
+                    <circle cx="45" cy="45" r="24" class="radar-circle"></circle>
+                    <line x1="45" y1="5" x2="45" y2="85" class="radar-line"></line>
+                  </svg>
+                  <div class="radar-core-pulse"></div>
+                </div>
+                <div>
+                  <span class="text-[11px] font-mono text-accent uppercase tracking-wider block">TELEMETRY ONLINE</span>
+                  <span class="text-sm font-bold text-white">Выездная лаборатория</span>
+                </div>
+              </div>
+              <span class="text-xs text-gray-400 bg-white/5 border border-white/10 px-2.5 py-1 rounded-lg">24/7</span>
+            </div>
 
-          <!-- Floating bubbles -->
-          <!-- Bubble 1 removed (duplicate text) -->
+            <!-- Key HUD metrics -->
+            <div class="grid grid-cols-2 gap-3 mb-5 text-left">
+              <div class="bg-black/30 border border-white/10 rounded-xl p-3">
+                <span class="text-xs text-gray-400 block">Опыт мастера</span>
+                <span class="text-xl font-black text-white">12+ лет</span>
+              </div>
+              <div class="bg-black/30 border border-white/10 rounded-xl p-3">
+                <span class="text-xs text-gray-400 block">Запущенных авто</span>
+                <span class="text-xl font-black text-accent">3 500+</span>
+              </div>
+              <div class="bg-black/30 border border-white/10 rounded-xl p-3">
+                <span class="text-xs text-gray-400 block">Диагностика</span>
+                <span id="hero-bubble-price" class="text-xl font-black text-[#ffb800]">от 800 ₽</span>
+              </div>
+              <div class="bg-black/30 border border-white/10 rounded-xl p-3">
+                <span class="text-xs text-gray-400 block">Оборудование</span>
+                <span class="text-sm font-black text-white">Дилерские OEM</span>
+              </div>
+            </div>
 
-          <div class="bubble-2 absolute bottom-12 right-0
-                      bg-surface border border-border px-3 py-1.5 rounded-full
-                      flex items-center gap-2 shadow-xl text-sm font-semibold text-white">
-            <span class="text-2xl">🛡️</span>
-            <div>
-              <div class="text-xs text-gray-400 font-normal">Гарантия</div>
-              <div>на все работы</div>
+            <!-- Mascot integration inside HUD Card -->
+            <div class="flex items-center gap-3.5 bg-accent/5 border border-accent/20 rounded-2xl p-3">
+              <img src="/mascot.svg" alt="Электрон" class="w-12 h-12 object-contain mascot-float shrink-0" />
+              <div>
+                <span class="text-xs font-bold text-white block">Помощник Электрон</span>
+                <span class="text-[11px] text-gray-400 leading-tight block">Готов рассчитать поломку за 1 минуту</span>
+              </div>
             </div>
           </div>
-
-          <div class="bubble-3 absolute bottom-32 left-0
-                      bg-surface border border-border px-3 py-1.5 rounded-full
-                      flex items-center gap-2 shadow-xl text-sm font-semibold text-white">
-            <span class="text-2xl">🔍</span>
-            <div>
-              <div class="text-xs text-gray-400 font-normal">Диагностика</div>
-              <div id="hero-bubble-price" class="text-accent">0 ₽</div>
-            </div>
-          </div>
-
-          <!-- Glow under mascot -->
-          <div class="absolute bottom-0 w-64 h-16 bg-accent/20 blur-3xl rounded-full"></div>
         </div>
 
       </div>
     </div>
 
     <!-- Scroll hint (desktop) -->
-    <a href="#how"
-       class="absolute bottom-8 left-1/2 -translate-x-1/2
-              hidden md:flex flex-col items-center gap-2
+    <a href="#calculator"
+       class="absolute bottom-6 left-1/2 -translate-x-1/2
+              hidden md:flex flex-col items-center gap-1.5
               text-gray-500 hover:text-accent transition-colors animate-bounce">
-      <span class="text-xs uppercase tracking-widest">Прокрутите</span>
-      <i data-lucide="chevrons-down" class="w-5 h-5"></i>
+      <span class="text-[10px] uppercase tracking-widest">Конфигуратор поломки</span>
+      <i data-lucide="chevrons-down" class="w-4 h-4"></i>
     </a>
   </section>
 
   <!-- ─────────────────────────────────────────────
-       EXPRESS FAULT CALCULATOR (3 шага)
+       INTERACTIVE DIAGNOSTIC CONFIGURATOR (2026 HUD EDITION)
   ───────────────────────────────────────────── -->
-  <section id="calculator" class="py-12 bg-surface/30 border-y border-border relative overflow-hidden">
+  <section id="calculator" class="py-14 bg-[#0a0d14] border-y border-white/10 relative overflow-hidden">
     <div class="container mx-auto px-5 lg:px-10 max-w-4xl relative z-10">
+      
       <div class="text-center mb-8 reveal">
-        <span class="text-accent text-xs font-bold uppercase tracking-widest bg-accent/10 px-3 py-1 rounded-full border border-accent/20">
-          Быстрый подбор решения
+        <span class="text-accent text-xs font-mono font-bold uppercase tracking-widest bg-accent/10 px-3.5 py-1.5 rounded-full border border-accent/25 inline-flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-accent animate-ping"></span>
+          DIGITAL DIAGNOSTIC CONFIGURATOR
         </span>
         <h2 class="font-black text-2xl sm:text-3xl lg:text-4xl text-white uppercase mt-3">
-          Экспресс-калькулятор неисправностей
+          Экспресс-конфигуратор неисправности
         </h2>
-        <p class="text-gray-400 text-sm mt-2">Узнайте ориентировочное время прибытия и стоимость работ за 3 клика</p>
+        <p class="text-gray-400 text-sm mt-2 max-w-xl mx-auto">
+          Бортовая оценка характера поломки, стоимости работ и времени выезда мастера за 4 клика
+        </p>
       </div>
 
-      <!-- Card container -->
-      <div class="calc-card bg-surface border border-border rounded-3xl p-6 sm:p-8 shadow-2xl relative">
-        <!-- Progress bar -->
-        <div class="calc-progress-bar mb-6 bg-bg/80 h-2 rounded-full overflow-hidden border border-border">
-          <div id="calc-progress-fill" class="h-full bg-accent transition-all duration-300 rounded-full" style="width: 33.33%"></div>
-        </div>
+      <!-- Configurator Panel (Cyber HUD Card) -->
+      <div class="cyber-card rounded-3xl p-6 sm:p-9 shadow-2xl relative">
+        <!-- LED Step Progress -->
+        <ol class="calc-led-steps">
+          <li class="calc-led-step active" data-step="1">01 АВТО</li>
+          <li class="calc-led-step" data-step="2">02 СИМПТОМ</li>
+          <li class="calc-led-step" data-step="3">03 ЛОКАЦИЯ</li>
+          <li class="calc-led-step" data-step="4">04 РАСЧЕТ</li>
+        </ol>
 
-        <!-- STEP 1: CAR TYPE -->
+        <!-- STEP 1: CAR CATEGORY -->
         <div id="calc-step-1" class="calc-step">
           <h3 class="text-white font-bold text-lg mb-4 flex items-center gap-2">
             <span class="w-6 h-6 rounded-full bg-accent text-bg text-xs font-black flex items-center justify-center">1</span>
-            Выберите категорию автомобиля:
+            Категория автомобиля:
           </h3>
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <button type="button" class="calc-opt-btn text-left" data-step="1" data-val="отечественный" data-cost-mult="1.0">
-              <span class="text-2xl mb-1 block">🚗</span>
-              <span class="font-bold text-white text-sm block">Отечественный</span>
-              <span class="text-xs text-gray-400">ВАЗ, ГАЗ, УАЗ</span>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <button type="button" class="calc-hud-btn" data-step="1" data-val="отечественный" data-cost-mult="1.0">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">🚗</span>
+                <div>
+                  <span class="font-bold text-white text-sm block">Отечественный</span>
+                  <span class="text-xs text-gray-400">ВАЗ, ГАЗ, УАЗ, LADA</span>
+                </div>
+              </div>
             </button>
-            <button type="button" class="calc-opt-btn text-left" data-step="1" data-val="иномарка до 2015" data-cost-mult="1.15">
-              <span class="text-2xl mb-1 block">🚙</span>
-              <span class="font-bold text-white text-sm block">Иномарка до 2015</span>
-              <span class="text-xs text-gray-400">Европа, Корея, Япония</span>
+            <button type="button" class="calc-hud-btn" data-step="1" data-val="иномарка до 2016" data-cost-mult="1.15">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">🚙</span>
+                <div>
+                  <span class="font-bold text-white text-sm block">Иномарка до 2016</span>
+                  <span class="text-xs text-gray-400">Европа, Корея, Япония</span>
+                </div>
+              </div>
             </button>
-            <button type="button" class="calc-opt-btn text-left" data-step="1" data-val="современная иномарка" data-cost-mult="1.3">
-              <span class="text-2xl mb-1 block">🏎️</span>
-              <span class="font-bold text-white text-sm block">Свежая иномарка / Премиум</span>
-              <span class="text-xs text-gray-400">С 2016 г., VAG, BMW, Mercedes</span>
+            <button type="button" class="calc-hud-btn" data-step="1" data-val="свежая иномарка" data-cost-mult="1.3">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">🏎️</span>
+                <div>
+                  <span class="font-bold text-white text-sm block">Свежая иномарка / Премиум</span>
+                  <span class="text-xs text-gray-400">С 2016 г., VAG, BMW, Mercedes, LiXiang/Geely</span>
+                </div>
+              </div>
+            </button>
+            <button type="button" class="calc-hud-btn" data-step="1" data-val="коммерческий" data-cost-mult="1.25">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">🚐</span>
+                <div>
+                  <span class="font-bold text-white text-sm block">Коммерческий транспорт</span>
+                  <span class="text-xs text-gray-400">Газель, Transit, Sprinter, микроавтобусы</span>
+                </div>
+              </div>
             </button>
           </div>
         </div>
@@ -323,96 +367,158 @@
         <div id="calc-step-2" class="calc-step hidden">
           <h3 class="text-white font-bold text-lg mb-4 flex items-center gap-2">
             <span class="w-6 h-6 rounded-full bg-accent text-bg text-xs font-black flex items-center justify-center">2</span>
-            Что произошло с автомобилем?
+            Что произошло с машиной?
           </h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button type="button" class="calc-opt-btn text-left" data-step="2" data-symptom="Не заводится / стартер молчит" data-base-price="2000" data-time="25-35 мин">
+            <button type="button" class="calc-hud-btn" data-step="2" data-symptom="Не заводится / стартер молчит" data-base-price="2000" data-time="25-35 мин">
               <div class="flex items-center gap-3">
                 <span class="text-2xl">⚡</span>
                 <div>
                   <span class="font-bold text-white text-sm block">Не заводится / стартер</span>
-                  <span class="text-xs text-gray-400">Молчит, щелкает, не крутит</span>
+                  <span class="text-xs text-gray-400">Щелкает, не крутит, тишина в замке</span>
                 </div>
               </div>
             </button>
-            <button type="button" class="calc-opt-btn text-left" data-step="2" data-symptom="Сел аккумулятор / нет зарядки" data-base-price="1800" data-time="20-30 мин">
+            <button type="button" class="calc-hud-btn" data-step="2" data-symptom="Сел аккумулятор / нет зарядки" data-base-price="1800" data-time="20-30 мин">
               <div class="flex items-center gap-3">
                 <span class="text-2xl">🔋</span>
                 <div>
                   <span class="font-bold text-white text-sm block">АКБ / Генератор</span>
-                  <span class="text-xs text-gray-400">Сел аккумулятор, горит лампа АКБ</span>
+                  <span class="text-xs text-gray-400">Сел аккумулятор, лампа АКБ, утечка тока</span>
                 </div>
               </div>
             </button>
-            <button type="button" class="calc-opt-btn text-left" data-step="2" data-symptom="Заблокирована сигнализация / иммо" data-base-price="2500" data-time="30-40 мин">
+            <button type="button" class="calc-hud-btn" data-step="2" data-symptom="Заблокирована сигнализация / иммо" data-base-price="2500" data-time="30-40 мин">
               <div class="flex items-center gap-3">
                 <span class="text-2xl">🚨</span>
                 <div>
                   <span class="font-bold text-white text-sm block">Сигнализация / Иммо</span>
-                  <span class="text-xs text-gray-400">Блокирует запуск, орёт, не видит брелок</span>
+                  <span class="text-xs text-gray-400">Блокирует запуск, орёт, не видит метку</span>
                 </div>
               </div>
             </button>
-            <button type="button" class="calc-opt-btn text-left" data-step="2" data-symptom="Короткое замыкание / запах гари" data-base-price="2500" data-time="25-35 мин">
+            <button type="button" class="calc-hud-btn" data-step="2" data-symptom="Короткое замыкание / запах гари" data-base-price="2500" data-time="25-35 мин">
               <div class="flex items-center gap-3">
                 <span class="text-2xl">💨</span>
                 <div>
                   <span class="font-bold text-white text-sm block">Замыкание / проводка</span>
-                  <span class="text-xs text-gray-400">Искрит, горит предохранитель, запах гари</span>
+                  <span class="text-xs text-gray-400">Искрит, горит предохранитель, оплавление</span>
                 </div>
               </div>
             </button>
-            <button type="button" class="calc-opt-btn text-left sm:col-span-2" data-step="2" data-symptom="Компьютерная диагностика / Check Engine" data-base-price="1500" data-time="25-35 мин">
+            <button type="button" class="calc-hud-btn" data-step="2" data-symptom="Компьютерная диагностика / Check Engine" data-base-price="1500" data-time="25-35 мин">
               <div class="flex items-center gap-3">
                 <span class="text-2xl">💻</span>
                 <div>
-                  <span class="font-bold text-white text-sm block">Компьютерная диагностика ошибок</span>
-                  <span class="text-xs text-gray-400">Горит чек, плавают обороты, ошибки блоков управления</span>
+                  <span class="font-bold text-white text-sm block">Горит Check Engine / ошибки</span>
+                  <span class="text-xs text-gray-400">Троит, пропала тяга, ошибки блоков ЭБУ</span>
+                </div>
+              </div>
+            </button>
+            <button type="button" class="calc-hud-btn" data-step="2" data-symptom="Оборудование / Свет / Печка" data-base-price="1800" data-time="25-40 мин">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">💡</span>
+                <div>
+                  <span class="font-bold text-white text-sm block">Свет / Печка / Стеклоподъемник</span>
+                  <span class="text-xs text-gray-400">Не горят фары, не дует печка, сбой комфорта</span>
                 </div>
               </div>
             </button>
           </div>
-          <button type="button" id="calc-back-1" class="text-xs text-gray-400 hover:text-accent mt-4 inline-flex items-center gap-1">
-            ← Назад к выбору авто
+          <button type="button" id="calc-back-1" class="text-xs text-gray-400 hover:text-accent mt-4 inline-flex items-center gap-1 cursor-pointer">
+            ← Назад к выбору категории авто
           </button>
         </div>
 
-        <!-- STEP 3: RESULT & CTA -->
-        <div id="calc-step-3" class="calc-step hidden">
-          <div class="bg-bg/90 border border-accent/30 rounded-2xl p-5 mb-5 text-center">
-            <span class="text-xs text-accent font-bold uppercase tracking-wider block mb-1">Предварительный расчет</span>
-            <div class="flex flex-col sm:flex-row items-center justify-center gap-6 my-3">
-              <div>
-                <span class="text-xs text-gray-400 block">Ориентир прибытия:</span>
-                <span id="calc-res-time" class="text-xl font-black text-white">~25-35 мин</span>
+        <!-- STEP 3: LOCATION & URGENCY -->
+        <div id="calc-step-3-hud" class="calc-step hidden">
+          <h3 class="text-white font-bold text-lg mb-4 flex items-center gap-2">
+            <span class="w-6 h-6 rounded-full bg-accent text-bg text-xs font-black flex items-center justify-center">3</span>
+            Где находится автомобиль?
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+            <button type="button" class="calc-hud-btn" data-step="3" data-zone="kad" data-zone-mult="1.0" data-zone-eta="25-35 мин">
+              <div class="text-center py-2">
+                <span class="text-2xl block mb-1">📍</span>
+                <span class="font-bold text-white text-sm block">В пределах КАД СПб</span>
+                <span class="text-xs text-gray-400">Быстрый выезд</span>
               </div>
-              <div class="hidden sm:block w-px h-10 bg-border"></div>
-              <div>
-                <span class="text-xs text-gray-400 block">Ориентировочная стоимость:</span>
-                <span id="calc-res-price" class="text-2xl font-black text-accent">от 1 800 ₽</span>
+            </button>
+            <button type="button" class="calc-hud-btn" data-step="3" data-zone="suburb" data-zone-mult="1.2" data-zone-eta="40-60 мин">
+              <div class="text-center py-2">
+                <span class="text-2xl block mb-1">🌲</span>
+                <span class="font-bold text-white text-sm block">До 20 км от КАД</span>
+                <span class="text-xs text-gray-400">Пригород / Пушкин / Мурино / Петергоф</span>
+              </div>
+            </button>
+            <button type="button" class="calc-hud-btn" data-step="3" data-zone="highway" data-zone-mult="1.35" data-zone-eta="50-80 мин">
+              <div class="text-center py-2">
+                <span class="text-2xl block mb-1">🛣️</span>
+                <span class="font-bold text-white text-sm block">Дальше 20 км / Трасса</span>
+                <span class="text-xs text-gray-400">Ленобласть / Трассы М10, М11, Скандинавия</span>
+              </div>
+            </button>
+          </div>
+
+          <!-- Urgency priority switch -->
+          <div class="bg-black/30 border border-white/10 rounded-2xl p-4 flex items-center justify-between mb-4">
+            <div>
+              <span class="text-sm font-bold text-white block">Экстренный выезд мастера</span>
+              <span class="text-xs text-gray-400">Приоритет в очереди, немедленный старт (15–20 мин)</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="calc-urgent-toggle" class="sr-only peer">
+              <div class="w-11 h-6 bg-white/20 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent"></div>
+            </label>
+          </div>
+
+          <div class="flex items-center justify-between mt-4">
+            <button type="button" id="calc-back-2" class="text-xs text-gray-400 hover:text-accent inline-flex items-center gap-1 cursor-pointer">
+              ← Назад к симптому
+            </button>
+            <button type="button" id="calc-to-result" class="py-2.5 px-6 rounded-xl bg-accent text-bg font-bold text-sm hover:brightness-110 transition-all cursor-pointer">
+              Рассчитать результат →
+            </button>
+          </div>
+        </div>
+
+        <!-- STEP 4: RESULT & ACTIONS -->
+        <div id="calc-step-4" class="calc-step hidden">
+          <div class="bg-black/40 border border-accent/30 rounded-2xl p-6 mb-6 text-center">
+            <span class="text-xs text-accent font-mono uppercase tracking-wider block mb-2">РЕЗУЛЬТАТ ТЕЛЕМЕТРИИ</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 my-4">
+              <div class="bg-white/5 border border-white/10 rounded-xl p-4">
+                <span class="text-xs text-gray-400 block mb-1">Ориентир прибытия:</span>
+                <span id="calc-res-time" class="text-2xl font-black text-white">~25-35 мин</span>
+              </div>
+              <div class="bg-white/5 border border-accent/20 rounded-xl p-4">
+                <span class="text-xs text-gray-400 block mb-1">Ориентировочная стоимость:</span>
+                <span id="calc-res-price" class="text-3xl font-black text-accent">от 1 800 ₽</span>
               </div>
             </div>
             <p id="calc-res-desc" class="text-xs text-gray-300 max-w-md mx-auto"></p>
           </div>
 
           <div class="flex flex-col sm:flex-row gap-3">
-            <button type="button" id="calc-apply-btn" class="flex-1 py-3.5 px-6 rounded-2xl bg-accent hover:brightness-110 text-bg font-bold text-base transition-all flex items-center justify-center gap-2 accent-glow">
-              <i data-lucide="send" class="w-4 h-4"></i>
-              Вызвать мастера с этими данными
+            <button type="button" id="calc-apply-btn" class="flex-1 py-4 px-6 rounded-2xl bg-accent hover:brightness-110 text-bg font-bold text-base transition-all flex items-center justify-center gap-2 accent-glow cursor-pointer active:scale-98">
+              <i data-lucide="send" class="w-5 h-5"></i>
+              Вызвать мастера по этой конфигурации
             </button>
-            <a id="calc-call-btn" href="tel:+79991234567" class="py-3.5 px-6 rounded-2xl bg-surface hover:bg-border text-white border border-border font-semibold text-base transition-colors flex items-center justify-center gap-2">
-              <i data-lucide="phone-call" class="w-4 h-4 text-accent"></i>
+            <a id="calc-call-btn" href="tel:+79991234567" class="py-4 px-6 rounded-2xl bg-white/5 hover:bg-white/10 text-white border border-white/15 font-semibold text-base transition-colors flex items-center justify-center gap-2 active:scale-98">
+              <i data-lucide="phone-call" class="w-5 h-5 text-accent"></i>
               Срочный звонок
             </a>
           </div>
 
-          <button type="button" id="calc-restart-btn" class="text-xs text-gray-400 hover:text-accent mt-4 inline-flex items-center gap-1">
+          <button type="button" id="calc-restart-btn" class="text-xs text-gray-400 hover:text-accent mt-5 inline-flex items-center gap-1 cursor-pointer">
             ↺ Пересчитать заново
           </button>
         </div>
+
       </div>
     </div>
   </section>
+
 
   <!-- ─────────────────────────────────────────────
        HOW IT WORKS
@@ -503,35 +609,58 @@
   <!-- ─────────────────────────────────────────────
        SERVICES
   ───────────────────────────────────────────── -->
-  <section id="services" class="py-10 md:py-16 bg-surface">
+  <section id="services" class="py-12 md:py-20 bg-[#07090e] border-t border-white/10 relative">
     <div class="container mx-auto px-5 lg:px-10 max-w-6xl">
 
-      <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12 reveal">
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 reveal">
         <div>
-          <p class="text-accent text-sm font-semibold uppercase tracking-widest mb-3">
-            Чем могу помочь
-          </p>
-          <h2 class="font-black text-3xl sm:text-4xl lg:text-5xl text-white uppercase">
+          <span class="text-accent text-xs font-mono font-bold uppercase tracking-widest bg-accent/10 px-3 py-1 rounded-full border border-accent/20 inline-block mb-3">
+            CATALOG 22 SERVICES
+          </span>
+          <h2 class="font-black text-3xl sm:text-4xl lg:text-5xl text-white uppercase tracking-tight">
             Услуги и цены
           </h2>
+          <p class="text-gray-400 text-sm mt-2 max-w-lg">
+            Компактный каталог работ с фиксированными базовыми ценами и гарантией 12 месяцев.
+          </p>
         </div>
         <a id="services-call-btn" href="tel:+79991234567"
-           class="shrink-0 flex items-center gap-2
+           class="shrink-0 flex items-center justify-center gap-2
                   bg-accent hover:brightness-110 text-bg
-                  px-6 py-3 rounded-xl font-bold text-sm
-                  transition-all">
+                  px-6 py-3.5 rounded-2xl font-bold text-sm
+                  transition-all accent-glow active:scale-98">
           <i data-lucide="phone" class="w-4 h-4"></i>
           Вызвать мастера
         </a>
       </div>
 
-      <!-- Grid populated by JS -->
-      <div id="services-grid"
-           class="grid md:grid-cols-2 gap-5">
+      <!-- HUD Search & Live Filters Bar (No clipped tabs, neat wrap) -->
+      <div class="mb-8 flex flex-col items-center gap-4">
+        <!-- Search bar -->
+        <div class="relative w-full max-w-md">
+          <i data-lucide="search" class="w-4 h-4 text-accent absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+          <input
+            type="text"
+            id="service-search"
+            class="service-search-input"
+            placeholder="Поиск по 22 услугам (например, стартер, АКБ, чек)..."
+            autocomplete="off"
+            aria-label="Поиск услуги"
+          />
+        </div>
+
+        <!-- Filter chips (Never overflow, wrap naturally) -->
+        <div id="service-filters" class="service-filter-chips" role="group" aria-label="Фильтры услуг">
+          <!-- Dynamically populated by JS with category counts -->
+        </div>
       </div>
 
-      <p class="text-center text-gray-500 text-sm mt-8 reveal">
-        * Точная стоимость — после диагностики. Диагностика бесплатна при выполнении ремонта.
+      <!-- Bento-Grid populated by JS (Compact cards, no mattress layout) -->
+      <div id="services-grid" class="bento-grid">
+      </div>
+
+      <p class="text-center text-gray-500 text-xs sm:text-sm mt-10 reveal">
+        * Точная стоимость определяется после диагностики. Диагностика бесплатна при согласии на ремонт.
       </p>
     </div>
   </section>
@@ -799,8 +928,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-  <script src="/js/main.js?v=1.4.3"></script>
-  <script src="/js/mascot.js?v=1.4.3"></script>
-  <script src="/js/perf-widget.js?v=1.4.3" defer></script>
+  <script src="/js/main.js?v=2.0.0"></script>
+  <script src="/js/mascot.js?v=2.0.0"></script>
+  <script src="/js/perf-widget.js?v=2.0.0" defer></script>
 </body>
 </html>

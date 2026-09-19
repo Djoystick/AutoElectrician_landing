@@ -9,5 +9,4 @@ public/uploads/
 run_agents*.py
 openrouter_agent_*.md
 agent_code_outputs/
-
-
+scripts/
