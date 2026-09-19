@@ -698,28 +698,42 @@ app.post('/api/telegram-webhook', async (req, res) => {
 
 
 /* ── Init bot on startup & ensure webhook is set on Vercel ── */
+/* NOTE: Wrapped in 3s timeout — Telegram API unreachable from some Vercel DCs */
 (async () => {
   try {
-    const bot = await getBot();
+    const bot = await Promise.race([
+      getBot(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('getBot timeout')), 3000))
+    ]);
     if (bot && process.env.VERCEL && cachedToken) {
       // Always re-set webhook on cold start — it gets reset on redeploy
       const webhookUrl = 'https://auto-electrician-landing.vercel.app/api/telegram-webhook';
-      const r = await fetch(
-        `https://api.telegram.org/bot${cachedToken}/setWebhook`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: webhookUrl, drop_pending_updates: false, allowed_updates: ['message'] })
-        }
-      );
-      const result = await r.json();
-      addLog(`[TG] Webhook set on cold start: ${JSON.stringify(result)}`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      try {
+        const r = await fetch(
+          `https://api.telegram.org/bot${cachedToken}/setWebhook`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: webhookUrl, drop_pending_updates: false, allowed_updates: ['message'] }),
+            signal: controller.signal
+          }
+        );
+        clearTimeout(timeoutId);
+        const result = await r.json();
+        addLog(`[TG] Webhook set on cold start: ${JSON.stringify(result)}`);
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        addLog(`[TG] Webhook fetch failed (timeout/network): ${fetchErr.message}`);
+      }
     }
   } catch (err) {
-    addLog(`[TG] Bot Init Error: ${err.stack || err}`);
-    console.error('Bot Init Error:', err);
+    addLog(`[TG] Bot Init skipped: ${err.message}`);
+    // Non-fatal: site works without Telegram bot
   }
 })();
+
 
 
 /* ── ID generator ── */

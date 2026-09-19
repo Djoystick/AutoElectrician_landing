@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.3] - 2026-09-19
+
+### 🔥 Hotfix: Бесконечная загрузка — два критических бага
+
+- **КРИТИЧНО — `main.js` с `defer` никогда не вызывал `init()`**:
+  - При наличии атрибута `defer` событие `DOMContentLoaded` уже сработало к моменту запуска скрипта.
+  - `document.addEventListener('DOMContentLoaded', init)` никогда не срабатывал → skeleton-заглушки висели вечно.
+  - Исправлено: проверка `document.readyState === 'loading'` перед регистрацией listener. Если DOM уже готов — `init()` вызывается немедленно.
+
+- **КРИТИЧНО — Telegram Bot Init вешал Vercel Serverless функцию**:
+  - IIFE на cold start делал `fetch` к `api.telegram.org` (IP: 149.154.166.110:443).
+  - Vercel datacenter в Вашингтоне не мог подключиться → `ETIMEDOUT` → функция зависала до таймаута.
+  - Исправлено: `Promise.race([getBot(), timeout(3000)])` + `AbortController(4000ms)` для webhook fetch.
+  - Ошибки теперь non-fatal: сайт работает без Telegram-бота если сеть недоступна.
+
 ## [2.1.2] - 2026-09-19
 
 ### 🐛 Fix: Устранение CLS, добавление Edge Cache и skeleton UI

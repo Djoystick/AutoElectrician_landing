@@ -657,4 +657,9 @@ function initCalculator() {
 }
 
 /* ── Run ── */
-document.addEventListener('DOMContentLoaded', init);
+/* With `defer`, DOMContentLoaded may have already fired — always call init() safely */
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
