@@ -1,6 +1,6 @@
 {
   "name": "autoelectro",
-  "version": "1.4.7",
+  "version": "1.5.0",
   "description": "Сайт выездного автоэлектрика",
   "main": "server.js",
   "scripts": {

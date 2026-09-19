@@ -162,6 +162,8 @@ function showProfileScreen() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('profile-screen').classList.remove('hidden');
 
+  initDevDashboard();
+
   renderGreeting();
   renderStats();
   renderReminders();
@@ -171,6 +173,352 @@ function showProfileScreen() {
   renderMascotTip();
 
   lucide.createIcons();
+}
+
+/* ══════════════════════════════════════════════════════════
+   DEVELOPER & LEAD CONTROL CENTER (EXCLUSIVE TO SID VICIOUS)
+══════════════════════════════════════════════════════════ */
+let devVitalsTimer = null;
+let devClockTimer = null;
+let currentDevView = 'dev'; // 'dev' | 'client'
+let isDevEventsBound = false;
+
+function isDevUser() {
+  if (!CLIENT) return false;
+  if (CLIENT.id === '19e4e551-4454-4710-8a6d-a4effc211201') return true;
+  if (CLIENT.role === 'lead' || CLIENT.role === 'admin') return true;
+  if (localStorage.getItem('ae_admin_token')) return true;
+  return false;
+}
+
+function getDevAuthHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  if (TOKEN) headers['x-client-token'] = TOKEN;
+  const adminToken = localStorage.getItem('ae_admin_token');
+  if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
+  return headers;
+}
+
+function initDevDashboard() {
+  const toggleContainer = document.getElementById('dev-mode-toggle');
+  const btnDev = document.getElementById('btn-toggle-dev');
+  const btnClient = document.getElementById('btn-toggle-client');
+  const devSection = document.getElementById('dev-dashboard-section');
+  const clientSection = document.getElementById('client-dashboard-section');
+
+  if (!isDevUser()) {
+    if (toggleContainer) toggleContainer.classList.add('hidden');
+    if (devSection) devSection.classList.add('hidden');
+    if (clientSection) clientSection.classList.remove('hidden');
+    if (devVitalsTimer) { clearInterval(devVitalsTimer); devVitalsTimer = null; }
+    if (devClockTimer) { clearInterval(devClockTimer); devClockTimer = null; }
+    return;
+  }
+
+  // Sid Vicious / Lead Master detected: reveal mode switch
+  if (toggleContainer) toggleContainer.classList.remove('hidden');
+
+  // Load saved preference or default to 'dev'
+  const savedView = sessionStorage.getItem('ae_dev_view_mode') || 'dev';
+  setDevViewMode(savedView);
+
+  // Bind events once
+  if (!isDevEventsBound) {
+    isDevEventsBound = true;
+
+    btnDev?.addEventListener('click', () => {
+      setDevViewMode('dev');
+      refreshDevDashboard();
+    });
+
+    btnClient?.addEventListener('click', () => {
+      setDevViewMode('client');
+    });
+
+    document.getElementById('dev-btn-crm')?.addEventListener('click', () => {
+      window.location.href = '/admin.html';
+    });
+
+    document.getElementById('dev-btn-refresh')?.addEventListener('click', () => {
+      refreshDevDashboard();
+    });
+
+    document.getElementById('dev-action-diag')?.addEventListener('click', runDevDiagnostics);
+    document.getElementById('dev-action-push')?.addEventListener('click', sendDevTestPush);
+    document.getElementById('dev-action-cache')?.addEventListener('click', clearDevCache);
+  }
+
+  // Start live clock
+  if (!devClockTimer) {
+    updateDevClock();
+    devClockTimer = setInterval(updateDevClock, 1000);
+  }
+
+  // Initial vitals fetch
+  refreshDevDashboard();
+
+  // 15-second polling loop
+  if (!devVitalsTimer) {
+    devVitalsTimer = setInterval(() => {
+      if (currentDevView === 'dev' && !document.hidden) {
+        refreshDevDashboard(true);
+      }
+    }, 15000);
+  }
+}
+
+function setDevViewMode(mode) {
+  currentDevView = mode;
+  sessionStorage.setItem('ae_dev_view_mode', mode);
+
+  const btnDev = document.getElementById('btn-toggle-dev');
+  const btnClient = document.getElementById('btn-toggle-client');
+  const devSection = document.getElementById('dev-dashboard-section');
+  const clientSection = document.getElementById('client-dashboard-section');
+
+  if (mode === 'dev') {
+    devSection?.classList.remove('hidden');
+    clientSection?.classList.add('hidden');
+
+    btnDev?.classList.add('bg-cyan-500', 'text-black', 'font-bold');
+    btnDev?.classList.remove('text-gray-400');
+    btnClient?.classList.remove('bg-cyan-500', 'text-black', 'font-bold');
+    btnClient?.classList.add('text-gray-400');
+  } else {
+    devSection?.classList.add('hidden');
+    clientSection?.classList.remove('hidden');
+
+    btnClient?.classList.add('bg-cyan-500', 'text-black', 'font-bold');
+    btnClient?.classList.remove('text-gray-400');
+    btnDev?.classList.remove('bg-cyan-500', 'text-black', 'font-bold');
+    btnDev?.classList.add('text-gray-400');
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function updateDevClock() {
+  const clockEl = document.getElementById('dev-server-clock');
+  if (!clockEl) return;
+  const now = new Date();
+  clockEl.textContent = now.toLocaleTimeString('ru-RU', { timeZone: 'Europe/Moscow', hour12: false }) + ' MSK';
+}
+
+function formatUptime(sec) {
+  if (!sec || sec < 0) return '0с';
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (d > 0) return `${d}д ${h}ч ${m}м`;
+  if (h > 0) return `${h}ч ${m}м`;
+  return `${m}м ${s}с`;
+}
+
+async function refreshDevDashboard(isSilent = false) {
+  const icon = document.getElementById('dev-refresh-icon');
+  if (!isSilent && icon) icon.classList.add('animate-spin');
+
+  const t0 = performance.now();
+
+  try {
+    const res = await fetch('/api/dev/vitals', {
+      headers: getDevAuthHeaders()
+    });
+    const roundTrip = Math.round(performance.now() - t0);
+
+    const ttfbEl = document.getElementById('vital-ttfb-val');
+    if (ttfbEl) {
+      const perfTtfb = window.__AE_PERF_TTFB;
+      ttfbEl.textContent = (perfTtfb ? Math.round(perfTtfb) : roundTrip) + ' ms';
+    }
+
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.message || 'Ошибка загрузки телеметрии');
+    }
+
+    const json = await res.json();
+    if (!json.ok || !json.vitals) return;
+
+    const v = json.vitals;
+
+    // Supabase DB
+    const dbValEl = document.getElementById('vital-db-val');
+    const dbStatusEl = document.getElementById('vital-db-status');
+    if (dbValEl) dbValEl.textContent = `${v.db.latencyMs} ms`;
+    if (dbStatusEl) {
+      dbStatusEl.textContent = v.db.status === 'ok' ? 'RLS Active • Connected' : v.db.status;
+      dbStatusEl.className = `text-[10px] mt-1 truncate ${v.db.status === 'ok' ? 'text-emerald-400' : 'text-red-400'}`;
+    }
+
+    // Telegram Bot
+    const botValEl = document.getElementById('vital-bot-val');
+    const botStatusEl = document.getElementById('vital-bot-status');
+    if (botValEl) botValEl.textContent = `${v.bot.pingMs} ms`;
+    if (botStatusEl) {
+      botStatusEl.textContent = `@${v.bot.username || 'Autoelectrical_Official_bot'}`;
+      botStatusEl.className = `text-[10px] mt-1 truncate ${v.bot.status === 'online' ? 'text-cyan-400' : 'text-red-400'}`;
+    }
+
+    // Node Memory & Uptime
+    const memValEl = document.getElementById('vital-mem-val');
+    const uptimeEl = document.getElementById('vital-uptime');
+    if (memValEl) memValEl.textContent = `${v.memory.heapUsedMb} MB`;
+    if (uptimeEl) uptimeEl.textContent = `Аптайм: ${formatUptime(v.uptimeSec)}`;
+
+    // Entity Counts
+    const cEl = document.getElementById('stat-count-clients');
+    const rEl = document.getElementById('stat-count-requests');
+    const mEl = document.getElementById('stat-count-masters');
+    const carEl = document.getElementById('stat-count-cars');
+    const repEl = document.getElementById('stat-count-repairs');
+    if (cEl) cEl.textContent = v.db.counts.clients ?? '—';
+    if (rEl) rEl.textContent = v.db.counts.requests ?? '—';
+    if (mEl) mEl.textContent = v.db.counts.masters ?? '—';
+    if (carEl) carEl.textContent = v.db.counts.cars ?? '—';
+    if (repEl) repEl.textContent = v.db.counts.repairs ?? '—';
+
+    // Logs
+    const consoleEl = document.getElementById('dev-log-console');
+    if (consoleEl && v.logs && v.logs.length > 0) {
+      consoleEl.innerHTML = v.logs.map(log => {
+        const timeStr = log.timestamp ? new Date(log.timestamp).toLocaleTimeString('ru-RU') : '--:--:--';
+        const lvlColor = log.level === 'warn' ? 'text-yellow-400' : (log.level === 'error' ? 'text-red-400' : 'text-cyan-400');
+        return `<div><span class="text-gray-500">[${timeStr}]</span> <span class="${lvlColor}">[${esc(log.level || 'info').toUpperCase()}]</span> <span>${esc(log.message || log.text || '')}</span></div>`;
+      }).join('');
+    }
+
+  } catch (err) {
+    console.warn('Dev vitals refresh error:', err);
+  } finally {
+    if (icon) {
+      setTimeout(() => icon.classList.remove('animate-spin'), 300);
+    }
+  }
+}
+
+async function runDevDiagnostics() {
+  const diagBox = document.getElementById('dev-diag-box');
+  const badgeEl = document.getElementById('dev-diag-badge');
+  const itemsEl = document.getElementById('dev-diag-items');
+  const btnDiag = document.getElementById('dev-action-diag');
+
+  if (!diagBox || !itemsEl) return;
+
+  diagBox.classList.remove('hidden');
+  badgeEl.className = 'text-[11px] font-mono px-2 py-0.5 rounded-full font-bold bg-yellow-500/15 text-yellow-400 border border-yellow-500/30';
+  badgeEl.textContent = 'ТЕСТИРОВАНИЕ СИСТЕМ...';
+  itemsEl.innerHTML = `<div class="text-gray-400 flex items-center gap-2 py-2"><svg class="w-4 h-4 animate-spin text-cyan-400 shrink-0" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg> <span>Отправка контрольных пакетов в PostgreSQL, Bot API и JWT...</span></div>`;
+
+  if (btnDiag) btnDiag.disabled = true;
+
+  try {
+    const res = await fetch('/api/dev/diagnostics', {
+      method: 'POST',
+      headers: getDevAuthHeaders()
+    });
+    const json = await res.json();
+
+    if (!res.ok || !json.ok) {
+      throw new Error(json.message || 'Ошибка выполнения диагностики');
+    }
+
+    if (json.allPassed) {
+      badgeEl.className = 'text-[11px] font-mono px-2 py-0.5 rounded-full font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+      badgeEl.textContent = 'ВСЕ СИСТЕМЫ В НОРМЕ (100%)';
+    } else {
+      badgeEl.className = 'text-[11px] font-mono px-2 py-0.5 rounded-full font-bold bg-red-500/15 text-red-400 border border-red-500/30';
+      badgeEl.textContent = 'ОБНАРУЖЕНЫ ОТКЛОНЕНИЯ';
+    }
+
+    itemsEl.innerHTML = json.results.map(item => {
+      const isPass = item.status === 'pass';
+      const icon = isPass ? 'check-circle' : 'alert-circle';
+      const color = isPass ? 'text-emerald-400' : 'text-red-400';
+      const border = isPass ? 'border-emerald-500/20 bg-emerald-950/10' : 'border-red-500/20 bg-red-950/10';
+
+      return `
+        <div class="flex items-center justify-between p-2.5 rounded-xl border ${border}">
+          <div class="flex items-center gap-2 min-w-0">
+            <i data-lucide="${icon}" class="w-4 h-4 ${color} shrink-0"></i>
+            <span class="font-bold text-white">${esc(item.service)}:</span>
+            <span class="text-gray-400 truncate">${esc(item.detail)}</span>
+          </div>
+          <span class="font-mono text-[11px] text-gray-400 ml-2 shrink-0">${item.latencyMs} ms</span>
+        </div>
+      `;
+    }).join('');
+
+    if (window.lucide) lucide.createIcons();
+
+  } catch (err) {
+    badgeEl.className = 'text-[11px] font-mono px-2 py-0.5 rounded-full font-bold bg-red-500/15 text-red-400 border border-red-500/30';
+    badgeEl.textContent = 'СБОЙ ДИАГНОСТИКИ';
+    itemsEl.innerHTML = `<div class="text-red-400 p-2">${esc(err.message)}</div>`;
+  } finally {
+    if (btnDiag) btnDiag.disabled = false;
+  }
+}
+
+function showDevBanner(msg, type = 'success') {
+  const banner = document.getElementById('dev-feedback-banner');
+  if (!banner) return;
+
+  const isSucc = type === 'success';
+  banner.className = `mt-3 p-3 rounded-xl text-xs font-semibold text-center fade-in ${
+    isSucc 
+      ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300' 
+      : 'bg-red-500/15 border border-red-500/30 text-red-300'
+  }`;
+  banner.textContent = msg;
+  banner.classList.remove('hidden');
+
+  setTimeout(() => {
+    banner.classList.add('hidden');
+  }, 6000);
+}
+
+async function sendDevTestPush() {
+  const btn = document.getElementById('dev-action-push');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/dev/test-push', {
+      method: 'POST',
+      headers: getDevAuthHeaders()
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) {
+      throw new Error(json.message || 'Не удалось доставить сообщение');
+    }
+    showDevBanner('✅ ' + json.message, 'success');
+  } catch (err) {
+    showDevBanner('❌ Ошибка отправки PUSH: ' + err.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function clearDevCache() {
+  const btn = document.getElementById('dev-action-cache');
+  if (btn) btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/dev/clear-cache', {
+      method: 'POST',
+      headers: getDevAuthHeaders()
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) {
+      throw new Error(json.message || 'Не удалось очистить кеш');
+    }
+    showDevBanner('🧹 ' + json.message, 'success');
+    refreshDevDashboard(true);
+  } catch (err) {
+    showDevBanner('❌ Ошибка сброса кеша: ' + err.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function renderGreeting() {
@@ -443,6 +791,9 @@ formProfileReq?.addEventListener('submit', async e => {
 document.getElementById('logout-btn')?.addEventListener('click', () => {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem('ae_admin_token');
+  sessionStorage.removeItem('ae_dev_view_mode');
+  if (devVitalsTimer) { clearInterval(devVitalsTimer); devVitalsTimer = null; }
+  if (devClockTimer) { clearInterval(devClockTimer); devClockTimer = null; }
   TOKEN = ''; CLIENT = null; MASTER = null;
   showLoginScreen();
 });

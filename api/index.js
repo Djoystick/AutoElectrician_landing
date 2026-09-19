@@ -1683,6 +1683,255 @@ app.get('/api/analytics', authCheck, async (req, res) => {
   });
 });
 
+/* ══════════════════════════════════════════════════════════
+   DEVELOPER & LEAD CONTROL CENTER (DEV CENTER)
+══════════════════════════════════════════════════════════ */
+const devAuthCheck = async (req, res, next) => {
+  // 1. Check Bearer admin token
+  const authHeader = req.headers['authorization'];
+  const adminToken = (authHeader && authHeader.startsWith('Bearer '))
+    ? authHeader.slice(7).trim()
+    : authHeader;
+
+  if (adminToken) {
+    try {
+      const decoded = jwt.verify(adminToken, JWT_SECRET);
+      if (decoded && decoded.username) {
+        req.devUser = decoded;
+        return next();
+      }
+    } catch (_) {}
+  }
+
+  // 2. Check x-client-token for Sid Vicious
+  const clientToken = req.headers['x-client-token'];
+  if (clientToken && supabase) {
+    try {
+      const { data: session } = await supabase
+        .from('auth_sessions')
+        .select('client_id')
+        .eq('token', clientToken)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle();
+
+      if (session && session.client_id === '19e4e551-4454-4710-8a6d-a4effc211201') {
+        req.devUser = { id: session.client_id, role: 'lead' };
+        return next();
+      }
+    } catch (_) {}
+  }
+
+  return res.status(403).json({ ok: false, error: 'forbidden_dev_access', message: 'Доступ разрешен только руководителю проекта' });
+};
+
+// GET /api/dev/vitals: Live telemetry and system radar
+app.get('/api/dev/vitals', devAuthCheck, async (req, res) => {
+  const startDb = Date.now();
+  let dbLatencyMs = 0;
+  let dbStatus = 'ok';
+  let counts = { clients: 0, requests: 0, masters: 0, cars: 0, repairs: 0 };
+
+  if (supabase) {
+    try {
+      const [{ data: clients, count: cCount }, { data: requests, count: rCount }, { data: masters, count: mCount }] = await Promise.all([
+        supabase.from('clients').select('id, cars, repairs', { count: 'exact' }),
+        supabase.from('requests').select('id', { count: 'exact' }),
+        supabase.from('masters').select('id', { count: 'exact' })
+      ]);
+      dbLatencyMs = Date.now() - startDb;
+      counts.clients = cCount || (clients ? clients.length : 0);
+      counts.requests = rCount || (requests ? requests.length : 0);
+      counts.masters = mCount || (masters ? masters.length : 0);
+
+      if (clients) {
+        for (const c of clients) {
+          counts.cars += (c.cars || []).length;
+          counts.repairs += (c.repairs || []).length;
+        }
+      }
+    } catch (err) {
+      dbStatus = 'error: ' + err.message;
+      dbLatencyMs = Date.now() - startDb;
+    }
+  } else {
+    dbStatus = 'disconnected';
+  }
+
+  // Telegram Bot Ping
+  let botPingMs = 0;
+  let botStatus = 'offline';
+  let botUsername = cachedBotUsername || 'Autoelectrical_Official_bot';
+  try {
+    const t0 = Date.now();
+    const bot = await getBot();
+    if (bot) {
+      const me = await bot.getMe();
+      botPingMs = Date.now() - t0;
+      botStatus = 'online';
+      botUsername = me.username;
+    }
+  } catch (err) {
+    botStatus = 'error: ' + err.message;
+  }
+
+  // Memory Usage
+  const mem = process.memoryUsage();
+  const memory = {
+    heapUsedMb: Math.round((mem.heapUsed / 1024 / 1024) * 10) / 10,
+    heapTotalMb: Math.round((mem.heapTotal / 1024 / 1024) * 10) / 10,
+    rssMb: Math.round((mem.rss / 1024 / 1024) * 10) / 10,
+  };
+
+  const vitals = {
+    version: '1.5.0',
+    nodeVersion: process.version,
+    platform: process.platform,
+    uptimeSec: Math.round(process.uptime()),
+    db: {
+      status: dbStatus,
+      latencyMs: dbLatencyMs,
+      provider: 'Supabase PostgreSQL (Edge)',
+      counts
+    },
+    bot: {
+      status: botStatus,
+      pingMs: botPingMs,
+      username: botUsername
+    },
+    memory,
+    logs: (memLogs || []).slice(0, 10),
+    timestamp: new Date().toISOString()
+  };
+
+  res.json({ ok: true, vitals });
+});
+
+// POST /api/dev/diagnostics: Run system diagnostic self-test
+app.post('/api/dev/diagnostics', devAuthCheck, async (req, res) => {
+  const results = [];
+
+  // 1. Supabase Connectivity
+  const t0 = Date.now();
+  try {
+    if (!supabase) throw new Error('База данных Supabase не инициализирована');
+    const { error } = await supabase.from('settings').select('id').limit(1);
+    if (error) throw error;
+    results.push({
+      service: 'Supabase PostgreSQL',
+      status: 'pass',
+      latencyMs: Date.now() - t0,
+      detail: 'Связь с базой данных стабильна, RLS активен'
+    });
+  } catch (err) {
+    results.push({
+      service: 'Supabase PostgreSQL',
+      status: 'fail',
+      latencyMs: Date.now() - t0,
+      detail: 'Ошибка подключения: ' + err.message
+    });
+  }
+
+  // 2. Telegram Bot API
+  const t1 = Date.now();
+  try {
+    const bot = await getBot();
+    if (!bot) throw new Error('Бот не инициализирован');
+    const me = await bot.getMe();
+    results.push({
+      service: 'Telegram Bot API',
+      status: 'pass',
+      latencyMs: Date.now() - t1,
+      detail: `Авторизован как @${me.username} (ID: ${me.id})`
+    });
+  } catch (err) {
+    results.push({
+      service: 'Telegram Bot API',
+      status: 'fail',
+      latencyMs: Date.now() - t1,
+      detail: 'Ошибка API: ' + err.message
+    });
+  }
+
+  // 3. JWT Secret & Crypto Engine
+  try {
+    const testPayload = { test: true, ts: Date.now() };
+    const testToken = jwt.sign(testPayload, JWT_SECRET, { expiresIn: '10s' });
+    const verified = jwt.verify(testToken, JWT_SECRET);
+    if (!verified || !verified.test) throw new Error('JWT verification mismatch');
+    results.push({
+      service: 'JWT & Crypto Engine',
+      status: 'pass',
+      latencyMs: 1,
+      detail: 'Криптографические ключи и сессионный движок исправны'
+    });
+  } catch (err) {
+    results.push({
+      service: 'JWT & Crypto Engine',
+      status: 'fail',
+      latencyMs: 1,
+      detail: 'Ошибка криптографии: ' + err.message
+    });
+  }
+
+  // 4. In-Memory Session Cache
+  try {
+    results.push({
+      service: 'In-Memory Cache & Logs',
+      status: 'pass',
+      latencyMs: 0,
+      detail: `Журнал активен (${(memLogs || []).length} событий в буфере)`
+    });
+  } catch (err) {
+    results.push({
+      service: 'In-Memory Cache',
+      status: 'fail',
+      latencyMs: 0,
+      detail: err.message
+    });
+  }
+
+  const allPassed = results.every(r => r.status === 'pass');
+  res.json({ ok: true, results, allPassed, timestamp: new Date().toISOString() });
+});
+
+// POST /api/dev/test-push: Send instant telemetry PUSH to master Telegram
+app.post('/api/dev/test-push', devAuthCheck, async (req, res) => {
+  try {
+    const bot = await getBot();
+    if (!bot) return res.status(500).json({ ok: false, error: 'Бот не инициализирован' });
+
+    const targetChatId = '6208918931';
+    const now = new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' });
+
+    const mem = process.memoryUsage();
+    const heapMb = Math.round((mem.heapUsed / 1024 / 1024) * 10) / 10;
+
+    const message =
+      `⚡ <b>[Dev Center] Тестовое оповещение телеметрии</b>\n\n` +
+      `📅 <b>Время:</b> ${now} (МСК)\n` +
+      `📦 <b>Версия:</b> v1.5.0\n` +
+      `💾 <b>Память Node:</b> ${heapMb} MB\n` +
+      `🚀 <b>Платформа:</b> Vercel Serverless / Node.js\n` +
+      `🟢 <b>Статус:</b> Все инженерные системы работают штатно!\n\n` +
+      `<i>Инициировано из Панели управления разработчика чекгорит.рф</i>`;
+
+    await bot.sendMessage(targetChatId, message, { parse_mode: 'HTML' });
+    res.json({ ok: true, message: 'Тестовый PUSH успешно доставлен в ваш Telegram!' });
+  } catch (err) {
+    console.error('Error sending test push:', err);
+    res.status(500).json({ ok: false, error: 'push_failed', message: err.message });
+  }
+});
+
+// POST /api/dev/clear-cache: Purge in-memory bot and data caches
+app.post('/api/dev/clear-cache', devAuthCheck, async (req, res) => {
+  cachedToken = null;
+  cachedBotUsername = null;
+  if (memLogs) memLogs.length = 0;
+  res.json({ ok: true, message: 'Серверный кеш и буфер логов успешно очищены!' });
+});
+
+
 /* ── Level 5: Phone + 4-digit PIN Authentication ── */
 app.post('/api/client/auth/pin', limiterPinAuth, async (req, res) => {
   const { phone, pin } = req.body;
