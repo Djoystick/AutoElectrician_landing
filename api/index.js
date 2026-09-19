@@ -794,36 +794,49 @@ app.post('/api/auth', limiterAdmin, async (req, res) => {
   if (!password) return res.status(400).json({ ok: false, error: 'Введите пароль' });
   if (!supabase) return res.status(500).json({ ok: false, error: 'База данных недоступна' });
 
+  // 1. Проверяем глобальный мастер-пароль из таблицы settings
+  const { data: setRow } = await supabase.from('settings').select('data').limit(1).maybeSingle();
+  const globalPassword = setRow?.data?.password || 'admin';
+  const isGlobalMatch = (password === globalPassword);
+
   let master = null;
-  if (username) {
-    const { data: m } = await supabase.from('masters').select('*').eq('username', username).maybeSingle();
-    master = m;
+  const cleanUsername = username ? String(username).trim() : '';
+
+  if (cleanUsername) {
+    const { data: m } = await supabase.from('masters').select('*').eq('username', cleanUsername).maybeSingle();
+    if (m) {
+      const isHash = m.password && m.password.startsWith('$2');
+      const directMatch = isHash ? bcrypt.compareSync(password, m.password) : (password === m.password);
+      if (directMatch || isGlobalMatch) {
+        master = m;
+      }
+    }
   } else {
-    // Если передан только пароль — проверяем против зарегистрированных мастеров
-    const { data: allMasters } = await supabase.from('masters').select('*');
-    if (allMasters && allMasters.length > 0) {
-      for (const m of allMasters) {
-        const isH = m.password && m.password.startsWith('$2');
-        const match = isH ? bcrypt.compareSync(password, m.password) : (password === m.password);
-        if (match) {
-          master = m;
-          break;
+    // Вход по одному только паролю (без логина)
+    if (isGlobalMatch) {
+      // Назначаем первого активного мастера
+      const { data: firstMaster } = await supabase.from('masters').select('*').order('created_at', { ascending: true }).limit(1).maybeSingle();
+      master = firstMaster || { id: 'master_root', username: 'master' };
+    } else {
+      // Проверяем персональные пароли зарегистрированных мастеров
+      const { data: allMasters } = await supabase.from('masters').select('*');
+      if (allMasters && allMasters.length > 0) {
+        for (const m of allMasters) {
+          const isH = m.password && m.password.startsWith('$2');
+          const match = isH ? bcrypt.compareSync(password, m.password) : (password === m.password);
+          if (match) {
+            master = m;
+            break;
+          }
         }
       }
     }
   }
 
   if (!master) return res.status(401).json({ ok: false, error: 'Неверный логин или пароль' });
-  
-  const isHash = master.password && master.password.startsWith('$2');
-  const ok = isHash ? bcrypt.compareSync(password, master.password) : (password === master.password);
-  
-  if (ok) {
-    const token = jwt.sign({ username: master.username, id: master.id }, JWT_SECRET, { expiresIn: '30d' });
-    res.json({ ok: true, token });
-  } else {
-    res.status(401).json({ ok: false, error: 'Неверный логин или пароль' });
-  }
+
+  const token = jwt.sign({ username: master.username, id: master.id }, JWT_SECRET, { expiresIn: '30d' });
+  res.json({ ok: true, token });
 });
 
 /* ── Masters Management ── */

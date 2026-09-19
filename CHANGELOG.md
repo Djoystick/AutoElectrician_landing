@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.2] - 2026-09-19
+
+### 🔐 Fix: Master Authentication & Dual-Mode Login
+
+- **Backend Auth (`POST /api/auth`)**:
+  - Восстановлена поддержка глобального мастер-пароля из настроек (`settings.data.password` / `'admin'`) для входа без логина или с логином мастера.
+  - В таблице `masters` Supabase актуализированы bcrypt-хэши паролей для учетных записей `vk_1125744855` (Sid Vicious) и `vk_250130315` (Seryozhka Abisonov).
+  - Теперь успешно работают оба сценария:
+    1. Вход только по паролю (`admin`);
+    2. Вход по связке логин (`vk_1125744855`) + пароль (`admin`).
+
 ## [1.3.1] - 2026-09-19
 
 ### 🐛 Fix & Optimization: Asset Versioning, Cache Invalidation & PIN Code Display

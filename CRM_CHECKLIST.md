@@ -1,6 +1,6 @@
 # 📋 Трёхуровневый приёмочный чек-лист CRM (AutoElectro v1.3.1)
 
-> **Версия:** 1.3.1 (Prioritized Operations & Omnichannel Identity)  
+> **Версия:** 1.3.2 (Master Auth Fix & Prioritized Operations)  
 > **Сайт:** [`чекгорит.рф`](https://чекгорит.рф/) (зеркало: [auto-electrician-landing.vercel.app](https://auto-electrician-landing.vercel.app/))  
 > **Панель мастера:** [`чекгорит.рф/admin.html`](https://чекгорит.рф/admin.html)  
 > **Кабинет клиента:** [`чекгорит.рф/profile.html`](https://чекгорит.рф/profile.html)  
