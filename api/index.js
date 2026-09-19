@@ -293,6 +293,16 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(PUBLIC_DIR));
 
+app.get(['/', '/index.html'], (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'index.html'));
+});
+app.get('/admin.html', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'admin.html'));
+});
+app.get('/profile.html', (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, 'profile.html'));
+});
+
 /* ── Telegram HTML Escape (SEC: prevent HTML-injection in bot notifications) ── */
 const escapeTgHtml = (str) => String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 

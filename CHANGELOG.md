@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0] - 2026-09-19
+
+### 🇷🇺 Release: Миграция на отечественную инфраструктуру Yandex Cloud Serverless
+
+- **КРИТИЧНО — Развернута Serverless-инфраструктура в Яндекс Облаке (ЦОД РФ)**:
+  - **Cloud Function**: `autoelectro-api` (ID: `d4e094efr6vt1fbsrm7o`, runtime `nodejs22`). Запускает единый Express-бэкенд через `handler.js` и `serverless-http`.
+  - **API Gateway**: `autoelectro-gateway` (ID: `d5dnjb33t6kv9mv9m4h8`, домен `d5dnjb33t6kv9mv9m4h8.nm0huug4.apigw.yandexcloud.net`).
+  - **Object Storage**: Создан бакет `autoelectro-packages-b1g6aq7ocbv7p05to8mj` для хранения версий и медиа.
+  - **Постоянный Free Tier**: 1 000 000 вызовов в месяц бесплатно навсегда, 10 ГБ трафика, 0 руб. абонентской платы.
+  - **Скорость**: Пинг 5–15 мс по РФ, время отклика сайта (TTFB) снизилось до **185 мс**.
+- **Ликвидация зависимости от Vercel**:
+  - Полный иммунитет к блокировкам Роскомнадзора / ТСПУ на Anycast IP-адресах.
+- **Подготовка сертификата SSL в Yandex Certificate Manager**:
+  - Заказан Let's Encrypt сертификат `autoelectro-cert` (ID: `fpqpt46t2uhmnfope72s`) для домена `чекгорит.рф` (`xn--c1adkgvmp7a.xn--p1ai`).
+
 ## [2.1.5] - 2026-09-19
 
 ### 🛡️ Release: 100% Автономность (Zero External CDNs) & Ликвидация блокировок в РФ

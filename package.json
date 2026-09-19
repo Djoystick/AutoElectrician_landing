@@ -1,6 +1,6 @@
 {
   "name": "autoelectro",
-  "version": "2.1.5",
+  "version": "2.2.0",
   "description": "Сайт выездного автоэлектрика",
   "main": "server.js",
   "scripts": {
@@ -22,6 +22,7 @@
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
-    "node-telegram-bot-api": "^1.2.0"
+    "node-telegram-bot-api": "^1.2.0",
+    "serverless-http": "^4.0.0"
   }
 }

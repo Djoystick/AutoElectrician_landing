@@ -134,6 +134,21 @@
   - Растровый логотип `logo.png` (61 КБ с Photoshop-метаданными) заменен на компактный векторный `logo.svg` (1.2 КБ).
   - Сайт осуществляет **0 внешних запросов к зарубежным сервисам**. Полная невосприимчивость к трансграничным блокировкам.
 
+#### Шаг 9. Миграция на отечественную инфраструктуру Yandex Cloud Serverless (v2.2.0)
+- **Цель**: Полный уход от рисков блокировок Vercel в РФ, снижение TTFB до < 200 мс, сохранение 100% бесплатного тарифа (Free Tier: 1 млн запросов/мес).
+- **Параметры созданной инфраструктуры в Яндекс Облаке**:
+  - **Каталог (Folder ID)**: `b1g6aq7ocbv7p05to8mj` (каталог `default`)
+  - **Облако (Cloud ID)**: `b1gdfoo77m1bbt28oscc`
+  - **Сервисный аккаунт**: `deployer` (ID: `aje7smlqt1pj7bfcjvrh`, роль `editor`)
+  - **Cloud Function**: `autoelectro-api` (ID: `d4e094efr6vt1fbsrm7o`, runtime `nodejs22`, entrypoint `handler.handler`, память 256MB, таймаут 10s)
+  - **Object Storage Bucket**: `autoelectro-packages-b1g6aq7ocbv7p05to8mj`
+  - **API Gateway**: `autoelectro-gateway` (ID: `d5dnjb33t6kv9mv9m4h8`, технический домен `d5dnjb33t6kv9mv9m4h8.nm0huug4.apigw.yandexcloud.net`, IP шлюза `158.160.184.183`)
+  - **Certificate Manager**: Сертификат `autoelectro-cert` (ID: `fpqpt46t2uhmnfope72s`) для домена `чекгорит.рф` (`xn--c1adkgvmp7a.xn--p1ai`)
+- **Архитектурный паттерн**:
+  - `handler.js` нормализует входящий `event.url` от Yandex Cloud Functions в поля `path` / `requestPath` для `serverless-http`.
+  - Единый Express `app` (`api/index.js`) обслуживает и статику (`public/`), и API (`/api/*`), гарантируя работу без холодных запусков множества функций.
+  - Подключение к Supabase PostgreSQL функционирует напрямую по HTTPS со скоростью соединения ~30 мс.
+
 ---
 
 ## 👨‍🔧 Реестр боевых аккаунтов и Распределение ролей в команде (v1.1.7)
