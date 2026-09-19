@@ -1101,22 +1101,38 @@ async function fetchMasters() {
     return;
   }
   
-  tbody.innerHTML = res.masters.map(m => `
+  const PROTECTED_MASTERS = [
+    '19e4e551-4454-4710-8a6d-a4effc211201',
+    '41dbea03-a28c-4d1e-bbf0-be86737301b5',
+    'vk_1125744855',
+    'vk_250130315'
+  ];
+
+  tbody.innerHTML = res.masters.map(m => {
+    const isProtected = PROTECTED_MASTERS.includes(m.id) || PROTECTED_MASTERS.includes(m.username);
+    return `
     <tr class="hover:bg-white/[0.02] transition-colors">
       <td class="px-4 py-3 align-middle">
-        <div class="font-bold text-white">${escapeHtml(m.name)}</div>
+        <div class="font-bold text-white flex items-center gap-2">
+          ${escapeHtml(m.name)}
+          ${isProtected ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 font-mono font-semibold">Lead</span>' : ''}
+        </div>
         <div class="text-xs text-gray-400">@${escapeHtml(m.username)}</div>
       </td>
       <td class="px-4 py-3 align-middle">
         ${m.telegram_chat_id ? `<span class="text-green-400 text-xs flex items-center gap-1"><i data-lucide="check-circle-2" class="w-3 h-3"></i> Подключен (${m.telegram_chat_id})</span>` : '<span class="text-gray-500 text-xs">Не привязан</span>'}
       </td>
       <td class="px-4 py-3 text-right align-middle">
+        ${isProtected ? `
+        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 cursor-default" title="Системный аккаунт (защищён от удаления)">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Защищён
+        </span>` : `
         <button type="button" class="btn-ghost text-red-400 hover:text-red-300 p-2" onclick="deleteMaster('${m.id}')" title="Удалить">
           <i data-lucide="trash-2" class="w-4 h-4"></i>
-        </button>
+        </button>`}
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
   if (window.lucide) lucide.createIcons();
 }
 
@@ -1143,13 +1159,17 @@ document.getElementById('form-master').addEventListener('submit', async (e) => {
 });
 
 async function deleteMaster(id) {
+  if (['19e4e551-4454-4710-8a6d-a4effc211201', '41dbea03-a28c-4d1e-bbf0-be86737301b5'].includes(id)) {
+    toast('Этот аккаунт мастера защищён от удаления', true);
+    return;
+  }
   if (!confirm('Точно удалить этого мастера?')) return;
   const res = await api('DELETE', `/api/masters/${id}`);
   if (res.ok) {
     toast('Мастер удален');
     fetchMasters();
   } else {
-    toast(res.error || 'Ошибка удаления', 'error');
+    toast(res.error === 'cannot_delete_self' ? 'Нельзя удалить собственный аккаунт' : (res.error || 'Ошибка удаления'), true);
   }
 }
 window.deleteMaster = deleteMaster;

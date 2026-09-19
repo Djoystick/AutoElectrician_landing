@@ -858,13 +858,37 @@ app.post('/api/masters', authCheck, async (req, res) => {
   res.json({ ok: true, master: data });
 });
 
+/* ── Protected Root Masters (Immutable Lead Accounts) ── */
+const PROTECTED_MASTER_IDS = [
+  '19e4e551-4454-4710-8a6d-a4effc211201', // Sid Vicious (Главный мастер)
+  '41dbea03-a28c-4d1e-bbf0-be86737301b5'  // Seryozhka Abisonov (Проект лид)
+];
+const PROTECTED_MASTER_USERNAMES = [
+  'vk_1125744855',
+  'vk_250130315'
+];
+
 app.delete('/api/masters/:id', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
-  // Prevent master from accidentally deleting their own account
-  if (req.master && String(req.master.id) === String(req.params.id)) {
+  const targetId = String(req.params.id);
+
+  // 1. Жесткая защита системных аккаунтов (главный мастер и проект лид)
+  if (PROTECTED_MASTER_IDS.includes(targetId)) {
+    return res.status(403).json({ ok: false, error: 'Этот аккаунт мастера защищён от удаления' });
+  }
+
+  // Дополнительная проверка по username целевого мастера
+  const { data: targetMaster } = await supabase.from('masters').select('id, username').eq('id', targetId).maybeSingle();
+  if (targetMaster && PROTECTED_MASTER_USERNAMES.includes(targetMaster.username)) {
+    return res.status(403).json({ ok: false, error: 'Этот аккаунт мастера защищён от удаления' });
+  }
+
+  // 2. Защита от самоудаления
+  if (req.master && String(req.master.id) === targetId) {
     return res.status(400).json({ ok: false, error: 'cannot_delete_self' });
   }
-  const { error } = await supabase.from('masters').delete().eq('id', req.params.id);
+
+  const { error } = await supabase.from('masters').delete().eq('id', targetId);
   if (error) return res.status(500).json({ ok: false, error: error.message });
   res.json({ ok: true });
 });

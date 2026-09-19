@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.3] - 2026-09-19
+
+### 🛡️ Security: Absolute Deletion Protection for Lead Master Accounts
+
+- **Backend Protection (`DELETE /api/masters/:id`)**:
+  - Внедрена жесткая защита от удаления системных аккаунтов `Sid Vicious` (`vk_1125744855`) и `Seryozhka Abisonov` (`vk_250130315`).
+  - При любой попытке удаления через API возвращается `403 Forbidden` (`Этот аккаунт мастера защищён от удаления`).
+- **CRM UI (`public/js/admin.js`)**:
+  - Для защищённых профилей удалена кнопка корзины.
+  - Добавлены бейджи `Lead` и `🛡️ Защищён`.
+  - В `deleteMaster()` добавлена клиентская валидация.
+- **Supabase**:
+  - Восстановлена учетная запись мастера `Seryozhka Abisonov`.
+
 ## [1.3.2] - 2026-09-19
 
 ### 🔐 Fix: Master Authentication & Dual-Mode Login
