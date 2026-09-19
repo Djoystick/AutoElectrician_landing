@@ -773,8 +773,8 @@ app.get('/api/data', async (req, res) => {
   try {
     const [settingsReq, servicesReq, reviewsReq, contactsReq] = await Promise.all([
       supabase.from('settings').select('*').maybeSingle(),
-      supabase.from('services').select('*').eq('active', true).order('sort_order', { ascending: true }),
-      supabase.from('reviews').select('*').order('sort_order', { ascending: true }),
+      supabase.from('services').select('*').eq('active', true).order('sort_order', { ascending: true }).order('id', { ascending: true }),
+      supabase.from('reviews').select('*').order('sort_order', { ascending: true }).order('id', { ascending: true }),
       supabase.from('contacts').select('*').maybeSingle()
     ]);
     const rawData = {
@@ -941,7 +941,7 @@ app.put('/api/contacts', authCheck, async (req, res) => {
 /* ── Admin: GET /api/services — all services (incl. inactive) for admin panel ── */
 app.get('/api/services', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
-  const { data: services } = await supabase.from('services').select('*').order('sort_order', { ascending: true });
+  const { data: services } = await supabase.from('services').select('*').order('sort_order', { ascending: true }).order('id', { ascending: true });
   res.json({ ok: true, services: services || [] });
 });
 
@@ -950,6 +950,26 @@ app.post('/api/services', authCheck, async (req, res) => {
   const service = req.body;
   if (service.active === undefined) service.active = true;
   
+  let sort_order = undefined;
+  if (service.sortOrder !== undefined && service.sortOrder !== null && service.sortOrder !== '') {
+    sort_order = Number(service.sortOrder);
+  } else if (service.sort_order !== undefined && service.sort_order !== null && service.sort_order !== '') {
+    sort_order = Number(service.sort_order);
+  }
+
+  if (service.id) {
+    if (sort_order === undefined || isNaN(sort_order)) {
+      const { data: existing } = await supabase.from('services').select('sort_order').eq('id', service.id).maybeSingle();
+      sort_order = (existing?.sort_order !== undefined && existing?.sort_order !== null) ? existing.sort_order : 0;
+    }
+  } else {
+    if (sort_order === undefined || isNaN(sort_order)) {
+      const { data: allSvc } = await supabase.from('services').select('sort_order').order('sort_order', { ascending: false }).limit(1);
+      const maxOrder = allSvc?.[0]?.sort_order ?? -1;
+      sort_order = maxOrder + 1;
+    }
+  }
+
   const payload = {
     id: service.id || String(Date.now()),
     title: service.title,
@@ -957,11 +977,11 @@ app.post('/api/services', authCheck, async (req, res) => {
     icon: service.icon,
     price: service.price,
     active: service.active,
-    sort_order: service.sortOrder !== undefined ? Number(service.sortOrder) : (service.sort_order !== undefined ? Number(service.sort_order) : 0)
+    sort_order: (sort_order !== undefined && !isNaN(sort_order)) ? sort_order : 0
   };
   await supabase.from('services').upsert(payload);
-  const { data: services } = await supabase.from('services').select('*').order('sort_order');
-  res.json({ ok: true, services });
+  const { data: services } = await supabase.from('services').select('*').order('sort_order', { ascending: true }).order('id', { ascending: true });
+  res.json({ ok: true, services: services || [] });
 });
 
 app.put('/api/services/reorder', authCheck, async (req, res) => {
@@ -970,15 +990,15 @@ app.put('/api/services/reorder', authCheck, async (req, res) => {
   for (let i = 0; i < ids.length; i++) {
     await supabase.from('services').update({ sort_order: i }).eq('id', ids[i]);
   }
-  const { data: services } = await supabase.from('services').select('*').order('sort_order');
-  res.json({ ok: true, services });
+  const { data: services } = await supabase.from('services').select('*').order('sort_order', { ascending: true }).order('id', { ascending: true });
+  res.json({ ok: true, services: services || [] });
 });
 
 app.delete('/api/services/:id', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   await supabase.from('services').delete().eq('id', req.params.id);
-  const { data: services } = await supabase.from('services').select('*').order('sort_order');
-  res.json({ ok: true, services });
+  const { data: services } = await supabase.from('services').select('*').order('sort_order', { ascending: true }).order('id', { ascending: true });
+  res.json({ ok: true, services: services || [] });
 });
 
 app.post('/api/reviews', authCheck, upload.single('image'), async (req, res) => {
@@ -1010,7 +1030,7 @@ app.put('/api/reviews/reorder', authCheck, async (req, res) => {
   for (let i = 0; i < ids.length; i++) {
     await supabase.from('reviews').update({ sort_order: i }).eq('id', ids[i]);
   }
-  const { data: reviews } = await supabase.from('reviews').select('*').order('sort_order');
+  const { data: reviews } = await supabase.from('reviews').select('*').order('sort_order', { ascending: true }).order('id', { ascending: true });
   res.json({ ok: true, reviews });
 });
 

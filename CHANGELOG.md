@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.5] - 2026-09-19
+
+### 🐛 Fix: Фиксация порядка услуг (`sort_order`) при редактировании в CRM
+
+- **Supabase**:
+  - Нормализован `sort_order` услуг (`id: 1` → 0, `id: 2` → 1, `id: 3` → 2, `id: 4` → 3) и отзывов. Устранено перемещение обновляемых записей в конец таблицы из-за коллизий нулевых значений и поведения PostgreSQL MVCC.
+- **Backend (`api/index.js`)**:
+  - `POST /api/services`: при редактировании существующей услуги её `sort_order` сохраняется; при создании новой услуги автоматически вычисляется следующий порядковый номер (`max(sort_order) + 1`).
+  - Во всех выборках услуг и отзывов (`GET /api/data`, `GET /api/services`, `POST /api/services`, `PUT /api/services/reorder`, `DELETE /api/services/:id`, `PUT /api/reviews/reorder`) добавлен детерминированный вторичный ключ сортировки `.order('id', { ascending: true })`.
+- **CRM UI (`public/js/admin.js`)**:
+  - В `openServiceModal`: скрытый инпут `sort_order` корректно считывает сохранённый порядок услуги (с фоллбэком на текущую позицию в массиве). При создании новой услуги `sort_order` устанавливается в конец списка (`DATA.services.length`).
+  - В `window.onDrop`: после сохранения нового порядка через `PUT /api/services/reorder` локальный массив `DATA.services` обновляется данными из ответа сервера для синхронизации новых индексов в памяти.
+  - В `window.toggleService`: переключение видимости услуги сохраняет исходный `sort_order` и обновляет `DATA.services` из ответа API.
+
 ## [1.3.4] - 2026-09-19
 
 ### 🐛 Fix: Toast-уведомления теперь видны поверх модальных окон

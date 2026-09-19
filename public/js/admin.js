@@ -1222,17 +1222,27 @@ window.onDrop      = async (e) => {
   DATA.services = services;
   renderServicesAdmin();
   const ids = services.map(s => s.id);
-  await api('PUT', '/api/services/reorder', { ids });
+  const res = await api('PUT', '/api/services/reorder', { ids });
+  if (res.ok && res.services) {
+    DATA.services = res.services;
+    renderServicesAdmin();
+  }
   toast('Порядок сохранён');
 };
 
 window.toggleService = async (id) => {
-  const s = DATA.services.find(s => s.id === id);
+  const s = DATA.services.find(s => String(s.id) === String(id));
   if (!s) return;
+  const currentIdx = DATA.services.findIndex(item => String(item.id) === String(id));
   s.active = s.active === false ? true : false;
-  s.sortOrder = s.sort_order !== undefined ? s.sort_order : 0;
+  s.sortOrder = (s.sort_order !== undefined && s.sort_order !== null)
+    ? s.sort_order
+    : (currentIdx >= 0 ? currentIdx : 0);
   const res = await api('POST', '/api/services', s);
-  if (res.ok) { DATA.services = res.services; renderServicesAdmin(); }
+  if (res.ok && res.services) {
+    DATA.services = res.services;
+    renderServicesAdmin();
+  }
 };
 
 function bindServiceForm() {
@@ -1244,7 +1254,12 @@ function bindServiceForm() {
       body.sortOrder = Number(body.sort_order);
     }
     const res  = await api('POST', '/api/services', body);
-    if (res.ok) { DATA.services = res.services; renderServicesAdmin(); closeModal('modal-service'); toast(); }
+    if (res.ok && res.services) {
+      DATA.services = res.services;
+      renderServicesAdmin();
+      closeModal('modal-service');
+      toast();
+    }
   });
 }
 
@@ -1254,11 +1269,15 @@ window.openServiceModal = (id) => {
   form.reset();
   document.getElementById('svc-active').checked = true;
   if (id) {
-    const s = DATA.services.find(s => s.id === id);
+    const s = DATA.services.find(s => String(s.id) === String(id));
     if (s) {
       form.elements.id.value          = s.id;
+      const currentIdx = DATA.services.findIndex(item => String(item.id) === String(id));
+      const orderVal = (s.sort_order !== undefined && s.sort_order !== null)
+        ? s.sort_order
+        : (s.sortOrder !== undefined && s.sortOrder !== null ? s.sortOrder : (currentIdx >= 0 ? currentIdx : 0));
       if (form.elements.sort_order) {
-        form.elements.sort_order.value = s.sort_order !== undefined ? s.sort_order : (s.sortOrder !== undefined ? s.sortOrder : 0);
+        form.elements.sort_order.value = orderVal;
       }
       form.elements.title.value       = s.title;
       form.elements.description.value = s.description;
@@ -1270,7 +1289,8 @@ window.openServiceModal = (id) => {
     }
   } else {
     form.elements.id.value = '';
-    if (form.elements.sort_order) form.elements.sort_order.value = '0';
+    const nextOrder = (DATA.services && DATA.services.length) ? DATA.services.length : 0;
+    if (form.elements.sort_order) form.elements.sort_order.value = String(nextOrder);
     title.textContent = 'Новая услуга';
   }
   openModal('modal-service');
