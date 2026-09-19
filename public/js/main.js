@@ -320,6 +320,14 @@ function renderServices() {
   if (fullGridEl) fullGridEl.onclick = handleOrderClick;
 }
 
+function getReviewInitials(name) {
+  if (!name) return 'АЭ';
+  const clean = name.replace(/\(.*?\)/g, '').trim();
+  const parts = clean.split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return clean.slice(0, 2).toUpperCase();
+}
+
 function renderReviews() {
   const wrapper = document.getElementById('reviews-wrapper');
   if (!wrapper || !DATA.reviews?.length) return;
@@ -336,12 +344,9 @@ function renderReviews() {
         <p class="text-gray-300 text-sm leading-relaxed italic grow mb-6">
           "${r.text}"
         </p>
-        <div class="flex items-center gap-4">
-          <div class="w-12 h-12 rounded-full overflow-hidden border-2 border-accent/30
-                      cursor-pointer hover:scale-105 transition-transform shrink-0"
-               onclick="openLightbox('${r.image}')">
-            <img src="${r.image}" alt="${r.name}"
-                 class="w-full h-full object-cover" loading="lazy" />
+        <div class="flex items-center gap-3.5">
+          <div class="w-10 h-10 rounded-full bg-white/[0.06] border border-white/[0.12] text-accent font-bold text-xs flex items-center justify-center shrink-0">
+            ${getReviewInitials(r.name)}
           </div>
           <span class="font-semibold text-white text-sm">${r.name}</span>
         </div>
