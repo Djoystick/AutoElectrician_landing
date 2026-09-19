@@ -688,26 +688,41 @@
         </div>
       </div>
       <form id="form-public-request" class="space-y-4">
-        <div>
-          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">Имя</label>
-          <input type="text" name="name" placeholder="Как вас зовут?"
-                 class="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white
-                        placeholder:text-gray-600 outline-none focus:border-accent
-                        transition-colors text-sm" />
-        </div>
-        <div>
-          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">Телефон *</label>
-          <input type="tel" name="phone" required placeholder="+7 (999) 123-45-67"
-                 class="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white
-                        placeholder:text-gray-600 outline-none focus:border-accent
-                        transition-colors text-sm" />
-        </div>
-        <div>
-          <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">Опишите проблему</label>
-          <textarea name="problem" rows="3" placeholder="Не заводится, искрит проводка…"
-                    class="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white
-                           placeholder:text-gray-600 outline-none focus:border-accent
-                           transition-colors text-sm resize-none"></textarea>
+        <div id="req-fields-group" class="space-y-4">
+          <div>
+            <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">Имя</label>
+            <input type="text" name="name" placeholder="Как вас зовут?"
+                   class="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white
+                          placeholder:text-gray-600 outline-none focus:border-accent
+                          transition-colors text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">Телефон *</label>
+            <input type="tel" name="phone" required placeholder="+7 (999) 123-45-67"
+                   class="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white
+                          placeholder:text-gray-600 outline-none focus:border-accent
+                          transition-colors text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 uppercase tracking-wider mb-1.5">Опишите проблему</label>
+            <textarea name="problem" rows="3" placeholder="Не заводится, искрит проводка…"
+                      class="w-full bg-bg border border-border rounded-xl px-4 py-3 text-white
+                             placeholder:text-gray-600 outline-none focus:border-accent
+                             transition-colors text-sm resize-none"></textarea>
+          </div>
+          <div class="flex gap-3 pt-1">
+            <button type="button" id="close-request-modal"
+                    onclick="window.closeRequestModal ? window.closeRequestModal() : null"
+                    class="flex-1 bg-border hover:bg-gray-600 text-white py-3 rounded-xl
+                           font-semibold text-sm transition-colors cursor-pointer">
+              Отмена
+            </button>
+            <button type="submit"
+                    class="flex-1 bg-accent hover:brightness-110 text-bg py-3 rounded-xl
+                           font-bold text-sm transition-all">
+              Отправить
+            </button>
+          </div>
         </div>
         <div id="req-success" class="hidden bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 text-center space-y-3">
           <div class="text-emerald-400 font-bold text-base">✅ Заявка успешно принята!</div>
@@ -717,22 +732,12 @@
           <a id="btn-req-open-profile" href="/profile.html" class="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-accent text-slate-900 font-bold text-xs hover:brightness-110 transition">
             🚗 Открыть личный кабинет
           </a>
+          <button type="button" onclick="window.closeRequestModal ? window.closeRequestModal() : null" class="w-full py-2 text-xs text-gray-400 hover:text-white transition cursor-pointer">
+            Закрыть
+          </button>
         </div>
         <div id="req-error" class="hidden text-red-400 text-sm text-center py-2">
           Ошибка. Позвоните нам напрямую.
-        </div>
-        <div class="flex gap-3 pt-1">
-          <button type="button" id="close-request-modal"
-                  onclick="window.closeRequestModal ? window.closeRequestModal() : null"
-                  class="flex-1 bg-border hover:bg-gray-600 text-white py-3 rounded-xl
-                         font-semibold text-sm transition-colors cursor-pointer">
-            Отмена
-          </button>
-          <button type="submit"
-                  class="flex-1 bg-accent hover:brightness-110 text-bg py-3 rounded-xl
-                         font-bold text-sm transition-all">
-            Отправить
-          </button>
         </div>
       </form>
     </div>

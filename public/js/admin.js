@@ -761,8 +761,22 @@ async function updateRepairCars(clientId) {
   });
 }
 
+function showRepairError(msg) {
+  const b = document.getElementById('repair-error-banner');
+  if (b) {
+    b.textContent = msg;
+    b.classList.remove('hidden');
+  }
+}
+
+function hideRepairError() {
+  const b = document.getElementById('repair-error-banner');
+  if (b) b.classList.add('hidden');
+}
+
 window.openRepairModal = async (clientId, prefill = null) => {
   currentRepairPrefill = prefill;
+  hideRepairError();
   const form = document.getElementById('form-repair');
 
   // Stash any existing user inputs in case of client switch/create
@@ -781,9 +795,8 @@ window.openRepairModal = async (clientId, prefill = null) => {
     form.elements.description.value = prefill.problem;
   }
 
-  if (!DATA.clients || !DATA.clients.length) {
-    await loadClients();
-  }
+  // Always refresh clients list to avoid stale cache
+  await loadClients();
 
   const clientSearchInput = document.getElementById('repair-client-search');
   const clientClearBtn   = document.getElementById('repair-client-clear-btn');
@@ -805,7 +818,7 @@ window.openRepairModal = async (clientId, prefill = null) => {
     const rawDigits = String(prefill.phone).replace(/[^\d]/g, '');
     const found = allClients.find(c => {
       const cp = String(c.phone || '').replace(/[^\d]/g, '');
-      return cp && rawDigits && (cp === rawDigits || (cp.length >= 10 && rawDigits.endsWith(cp.slice(-10))));
+      return cp && rawDigits && (cp === rawDigits || (cp.length >= 10 && rawDigits.endsWith(cp.slice(-10))) || (rawDigits.length >= 10 && cp.endsWith(rawDigits.slice(-10))));
     });
     if (found) {
       selectedId = found.id;
@@ -1016,17 +1029,23 @@ function bindRepairForm() {
           document.getElementById('repair-client-id').value = clientId;
           await loadClients();
         } else if (cRes.error === 'client_exists') {
-          // Client already in DB, find matching client
+          // Client already in DB, reload clients and find matching client
+          await loadClients();
           const rawP = String(newPhone).replace(/[^\d]/g, '');
-          const existing = (DATA.clients || []).find(c => String(c.phone).replace(/[^\d]/g, '').endsWith(rawP.slice(-10)));
+          const existing = (DATA.clients || []).find(c => {
+            const cp = String(c.phone || '').replace(/[^\d]/g, '');
+            return cp && rawP && (cp === rawP || (cp.length >= 10 && rawP.endsWith(cp.slice(-10))) || (rawP.length >= 10 && cp.endsWith(rawP.slice(-10))));
+          });
           if (existing) {
             clientId = existing.id;
             document.getElementById('repair-client-id').value = clientId;
           } else {
+            showRepairError('Клиент с таким номером уже существует в базе. Выберите его из выпадающего списка выше.');
             toast('Клиент с таким номером уже существует в базе', true);
             return;
           }
         } else {
+          showRepairError(cRes?.error || cRes?.message || 'Ошибка создания профиля клиента');
           toast(cRes?.error || cRes?.message || 'Ошибка создания профиля клиента', true);
           return;
         }
@@ -1040,6 +1059,7 @@ function bindRepairForm() {
       });
       const json = await res.json();
       if (json.ok) {
+        hideRepairError();
         closeModal('modal-repair');
         // Do NOT close client detail modal; refresh it if open
         const detailModal = document.getElementById('modal-client-detail');
@@ -1052,8 +1072,12 @@ function bindRepairForm() {
         currentRepairPrefill = null;
         toast('✅ Запись добавлена! Клиент видит её в своём профиле.');
       } else {
+        showRepairError(json.error || 'Ошибка сохранения ремонта');
         toast('Ошибка сохранения ремонта', true);
       }
+    } catch (err) {
+      showRepairError('Ошибка соединения: ' + err.message);
+      toast('Ошибка сохранения ремонта', true);
     } finally {
       if (submitBtn) submitBtn.disabled = false;
     }

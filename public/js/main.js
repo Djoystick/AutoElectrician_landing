@@ -18,10 +18,8 @@ window.openRequestModal = function(prefillProblem) {
     const p = formPubReq.querySelector('[name="problem"]');
     if (p) p.value = prefillProblem;
   }
-  if (formPubReq) {
-    const formFields = formPubReq.querySelectorAll('input, textarea, .flex.gap-3.pt-1');
-    formFields.forEach(el => el.style.display = '');
-  }
+  const fieldsGroup = document.getElementById('req-fields-group');
+  if (fieldsGroup) fieldsGroup.classList.remove('hidden');
   modalReq.style.display = 'flex';
   modalReq.classList.remove('hidden');
   modalReq.classList.add('flex');
@@ -94,8 +92,8 @@ document.addEventListener('submit', async function(e) {
         }
       }
       formPubReq.reset();
-      const formFields = formPubReq.querySelectorAll('input, textarea, .flex.gap-3.pt-1');
-      formFields.forEach(el => el.style.display = 'none');
+      const fieldsGroup = document.getElementById('req-fields-group');
+      if (fieldsGroup) fieldsGroup.classList.add('hidden');
       if (typeof window.onMascotCelebration === 'function') {
         window.onMascotCelebration();
       }
