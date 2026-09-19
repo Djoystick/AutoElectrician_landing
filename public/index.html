@@ -48,7 +48,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
 
   <!-- Custom CSS -->
-  <link rel="stylesheet" href="/css/style.css?v=2.1.1" />
+  <link rel="stylesheet" href="/css/style.css?v=2.1.2" />
 
   <!-- Lucide (via reliable jsdelivr CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
@@ -154,12 +154,12 @@
 
       <!-- Crisp, Authoritative H1 Title (Centered) -->
       <h1 id="hero-title" class="font-bold text-3xl sm:text-5xl lg:text-6xl text-[#fafafa] tracking-tight leading-[1.12] mb-6 max-w-3xl mx-auto">
-        Автоэлектрик <span class="text-[#22c55e]">с выездом</span> в Санкт-Петербурге
+        Автоэлектрик <span class="text-[#22c55e]">с выездом</span>
       </h1>
 
       <!-- Clean, informative Subtitle (Centered) -->
       <p id="hero-subtitle" class="text-[#a1a1aa] text-base sm:text-lg leading-relaxed mb-8 max-w-2xl mx-auto font-normal">
-        Диагностика, поиск короткого замыкания, ремонт проводки у машины без эвакуатора. 12+ лет опыта, гарантия 12 месяцев.
+        Диагностика, ремонт проводки, сигнализации — приеду к вашей машине в течение часа. Работаем 24/7.
       </p>
 
       <!-- Centered Fast Action Buttons -->
@@ -385,7 +385,13 @@
 
       <!-- Top 6 Core Services (Compact List) -->
       <div id="services-top-list" class="flex flex-col gap-2.5">
-        <!-- Rendered dynamically by JS -->
+        <!-- Skeleton placeholders shown until JS loads -->
+        <div class="service-skeleton animate-pulse h-16 bg-white/[0.03] border border-white/[0.06] rounded-2xl"></div>
+        <div class="service-skeleton animate-pulse h-16 bg-white/[0.03] border border-white/[0.06] rounded-2xl"></div>
+        <div class="service-skeleton animate-pulse h-16 bg-white/[0.03] border border-white/[0.06] rounded-2xl"></div>
+        <div class="service-skeleton animate-pulse h-16 bg-white/[0.03] border border-white/[0.06] rounded-2xl"></div>
+        <div class="service-skeleton animate-pulse h-16 bg-white/[0.03] border border-white/[0.06] rounded-2xl"></div>
+        <div class="service-skeleton animate-pulse h-16 bg-white/[0.03] border border-white/[0.06] rounded-2xl"></div>
       </div>
 
       <!-- Toggle Button to reveal full catalog -->
@@ -435,7 +441,9 @@
 
       <div class="swiper reviews-swiper pb-14 reveal">
         <div class="swiper-wrapper" id="reviews-wrapper">
-          <!-- JS renders slides -->
+          <!-- Skeleton placeholders shown until JS loads -->
+          <div class="swiper-slide"><div class="h-40 animate-pulse bg-white/[0.03] border border-white/[0.06] rounded-3xl"></div></div>
+          <div class="swiper-slide"><div class="h-40 animate-pulse bg-white/[0.03] border border-white/[0.06] rounded-3xl"></div></div>
         </div>
         <div class="swiper-pagination mt-2"></div>
         <div class="swiper-button-prev hidden md:flex"></div>
@@ -563,7 +571,7 @@
               bg-black/80 backdrop-blur-sm">
     <div class="w-full max-w-md bg-surface border border-border rounded-3xl p-8 shadow-2xl relative z-10">
       <div class="flex items-center gap-3 mb-6">
-        <img src="/mascot.svg" alt="" class="w-10 h-10 object-contain" />
+        <img src="/mascot.svg" alt="" class="w-10 h-10 object-contain" onerror="this.style.display='none'" />
         <div>
           <h3 class="text-xl font-black text-white">Оставьте заявку</h3>
           <p class="text-sm text-gray-400">Мастер свяжется с вами в течение часа</p>
@@ -631,11 +639,12 @@
     <!-- Floating mascot button (shows after onboarding) -->
     <button id="mascot-btn"
             class="fixed bottom-24 md:bottom-6 right-4 z-[90]
-                   w-14 h-14 rounded-full shadow-xl border border-accent/40
-                   bg-surface flex items-center justify-center
+                   w-14 h-14 rounded-full shadow-xl border border-white/[0.12]
+                   bg-[#18181b] flex items-center justify-center
                    hover:scale-110 transition-transform duration-200 hidden
                    pointer-events-auto">
-      <img src="/mascot.svg" alt="Помощь" class="w-10 h-10 object-contain" />
+      <img src="/mascot.svg" alt="Помощник" class="w-10 h-10 object-contain" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+      <span style="display:none;font-size:1.5rem">⚡</span>
     </button>
 
     <!-- Mascot speech bubble (onboarding step) -->
@@ -681,8 +690,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-  <script src="/js/main.js?v=2.1.1"></script>
-  <script src="/js/mascot.js?v=2.1.1"></script>
-  <script src="/js/perf-widget.js?v=2.1.1" defer></script>
+  <script src="/js/main.js?v=2.1.2" defer></script>
+  <script src="/js/mascot.js?v=2.1.2" defer></script>
+  <script src="/js/perf-widget.js?v=2.1.2" defer></script>
 </body>
 </html>

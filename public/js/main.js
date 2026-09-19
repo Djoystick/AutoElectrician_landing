@@ -156,18 +156,33 @@ function renderHero() {
   const s = DATA.settings || {};
   const c = DATA.contacts  || {};
 
-  // Title — wrap last word in accent colour with gradient
+  // Title — only update if different from static HTML to avoid CLS flicker
   const titleEl = document.getElementById('hero-title');
-  if (s.heroTitle) {
+  if (s.heroTitle && titleEl) {
+    // Accent on last 2 words ("с выездом") — build carefully
     const words = s.heroTitle.trim().split(' ');
-    const last  = words.pop();
-    titleEl.innerHTML =
-      words.join(' ') + (words.length ? ' ' : '') +
-      `<span class="text-accent">${last}</span>`;
+    if (words.length >= 2) {
+      const accentWords = words.slice(-2).join(' ');
+      const beforeWords = words.slice(0, -2).join(' ');
+      const newHtml = (beforeWords ? beforeWords + ' ' : '') +
+        `<span class="text-[#22c55e]">${accentWords}</span>`;
+      if (titleEl.innerHTML.replace(/\s+/g, ' ').trim() !== newHtml.replace(/\s+/g, ' ').trim()) {
+        titleEl.innerHTML = newHtml;
+      }
+    } else {
+      // fallback: accent last word only
+      const last = words.pop();
+      const newHtml = words.join(' ') + (words.length ? ' ' : '') + `<span class="text-[#22c55e]">${last}</span>`;
+      if (titleEl.innerHTML.replace(/\s+/g, ' ').trim() !== newHtml.replace(/\s+/g, ' ').trim()) {
+        titleEl.innerHTML = newHtml;
+      }
+    }
   }
 
   const subtitleEl = document.getElementById('hero-subtitle');
-  if (s.heroSubtitle) subtitleEl.textContent = s.heroSubtitle;
+  if (s.heroSubtitle && subtitleEl && subtitleEl.textContent.trim() !== s.heroSubtitle.trim()) {
+    subtitleEl.textContent = s.heroSubtitle;
+  }
 
   // Accepting requests badge (Living Status Indicator)
   const badge        = document.getElementById('hero-badge');

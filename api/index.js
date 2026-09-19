@@ -759,6 +759,7 @@ const authCheck = async (req, res, next) => {
 
 // 2. /api/data (Public Landing DTO)
 app.get('/api/data', async (req, res) => {
+  res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
   if (!supabase) {
     // Безопасный fallback из data/data.json при локальной разработке без Supabase
     try {
