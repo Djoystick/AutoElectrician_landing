@@ -15,8 +15,8 @@
   <meta property="og:description" content="Диагностика и ремонт электрики прямо у вашей машины. Без эвакуатора." />
   <meta property="og:type" content="website" />
 
-  <!-- Tailwind CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tailwind CSS (Local Standalone Engine) -->
+  <script src="/vendor/tailwind.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -44,14 +44,14 @@
     }
   </script>
 
-  <!-- Swiper -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+  <!-- Swiper CSS (Local) -->
+  <link rel="stylesheet" href="/vendor/swiper-bundle.min.css" />
 
   <!-- Custom CSS -->
-  <link rel="stylesheet" href="/css/style.css?v=2.1.4" />
+  <link rel="stylesheet" href="/css/style.css?v=2.1.5" />
 
-  <!-- Lucide (via reliable jsdelivr CDN) -->
-  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+  <!-- Lucide Icons (Local) -->
+  <script src="/vendor/lucide.min.js"></script>
 </head>
 
 <body class="bg-bg text-gray-100 font-sans antialiased overflow-x-hidden">
@@ -92,7 +92,7 @@
 
       <!-- Logo -->
       <a href="#" class="flex items-center gap-3 shrink-0 group">
-        <img src="/logo.png" alt="AutoElectro" class="h-9 w-auto object-contain">
+        <img src="/logo.svg" alt="AutoElectro" class="h-9 w-auto object-contain">
         <span class="font-bold text-lg text-[#fafafa] tracking-tight uppercase">
           Авто<span class="text-[#a1a1aa] font-normal group-hover:text-white transition-colors">Электро</span>
         </span>
@@ -543,7 +543,7 @@
     <div class="container mx-auto px-5 lg:px-10 max-w-6xl
                 flex flex-col sm:flex-row items-center justify-between gap-4">
       <div class="flex items-center gap-3">
-        <img src="/logo.png" alt="AutoElectro" class="h-14 w-auto object-contain">
+        <img src="/logo.svg" alt="AutoElectro" class="h-14 w-auto object-contain">
         <span class="font-black text-xl uppercase tracking-widest text-white">
           Авто<span class="text-accent">Электро</span>
         </span>
@@ -686,12 +686,12 @@
          class="max-h-[90vh] max-w-[90vw] rounded-2xl shadow-2xl object-contain" />
   </div>
 
-  <!-- Scripts -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
-  <script src="/js/main.js?v=2.1.4"></script>
-  <script src="/js/mascot.js?v=2.1.4"></script>
-  <script src="/js/perf-widget.js?v=2.1.4"></script>
+  <!-- Local Vendor Scripts -->
+  <script src="/vendor/gsap.min.js"></script>
+  <script src="/vendor/ScrollTrigger.min.js"></script>
+  <script src="/vendor/swiper-bundle.min.js"></script>
+  <script src="/js/main.js?v=2.1.5"></script>
+  <script src="/js/mascot.js?v=2.1.5"></script>
+  <script src="/js/perf-widget.js?v=2.1.5"></script>
 </body>
 </html>

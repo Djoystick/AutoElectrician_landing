@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.5] - 2026-09-19
+
+### 🛡️ Release: 100% Автономность (Zero External CDNs) & Ликвидация блокировок в РФ
+
+- **КРИТИЧНО — Полная локализация всех библиотек в `/public/vendor/`**:
+  - `Tailwind CSS`: скачан локальный автономный движок `/vendor/tailwind.js` вместо внешнего `cdn.tailwindcss.com` (Cloudflare).
+  - `Lucide Icons`: скачан локально `/vendor/lucide.min.js` вместо внешнего `cdn.jsdelivr.net`.
+  - `Swiper`: стили и скрипты перенесены локально в `/vendor/swiper-bundle.min.css` и `/vendor/swiper-bundle.min.js`.
+  - `GSAP & ScrollTrigger`: скачаны локально в `/vendor/gsap.min.js` и `/vendor/ScrollTrigger.min.js` вместо внешнего `cdnjs.cloudflare.com`.
+  - **Результат**: Сайт больше **НЕ делает ни единого запроса к зарубежным CDN** (Cloudflare, jsdelivr, cdnjs). Никакие блокировки или замедления зарубежных сетей больше не могут вызвать черный экран.
+- **Векторный логотип `logo.svg` вместо тяжелого `logo.png`**:
+  - Заменен 61 КБ растровый PNG с громоздкими метаданными на чистый векторный `logo.svg` размером **1.2 КБ** (в 50 раз легче). Мгновенный рендеринг без сетевых задержек.
+- **Версии кэш-бастеров обновлены до `?v=2.1.5`**.
+
 ## [2.1.4] - 2026-09-19
 
 ### ⚡ Fix: Ликвидация 3-минутной блокировки загрузки (Unsplash & Script defer)
