@@ -613,6 +613,12 @@ function setupTelegramAuthButton() {
     e.preventDefault();
     hideAuthError();
 
+    // Close any dangling previous popup
+    if (tgPopup && !tgPopup.closed) {
+      try { tgPopup.close(); } catch (_) {}
+    }
+    tgPopup = null;
+
     if (tgLabel) tgLabel.textContent = 'Открываем Telegram...';
 
     try {
@@ -623,7 +629,6 @@ function setupTelegramAuthButton() {
       }
 
       const botId = data.botId;
-      // We strictly use browser popup to oauth.telegram.org (ZERO BOTS, ZERO TELEGRAM DESKTOP APPS)
       const origin = encodeURIComponent(window.location.origin);
       const returnTo = encodeURIComponent(window.location.origin + '/profile.html');
       const oauthUrl = `https://oauth.telegram.org/auth?bot_id=${botId}&origin=${origin}&request_access=write&return_to=${returnTo}`;
@@ -651,7 +656,9 @@ function setupTelegramAuthButton() {
       const popupWatcher = setInterval(() => {
         if (!tgPopup || tgPopup.closed) {
           clearInterval(popupWatcher);
-          if (tgLabel) tgLabel.textContent = 'Войти через Telegram';
+          if (tgLabel && tgLabel.textContent === 'Подтвердите вход в окне Telegram...') {
+            tgLabel.textContent = 'Войти через Telegram';
+          }
         }
       }, 1000);
 
@@ -663,24 +670,64 @@ function setupTelegramAuthButton() {
   };
 }
 
-/* Listen for auth postMessage from oauth.telegram.org */
+/* Helper to extract user from message data (supports telegram-widget format, legacy format, direct objects) */
+function extractTgUserFromMessageData(raw) {
+  if (!raw) return null;
+  let data = raw;
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch { return null; }
+  }
+  if (!data || typeof data !== 'object') return null;
+
+  // 1. Official telegram-widget.js format: { event: 'auth_user', auth_data: { id, hash, ... } }
+  if (data.auth_data && (data.auth_data.id || data.auth_data.hash)) return data.auth_data;
+  // 2. Legacy / alternate formats
+  if (data.result && (data.result.id || data.result.hash)) return data.result;
+  if (data.user && (data.user.id || data.user.hash)) return data.user;
+  // 3. Direct user payload
+  if (data.id && data.hash) return data;
+
+  return null;
+}
+
+/* Listen for auth postMessage from oauth.telegram.org or redirected popup */
 window.addEventListener('message', async (event) => {
-  if (!event.origin || !event.origin.includes('telegram.org')) return;
+  const allowed = !event.origin || event.origin.includes('telegram.org') || event.origin === window.location.origin;
+  if (!allowed) return;
+
   try {
-    const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-    const user = data.result || (data.event === 'auth_result' ? data.result : data);
+    const user = extractTgUserFromMessageData(event.data);
     if (user && user.id && user.hash) {
-      if (tgPopup && !tgPopup.closed) tgPopup.close();
+      console.log('Successfully captured Telegram auth user:', user.id, user.first_name);
+      if (tgPopup && !tgPopup.closed) {
+        try { tgPopup.close(); } catch (_) {}
+      }
+      tgPopup = null;
       await window.onTelegramAuth(user);
     }
-  } catch {}
+  } catch (err) {
+    console.warn('Error handling postMessage:', err);
+  }
 });
 
-/* Check URL query parameters for return_to redirect auth */
-function checkUrlAuthParams() {
+/* Helper to parse Telegram user from URL (hash #tgAuthResult= or query ?tgAuthResult= or ?id=...&hash=...) */
+function extractTgUserFromUrl() {
+  const fullHref = window.location.href;
+  const match = fullHref.match(/[#?&]tgAuthResult=([A-Za-z0-9\-_=]+)/);
+  if (match && match[1]) {
+    try {
+      let b64 = match[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      const json = JSON.parse(window.atob(b64));
+      if (json && (json.id || json.hash)) return json;
+    } catch (e) {
+      console.warn('Failed to parse tgAuthResult base64:', e);
+    }
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   if (urlParams.has('id') && urlParams.has('hash')) {
-    const user = {
+    return {
       id: urlParams.get('id'),
       first_name: urlParams.get('first_name') || '',
       last_name: urlParams.get('last_name') || '',
@@ -689,9 +736,37 @@ function checkUrlAuthParams() {
       auth_date: urlParams.get('auth_date') || '',
       hash: urlParams.get('hash') || '',
     };
-    window.history.replaceState({}, document.title, window.location.pathname);
-    window.onTelegramAuth(user);
   }
+  return null;
+}
+
+/* Check URL parameters for return_to redirect auth */
+function checkUrlAuthParams() {
+  const user = extractTgUserFromUrl();
+  if (!user) return;
+
+  // Clean URL without reloading
+  try {
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  } catch (_) {}
+
+  // If this window is a popup opened by our main window, message opener and close
+  if (window.opener && window.opener !== window) {
+    try {
+      window.opener.postMessage({ event: 'auth_user', auth_data: user }, '*');
+      setTimeout(() => {
+        try { window.close(); } catch (_) {}
+      }, 200);
+      return;
+    } catch (err) {
+      console.warn('postMessage to opener failed:', err);
+    }
+  }
+
+  // Otherwise, process in this window directly
+  window.onTelegramAuth(user);
 }
 
 /* 2. Demo Client Sandbox Login */
@@ -737,6 +812,9 @@ function setupDemoClientButton() {
 /* ── Telegram Login Callback (HMAC-verified on backend) ── */
 window.onTelegramAuth = async function(user) {
   hideAuthError();
+  const tgLabel = document.getElementById('tg-btn-label');
+  if (tgLabel) tgLabel.textContent = 'Входим в кабинет...';
+
   try {
     const res = await fetch('/api/client/auth/telegram', {
       method:  'POST',
@@ -744,15 +822,17 @@ window.onTelegramAuth = async function(user) {
       body:    JSON.stringify(user),
     });
     const json = await res.json();
-    if (json.ok) {
+    if (json.ok && json.token) {
       TOKEN = json.token;
       localStorage.setItem(TOKEN_KEY, TOKEN);
       await loadProfile();
     } else {
-      showAuthError('Ошибка авторизации Telegram: ' + (json.message || json.error || ''));
+      showAuthError('Ошибка авторизации Telegram: ' + (json.message || json.error || 'Не удалось войти'));
+      if (tgLabel) tgLabel.textContent = 'Войти через Telegram';
     }
   } catch (e) {
     showAuthError('Ошибка соединения: ' + e.message);
+    if (tgLabel) tgLabel.textContent = 'Войти через Telegram';
   }
 };
 

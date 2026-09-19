@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.6] - 2026-09-19
+
+### ⚡ Fix: Telegram In-Browser OAuth Callback & Popup Handshake Fix
+
+- **Обработка ответа официального веб-OAuth Telegram**:
+  - Исправлен перехват `postMessage` от `oauth.telegram.org`: добавлен парсинг структуры `data.auth_data` (официальный формат Telegram `auth_user`), а также fallback на `data.result`, `data.user` и прямой объект данных.
+  - Добавлена поддержка передачи данных через `return_to` хеш (`#tgAuthResult=<base64>`) с автоматическим декодированием и уведомлением родительского окна через `window.opener.postMessage`.
+  - Устранено зависание всплывающего окна после нажатия кнопки «Принять» в окне авторизации Telegram.
+  - Предотвращена блокировка кнопки «Войти через Telegram» при повторных попытках входа.
+
 ## [1.4.5] - 2026-09-19
 
 ### 🚫 Complete Elimination of Telegram Bot Flow for Clients (Zero Desktop Apps, Zero /start)
