@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.5] - 2026-09-19
+
+### 🐛 Critical Fix: Client On-the-fly Creation in CRM (`POST /api/clients` 500 Fix)
+
+#### api/index.js:
+- **[DATABASE/SUPABASE] Исправление схемы запроса к таблице `clients`**:
+  - Устранена критическая ошибка 500 (`Could not find the 'accessCode' column of 'clients' in the schema cache`), возникавшая в Supabase PostgREST при попытке создания клиента из модального окна добавления ремонта.
+  - Из объекта вставки `payload` в `POST /api/clients` удалено поле `accessCode`, отсутствующее в реальной структуре таблицы `clients`.
+
+#### public/js/admin.js:
+- **[CRM UX] Информативные уведомления об ошибках**:
+  - В обработчике сохранения ремонта `bindRepairForm` улучшен вывод тостов при сбое создания профиля клиента: теперь отображается точное серверное сообщение об ошибке (`cRes?.error || cRes?.message`), предотвращая скрытые сбои без понятной диагностики.
+
 ## [1.2.4] - 2026-09-19
 
 ### 🎯 CRM UX Polish: Searchable Client Combobox, Prominent Dates & Red Pulsing Badge

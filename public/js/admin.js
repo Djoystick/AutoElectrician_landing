@@ -891,7 +891,7 @@ function bindRepairForm() {
             return;
           }
         } else {
-          toast('Ошибка создания профиля клиента', true);
+          toast(cRes?.error || cRes?.message || 'Ошибка создания профиля клиента', true);
           return;
         }
       }

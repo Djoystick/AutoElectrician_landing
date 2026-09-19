@@ -977,13 +977,11 @@ app.post('/api/clients', authCheck, async (req, res) => {
     }
   }
 
-  const accessCode = String(Math.floor(100000 + Math.random() * 900000));
   const payload = {
     id: uid(),
     name: name || 'Аноним',
     phone: cleanPhone || phone || '',
     email: email || '',
-    accessCode,
     vk_id: '',
     telegram_id: '',
     telegram_username: '',
