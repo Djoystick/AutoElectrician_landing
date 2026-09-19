@@ -839,57 +839,214 @@ app.post('/api/auth', limiterAdmin, async (req, res) => {
   res.json({ ok: true, token });
 });
 
-/* ── Masters Management ── */
-app.get('/api/masters', authCheck, async (req, res) => {
-  if (!supabase) return res.json({ ok: true, masters: [] });
-  const { data } = await supabase.from('masters').select('id, name, username, telegram_chat_id, created_at');
-  res.json({ ok: true, masters: data || [] });
-});
-
-app.post('/api/masters', authCheck, async (req, res) => {
-  if (!supabase) return res.status(500).json({ ok: false });
-  const { name, username, password } = req.body;
-  if (!name || !username || !password) return res.status(400).json({ ok: false, error: 'Missing fields' });
-  const hashedPassword = bcrypt.hashSync(password, 10);
-  const { data, error } = await supabase.from('masters').insert({
-    name, username, password: hashedPassword
-  }).select('id, name, username, telegram_chat_id, created_at').maybeSingle();
-  if (error) return res.status(500).json({ ok: false, error: error.message });
-  res.json({ ok: true, master: data });
-});
-
 /* ── Protected Root Masters (Immutable Lead Accounts) ── */
 const PROTECTED_MASTER_IDS = [
-  '19e4e551-4454-4710-8a6d-a4effc211201', // Sid Vicious (Главный мастер)
-  '41dbea03-a28c-4d1e-bbf0-be86737301b5'  // Seryozhka Abisonov (Проект лид)
+  '19e4e551-4454-4710-8a6d-a4effc211201', // Sid Vicious (CEO / Руководитель)
+  '41dbea03-a28c-4d1e-bbf0-be86737301b5'  // Seryozhka Abisonov (Chief / Главный автоэлектрик)
 ];
 const PROTECTED_MASTER_USERNAMES = [
   'vk_1125744855',
   'vk_250130315'
 ];
 
+function isPrivilegedMaster(master) {
+  if (!master) return false;
+  return PROTECTED_MASTER_IDS.includes(String(master.id)) ||
+         PROTECTED_MASTER_USERNAMES.includes(String(master.username));
+}
+
+/* ── Masters Management ── */
+app.get('/api/masters', authCheck, async (req, res) => {
+  if (!supabase) return res.json({ ok: true, masters: [] });
+  const [mRes, sRes] = await Promise.all([
+    supabase.from('masters').select('id, name, username, telegram_chat_id, created_at'),
+    supabase.from('settings').select('*').maybeSingle()
+  ]);
+  const mastersMeta = sRes.data?.data?.masters_meta || {};
+  const masters = (mRes.data || []).map(m => {
+    const isProtected = PROTECTED_MASTER_IDS.includes(m.id) || PROTECTED_MASTER_USERNAMES.includes(m.username);
+    const defaultRole = m.username === 'vk_1125744855' ? 'lead' : (m.username === 'vk_250130315' ? 'chief' : 'master');
+    const meta = mastersMeta[m.id] || {};
+    return {
+      ...m,
+      role: isProtected ? defaultRole : (meta.role || 'master'),
+      phone: meta.phone || '',
+      specialization: meta.specialization || '',
+      notes: meta.notes || '',
+      isProtected
+    };
+  });
+  res.json({ ok: true, masters, currentMasterId: req.master?.id });
+});
+
+app.post('/api/masters', authCheck, async (req, res) => {
+  if (!supabase) return res.status(500).json({ ok: false, error: 'Database error' });
+  if (!isPrivilegedMaster(req.master)) {
+    return res.status(403).json({ ok: false, error: 'Доступ запрещён: только CEO или Главный мастер могут добавлять сотрудников' });
+  }
+
+  const { name, username, password, role, phone, specialization, notes } = req.body;
+  if (!name || !username || !password) {
+    return res.status(400).json({ ok: false, error: 'Заполните обязательные поля (имя, логин, пароль)' });
+  }
+
+  const cleanUsername = String(username).trim().toLowerCase();
+  if (cleanUsername.length < 3) {
+    return res.status(400).json({ ok: false, error: 'Логин должен содержать минимум 3 символа' });
+  }
+  if (String(password).trim().length < 6) {
+    return res.status(400).json({ ok: false, error: 'Пароль должен содержать минимум 6 символов' });
+  }
+
+  if (PROTECTED_MASTER_USERNAMES.includes(cleanUsername)) {
+    return res.status(400).json({ ok: false, error: 'Этот логин зарезервирован для системного аккаунта' });
+  }
+
+  const { data: existing } = await supabase.from('masters').select('id').eq('username', cleanUsername).maybeSingle();
+  if (existing) {
+    return res.status(400).json({ ok: false, error: 'Сотрудник с таким логином уже существует' });
+  }
+
+  const hashedPassword = bcrypt.hashSync(String(password).trim(), 10);
+  const { data, error } = await supabase.from('masters').insert({
+    name: String(name).trim(),
+    username: cleanUsername,
+    password: hashedPassword
+  }).select('id, name, username, telegram_chat_id, created_at').maybeSingle();
+
+  if (error) return res.status(500).json({ ok: false, error: error.message });
+
+  if (data?.id) {
+    const { data: sRow } = await supabase.from('settings').select('*').maybeSingle();
+    let currentSettings = sRow?.data || {};
+    if (!currentSettings.masters_meta) currentSettings.masters_meta = {};
+    const assignedRole = (role === 'lead' || role === 'chief') ? 'master' : (role || 'master');
+    currentSettings.masters_meta[data.id] = {
+      role: assignedRole,
+      phone: phone ? String(phone).trim() : '',
+      specialization: specialization ? String(specialization).trim() : '',
+      notes: notes ? String(notes).trim() : ''
+    };
+    if (sRow) await supabase.from('settings').update({ data: currentSettings }).eq('id', sRow.id);
+  }
+
+  console.log(`[SECURITY] New master created: ${cleanUsername} by ${req.master?.username}`);
+  res.json({ ok: true, master: data });
+});
+
+app.put('/api/masters/:id', authCheck, async (req, res) => {
+  if (!supabase) return res.status(500).json({ ok: false, error: 'Database error' });
+  const targetId = String(req.params.id);
+  const isTargetProtected = PROTECTED_MASTER_IDS.includes(targetId);
+  const isCallerPrivileged = isPrivilegedMaster(req.master);
+  const isSelf = req.master && String(req.master.id) === targetId;
+
+  if (isTargetProtected && !isCallerPrivileged && !isSelf) {
+    return res.status(403).json({ ok: false, error: 'Доступ запрещён: недостаточно прав для редактирования системного аккаунта' });
+  }
+  if (!isCallerPrivileged && !isSelf) {
+    return res.status(403).json({ ok: false, error: 'Доступ запрещён: редактировать карточку может только сам сотрудник или руководитель' });
+  }
+
+  const { name, username, password, role, phone, specialization, notes } = req.body;
+
+  const updatePayload = {};
+  if (name && String(name).trim()) {
+    updatePayload.name = String(name).trim();
+  }
+
+  if (username && !isTargetProtected) {
+    const cleanUser = String(username).trim().toLowerCase();
+    if (cleanUser.length >= 3 && !PROTECTED_MASTER_USERNAMES.includes(cleanUser)) {
+      updatePayload.username = cleanUser;
+    }
+  }
+
+  let freshToken = null;
+  if (password && typeof password === 'string' && password.trim() !== '') {
+    const cleanPwd = password.trim();
+    if (cleanPwd.length < 6) {
+      return res.status(400).json({ ok: false, error: 'Пароль должен содержать не менее 6 символов' });
+    }
+    updatePayload.password = bcrypt.hashSync(cleanPwd, 10);
+    if (isSelf) {
+      freshToken = jwt.sign({ username: updatePayload.username || req.master.username, id: req.master.id }, JWT_SECRET, { expiresIn: '30d' });
+    }
+    console.log(`[SECURITY] Password updated for master ${targetId} by ${req.master?.username}`);
+  }
+
+  if (Object.keys(updatePayload).length > 0) {
+    await supabase.from('masters').update(updatePayload).eq('id', targetId);
+  }
+
+  const { data: sRow } = await supabase.from('settings').select('*').maybeSingle();
+  let currentSettings = sRow?.data || {};
+  if (!currentSettings.masters_meta) currentSettings.masters_meta = {};
+
+  let finalRole = currentSettings.masters_meta[targetId]?.role || (targetId === '19e4e551-4454-4710-8a6d-a4effc211201' ? 'lead' : (targetId === '41dbea03-a28c-4d1e-bbf0-be86737301b5' ? 'chief' : 'master'));
+  if (isTargetProtected) {
+    finalRole = targetId === '19e4e551-4454-4710-8a6d-a4effc211201' ? 'lead' : 'chief';
+  } else if (role && isCallerPrivileged) {
+    finalRole = (role === 'lead' || role === 'chief') ? 'master' : role;
+  }
+
+  currentSettings.masters_meta[targetId] = {
+    ...(currentSettings.masters_meta[targetId] || {}),
+    role: finalRole,
+    phone: phone !== undefined ? String(phone).trim() : (currentSettings.masters_meta[targetId]?.phone || ''),
+    specialization: specialization !== undefined ? String(specialization).trim() : (currentSettings.masters_meta[targetId]?.specialization || ''),
+    notes: notes !== undefined ? String(notes).trim() : (currentSettings.masters_meta[targetId]?.notes || '')
+  };
+
+  if (sRow) await supabase.from('settings').update({ data: currentSettings }).eq('id', sRow.id);
+
+  const { data: updatedMaster } = await supabase.from('masters').select('id, name, username, telegram_chat_id, created_at').eq('id', targetId).maybeSingle();
+
+  res.json({
+    ok: true,
+    master: {
+      ...updatedMaster,
+      ...currentSettings.masters_meta[targetId],
+      isProtected: isTargetProtected
+    },
+    ...(freshToken ? { token: freshToken } : {})
+  });
+});
+
 app.delete('/api/masters/:id', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   const targetId = String(req.params.id);
 
-  // 1. Жесткая защита системных аккаунтов (главный мастер и проект лид)
+  if (!isPrivilegedMaster(req.master)) {
+    return res.status(403).json({ ok: false, error: 'Доступ запрещён: только CEO или Главный мастер могут удалять сотрудников' });
+  }
+
   if (PROTECTED_MASTER_IDS.includes(targetId)) {
+    console.warn(`[SECURITY ALERT] Blocked deletion attempt on protected master ID: ${targetId} by ${req.master?.username}`);
     return res.status(403).json({ ok: false, error: 'Этот аккаунт мастера защищён от удаления' });
   }
 
-  // Дополнительная проверка по username целевого мастера
   const { data: targetMaster } = await supabase.from('masters').select('id, username').eq('id', targetId).maybeSingle();
   if (targetMaster && PROTECTED_MASTER_USERNAMES.includes(targetMaster.username)) {
+    console.warn(`[SECURITY ALERT] Blocked deletion attempt on protected master username: ${targetMaster.username} by ${req.master?.username}`);
     return res.status(403).json({ ok: false, error: 'Этот аккаунт мастера защищён от удаления' });
   }
 
-  // 2. Защита от самоудаления
   if (req.master && String(req.master.id) === targetId) {
     return res.status(400).json({ ok: false, error: 'cannot_delete_self' });
   }
 
   const { error } = await supabase.from('masters').delete().eq('id', targetId);
   if (error) return res.status(500).json({ ok: false, error: error.message });
+
+  const { data: sRow } = await supabase.from('settings').select('*').maybeSingle();
+  if (sRow?.data?.masters_meta && sRow.data.masters_meta[targetId]) {
+    const currentSettings = sRow.data;
+    delete currentSettings.masters_meta[targetId];
+    await supabase.from('settings').update({ data: currentSettings }).eq('id', sRow.id);
+  }
+
+  console.log(`[SECURITY] Master ${targetId} deleted by ${req.master?.username}`);
   res.json({ ok: true });
 });
 

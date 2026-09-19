@@ -1085,56 +1085,202 @@ function populateSettings() {
   fetchMasters();
 }
 
+let currentMastersList = [];
+
+const ROLE_DEFINITIONS = {
+  lead: {
+    title: '👑 CEO / Руководитель проекта',
+    shortTitle: 'CEO',
+    badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+    icon: 'crown'
+  },
+  chief: {
+    title: '⚡ Главный автоэлектрик / Проект Лид',
+    shortTitle: 'Chief',
+    badgeClass: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
+    icon: 'zap'
+  },
+  master: {
+    title: '🛠️ Мастер-автоэлектрик',
+    shortTitle: 'Мастер',
+    badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+    icon: 'wrench'
+  },
+  apprentice: {
+    title: '🔧 Подмастерье / Помощник',
+    shortTitle: 'Подмастерье',
+    badgeClass: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+    icon: 'hammer'
+  },
+  manager: {
+    title: '💬 Клиентский сервис / Менеджер',
+    shortTitle: 'Менеджер',
+    badgeClass: 'bg-pink-500/10 text-pink-400 border-pink-500/30',
+    icon: 'message-square'
+  }
+};
+
 async function fetchMasters() {
-  const tbody = document.getElementById('masters-tbody');
-  if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="3" class="px-4 py-3 text-center text-gray-500">Загрузка...</td></tr>';
-  
+  const container = document.getElementById('masters-cards-container');
+  if (!container) return;
+  container.innerHTML = '<div class="col-span-full p-6 text-center text-gray-500 text-sm">Загрузка команды...</div>';
+
   const res = await api('GET', '/api/masters');
   if (!res.ok || !res.masters) {
-    tbody.innerHTML = '<tr><td colspan="3" class="px-4 py-3 text-center text-red-500">Ошибка загрузки</td></tr>';
+    container.innerHTML = '<div class="col-span-full p-6 text-center text-red-400 text-sm">Ошибка загрузки списка сотрудников</div>';
     return;
   }
-  
-  if (res.masters.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="3" class="px-4 py-3 text-center text-gray-500">Нет мастеров</td></tr>';
-    return;
-  }
-  
-  const PROTECTED_MASTERS = [
-    '19e4e551-4454-4710-8a6d-a4effc211201',
-    '41dbea03-a28c-4d1e-bbf0-be86737301b5',
-    'vk_1125744855',
-    'vk_250130315'
-  ];
 
-  tbody.innerHTML = res.masters.map(m => {
-    const isProtected = PROTECTED_MASTERS.includes(m.id) || PROTECTED_MASTERS.includes(m.username);
+  currentMastersList = res.masters;
+
+  if (currentMastersList.length === 0) {
+    container.innerHTML = '<div class="col-span-full p-6 text-center text-gray-500 text-sm">Нет зарегистрированных сотрудников</div>';
+    return;
+  }
+
+  container.innerHTML = currentMastersList.map(m => {
+    const roleDef = ROLE_DEFINITIONS[m.role] || ROLE_DEFINITIONS.master;
+    const isProtected = m.isProtected;
+    const initials = (m.name || 'Мастер').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+    const isConnected = !!m.telegram_chat_id;
+
     return `
-    <tr class="hover:bg-white/[0.02] transition-colors">
-      <td class="px-4 py-3 align-middle">
-        <div class="font-bold text-white flex items-center gap-2">
-          ${escapeHtml(m.name)}
-          ${isProtected ? '<span class="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20 font-mono font-semibold">Lead</span>' : ''}
+    <div class="card p-4 flex flex-col justify-between border border-border hover:border-accent/40 transition-all rounded-2xl bg-surface/50 relative overflow-hidden group">
+      <div>
+        <div class="flex items-start justify-between gap-3 mb-3">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-11 h-11 rounded-xl bg-accent/10 border border-accent/20 text-accent font-black text-sm flex items-center justify-center shrink-0">
+              ${initials}
+            </div>
+            <div class="min-w-0">
+              <h4 class="font-bold text-white text-base truncate">${escapeHtml(m.name)}</h4>
+              <div class="text-xs font-mono text-gray-400 truncate">@${escapeHtml(m.username)}</div>
+            </div>
+          </div>
+          <div class="shrink-0 flex flex-col items-end gap-1">
+            <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full border ${roleDef.badgeClass}">
+              ${roleDef.shortTitle}
+            </span>
+            ${isProtected ? `
+            <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Системный аккаунт (защищён от удаления и понижения)">
+              <i data-lucide="shield-check" class="w-3 h-3"></i> Защищён
+            </span>` : ''}
+          </div>
         </div>
-        <div class="text-xs text-gray-400">@${escapeHtml(m.username)}</div>
-      </td>
-      <td class="px-4 py-3 align-middle">
-        ${m.telegram_chat_id ? `<span class="text-green-400 text-xs flex items-center gap-1"><i data-lucide="check-circle-2" class="w-3 h-3"></i> Подключен (${m.telegram_chat_id})</span>` : '<span class="text-gray-500 text-xs">Не привязан</span>'}
-      </td>
-      <td class="px-4 py-3 text-right align-middle">
-        ${isProtected ? `
-        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 cursor-default" title="Системный аккаунт (защищён от удаления)">
-          <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Защищён
-        </span>` : `
-        <button type="button" class="btn-ghost text-red-400 hover:text-red-300 p-2" onclick="deleteMaster('${m.id}')" title="Удалить">
-          <i data-lucide="trash-2" class="w-4 h-4"></i>
-        </button>`}
-      </td>
-    </tr>`;
+
+        <div class="space-y-1.5 text-xs text-gray-300 mb-4">
+          ${m.phone ? `<div class="flex items-center gap-2 text-gray-300"><i data-lucide="phone" class="w-3.5 h-3.5 text-accent shrink-0"></i><a href="tel:${m.phone.replace(/[^\d+]/g, '')}" class="hover:text-white transition-colors">${escapeHtml(m.phone)}</a></div>` : '<div class="text-gray-500 flex items-center gap-2"><i data-lucide="phone" class="w-3.5 h-3.5 shrink-0"></i>Телефон не указан</div>'}
+          ${m.specialization ? `<div class="flex items-start gap-2 text-gray-300 line-clamp-2"><i data-lucide="wrench" class="w-3.5 h-3.5 text-accent shrink-0 mt-0.5"></i><span>${escapeHtml(m.specialization)}</span></div>` : ''}
+          <div class="flex items-center gap-2 pt-1">
+            <i data-lucide="bot" class="w-3.5 h-3.5 ${isConnected ? 'text-green-400' : 'text-gray-500'} shrink-0"></i>
+            ${isConnected ? `<span class="text-green-400 font-medium">Telegram: подключен (${m.telegram_chat_id})</span>` : '<span class="text-gray-500">Telegram: не привязан</span>'}
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-2 pt-3 border-t border-border/70 mt-1">
+        <button type="button" onclick="openMasterCardModal('${m.id}')" class="btn-ghost text-xs py-1.5 px-3 flex items-center gap-1.5 text-accent hover:text-white flex-1 justify-center border border-accent/20 hover:bg-accent/10 rounded-xl transition-all">
+          <i data-lucide="id-card" class="w-3.5 h-3.5"></i> Карточка сотрудника
+        </button>
+        ${!isProtected ? `
+        <button type="button" onclick="deleteMaster('${m.id}')" class="btn-danger text-xs py-1.5 px-2.5 rounded-xl shrink-0" title="Удалить сотрудника">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        </button>` : ''}
+      </div>
+    </div>`;
   }).join('');
+
   if (window.lucide) lucide.createIcons();
 }
+
+function openMasterCardModal(masterId) {
+  const m = currentMastersList.find(x => String(x.id) === String(masterId));
+  if (!m) return;
+
+  const form = document.getElementById('form-master-card');
+  if (form) form.reset();
+
+  document.getElementById('mcard-id').value = m.id;
+  document.getElementById('mcard-name').value = m.name || '';
+  document.getElementById('mcard-username').value = m.username || '';
+  document.getElementById('mcard-role').value = m.role || 'master';
+  document.getElementById('mcard-phone').value = m.phone || '';
+  document.getElementById('mcard-specialization').value = m.specialization || '';
+  document.getElementById('mcard-notes').value = m.notes || '';
+  document.getElementById('mcard-password').value = '';
+
+  const initials = (m.name || 'Мастер').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  document.getElementById('mcard-avatar').textContent = initials;
+  document.getElementById('mcard-title').textContent = m.name;
+  document.getElementById('mcard-subtitle').textContent = `@${m.username} • ID: ${m.id}`;
+
+  const protBadge = document.getElementById('mcard-protected-badge');
+  const roleSelect = document.getElementById('mcard-role');
+  const userInp = document.getElementById('mcard-username');
+  const userHint = document.getElementById('mcard-username-hint');
+
+  if (m.isProtected) {
+    protBadge.classList.remove('hidden');
+    roleSelect.disabled = true;
+    userInp.disabled = true;
+    userHint.textContent = '🔒 Системный аккаунт: логин и роль заблокированы от изменений';
+    userHint.classList.add('text-amber-400');
+  } else {
+    protBadge.classList.add('hidden');
+    roleSelect.disabled = false;
+    userInp.disabled = false;
+    userHint.textContent = 'Используется для авторизации в CRM';
+    userHint.classList.remove('text-amber-400');
+  }
+
+  const tgStatus = document.getElementById('mcard-tg-status');
+  const tgId = document.getElementById('mcard-tg-id');
+  if (m.telegram_chat_id) {
+    tgStatus.textContent = '🟢 Подключен';
+    tgStatus.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20';
+    tgId.textContent = `Chat ID: ${m.telegram_chat_id}`;
+  } else {
+    tgStatus.textContent = '⚪ Не привязан';
+    tgStatus.className = 'text-xs font-semibold px-2.5 py-0.5 rounded-full bg-gray-500/10 text-gray-400 border border-gray-500/20';
+    tgId.textContent = 'Chat ID: не привязан';
+  }
+
+  openModal('modal-master-card');
+}
+window.openMasterCardModal = openMasterCardModal;
+
+document.getElementById('form-master-card')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('mcard-id').value;
+  if (!id) return;
+
+  const body = {
+    name: document.getElementById('mcard-name').value,
+    username: document.getElementById('mcard-username').value,
+    role: document.getElementById('mcard-role').value,
+    phone: document.getElementById('mcard-phone').value,
+    specialization: document.getElementById('mcard-specialization').value,
+    notes: document.getElementById('mcard-notes').value,
+    password: document.getElementById('mcard-password').value
+  };
+
+  const btn = document.getElementById('btn-save-master-card');
+  btn.disabled = true;
+  const res = await api('PUT', `/api/masters/${id}`, body);
+  btn.disabled = false;
+
+  if (res.ok) {
+    toast('✅ Карточка сотрудника сохранена');
+    if (res.token) {
+      TOKEN = res.token;
+      localStorage.setItem('adminToken', res.token);
+    }
+    closeModal('modal-master-card');
+    fetchMasters();
+  } else {
+    toast(res.error || 'Ошибка сохранения карточки', true);
+  }
+});
 
 function openMasterModal() {
   document.getElementById('form-master').reset();
@@ -1142,7 +1288,7 @@ function openMasterModal() {
 }
 window.openMasterModal = openMasterModal;
 
-document.getElementById('form-master').addEventListener('submit', async (e) => {
+document.getElementById('form-master')?.addEventListener('submit', async (e) => {
   e.preventDefault();
   const body = formToObj(e.target);
   const btn = e.target.querySelector('button[type="submit"]');
@@ -1150,11 +1296,11 @@ document.getElementById('form-master').addEventListener('submit', async (e) => {
   const res = await api('POST', '/api/masters', body);
   btn.disabled = false;
   if (res.ok) {
-    toast('Мастер успешно добавлен');
+    toast('✅ Сотрудник успешно добавлен');
     closeModal('modal-master');
     fetchMasters();
   } else {
-    toast(res.error || 'Ошибка добавления', 'error');
+    toast(res.error || 'Ошибка добавления сотрудника', true);
   }
 });
 
