@@ -62,6 +62,7 @@ async function loadAndShow() {
   renderServicesAdmin();
   renderReviewsAdmin();
   lucide.createIcons();
+  initRequestsAutoSync();
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -187,6 +188,40 @@ function updateRequestsBadge(count) {
       badge.classList.remove('badge-pulse');
     }
   }
+}
+
+let requestsSyncTimer = null;
+function initRequestsAutoSync() {
+  if (requestsSyncTimer) return;
+  requestsSyncTimer = setInterval(async () => {
+    if (TOKEN && !document.hidden) {
+      try {
+        const res = await api('GET', '/api/requests');
+        if (res && res.requests) {
+          DATA.requests = res.requests;
+          updateRequestsBadge();
+          const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
+          if (activeTab === 'requests') renderRequests();
+          if (activeTab === 'overview') renderOverview();
+        }
+      } catch (_) {}
+    }
+  }, 25000);
+
+  document.addEventListener('visibilitychange', async () => {
+    if (!document.hidden && TOKEN) {
+      try {
+        const res = await api('GET', '/api/requests');
+        if (res && res.requests) {
+          DATA.requests = res.requests;
+          updateRequestsBadge();
+          const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
+          if (activeTab === 'requests') renderRequests();
+          if (activeTab === 'overview') renderOverview();
+        }
+      } catch (_) {}
+    }
+  });
 }
 
 function renderOverview() {
@@ -372,14 +407,19 @@ function renderClients(filter = '') {
   const list  = document.getElementById('clients-list');
   let clients = DATA.clients || DATA.clientsSummary || [];
   if (filter) {
-    const q = filter.toLowerCase();
-    clients = clients.filter(c =>
-      c.name?.toLowerCase().includes(q) ||
-      c.phone?.includes(q) ||
-      c.telegram_username?.toLowerCase().includes(q) ||
-      c.vk_id?.includes(q) ||
-      (c.cars || []).some(car => `${car.brand} ${car.model} ${car.plate}`.toLowerCase().includes(q))
-    );
+    const q = filter.toLowerCase().trim();
+    const qDigits = q.replace(/\D/g, '');
+    clients = clients.filter(c => {
+      const nameMatch = c.name?.toLowerCase().includes(q);
+      const phoneDigits = String(c.phone || '').replace(/\D/g, '');
+      const phoneMatch = c.phone?.toLowerCase().includes(q) || (qDigits && phoneDigits.includes(qDigits));
+      const idMatch = c.id?.toLowerCase().includes(q);
+      const pinMatch = String(c.pin || '').includes(q);
+      const tgMatch = c.telegram_username?.toLowerCase().includes(q);
+      const vkMatch = String(c.vk_id || '').includes(q);
+      const carMatch = (c.cars || []).some(car => `${car.brand} ${car.model} ${car.plate}`.toLowerCase().includes(q));
+      return nameMatch || phoneMatch || idMatch || pinMatch || tgMatch || vkMatch || carMatch;
+    });
   }
   if (!clients.length) {
     if (filter) {
@@ -420,8 +460,10 @@ function renderClients(filter = '') {
   }
   list.innerHTML = clients.map(c => {
     const repairs        = c.repairs || [];
-    const repairCount    = c.repairCount ?? repairs.length;
-    const lastRepairDate = c.lastRepairDate || (repairs.length ? repairs[repairs.length - 1].date : null);
+    const validRepairs   = repairs.filter(r => r.type !== 'Напоминание' && r.date);
+    const sortedRepairs  = [...validRepairs].sort((a, b) => a.date > b.date ? -1 : 1);
+    const repairCount    = c.repairCount ?? validRepairs.length;
+    const lastRepairDate = c.lastRepairDate || (sortedRepairs[0]?.date || null);
     
     // Level calculation
     let level = c.level;
@@ -513,7 +555,8 @@ window.shareClientLink = async (clientId, mode) => {
       await navigator.clipboard.writeText(magicUrl);
       toast('✅ Ссылка на профиль скопирована!');
     } else if (mode === 'whatsapp') {
-      const cleanP = String(phone || '').replace(/[^\d]/g, '');
+      let cleanP = String(phone || '').replace(/[^\d]/g, '');
+      if (cleanP.startsWith('8') && cleanP.length === 11) cleanP = '7' + cleanP.slice(1);
       const text = encodeURIComponent(`Здравствуйте, ${name || 'клиент'}! Ваша электронная сервисная книжка и гарантия доступны по ссылке:\n${magicUrl}\n\nВаш ПИН-код: ${pin}`);
       window.open(`https://wa.me/${cleanP}?text=${text}`, '_blank');
     } else if (mode === 'telegram') {

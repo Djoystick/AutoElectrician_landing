@@ -584,7 +584,8 @@ function renderStats() {
   const repairs   = (CLIENT.repairs || []).filter(r => r.type !== 'Напоминание');
   const total     = repairs.reduce((s, r) => s + (Number(r.cost) || 0), 0);
   const avg       = repairs.length ? Math.round(total / repairs.length) : 0;
-  const lastDate  = repairs.length ? new Date(repairs[repairs.length - 1].date) : null;
+  const sortedRepairs = [...repairs].sort((a, b) => a.date > b.date ? -1 : 1);
+  const lastDate  = sortedRepairs.length ? new Date(sortedRepairs[0].date) : null;
   const daysAgo   = lastDate ? Math.floor((Date.now() - lastDate.getTime()) / 86400000) : '—';
 
   document.getElementById('stat-visits').textContent = repairs.length;

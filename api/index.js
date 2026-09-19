@@ -1222,6 +1222,24 @@ app.post('/api/requests', limiterPublic, async (req, res) => {
   
   const cleanPhone = normalizePhone(phone);
 
+  // Anti-spam cooldown: prevent spamming duplicate requests from same phone within 2 minutes
+  const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+  const { data: recentDup } = await supabase
+    .from('requests')
+    .select('id')
+    .eq('phone', cleanPhone)
+    .eq('status', 'new')
+    .gt('created_at', twoMinAgo)
+    .limit(1);
+
+  if (recentDup && recentDup.length > 0) {
+    return res.status(429).json({
+      ok: false,
+      error: 'duplicate_request',
+      message: 'Ваша заявка уже принята и находится в обработке! Мастер свяжется с вами в ближайшее время.'
+    });
+  }
+
   // Level 4: Pre-create or link client so repairs and guest session are instantly ready
   let client = null;
   const { data: existingClient } = await supabase.from('clients').select('*').eq('phone', cleanPhone).maybeSingle();
