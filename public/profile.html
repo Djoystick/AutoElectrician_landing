@@ -92,40 +92,44 @@
     <div id="auth-error-banner" class="hidden text-xs text-amber-300 bg-amber-950/40 border border-amber-800/50 rounded-xl p-3 text-center mb-3"></div>
 
     <!-- OAuth buttons -->
-    <!-- OAuth buttons -->
     <div class="space-y-3 mb-5">
-      <!-- 1. Official Telegram Silent Login Widget -->
-      <div id="telegram-widget-wrapper" class="w-full flex flex-col items-center justify-center min-h-[44px]">
-        <script async src="https://telegram.org/js/telegram-widget.js?22"
-                data-telegram-login="Autoelectrical_Official_bot"
-                data-size="large"
-                data-radius="12"
-                data-onauth="onTelegramAuth(user)"
-                data-request-access="write"></script>
+      <!-- 1. Telegram Main Button -->
+      <button id="tg-login-btn" type="button"
+              class="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl
+                     bg-[#0088CC] hover:bg-[#0077b3] active:scale-[0.99] text-white font-bold text-sm shadow-md transition-all cursor-pointer">
+        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/>
+        </svg>
+        <span id="tg-btn-label">Войти через Telegram</span>
+      </button>
+
+      <!-- Telegram Status Indicator (shown on click) -->
+      <div id="tg-status-box" class="hidden p-3 rounded-xl bg-sky-950/50 border border-sky-800/50 text-center text-xs space-y-2">
+        <div class="flex items-center justify-center gap-2 text-sky-300 font-semibold">
+          <svg class="w-4 h-4 animate-spin shrink-0 text-[#00b4fd]" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+          </svg>
+          <span>Ожидаем подтверждения в Telegram</span>
+        </div>
+        <p class="text-gray-300 text-[11px] leading-relaxed">
+          Открываем приложение Telegram. Нажмите кнопку <strong>«Запустить»</strong> в боте.
+        </p>
+        <div class="pt-1">
+          <a id="tg-reopen-link" href="#" class="text-[#00b4fd] underline text-[11px] hover:text-white transition-colors">
+            Не открылось приложение? Нажмите здесь
+          </a>
+        </div>
       </div>
 
-      <!-- Direct Native TG App Fallback Link (non-intrusive) -->
-      <div id="tg-fallback-wrap" class="text-center pt-0.5">
-        <a id="tg-app-fallback-link" href="#"
-           class="text-[11px] text-[#00b4fd]/70 hover:text-[#00b4fd] transition-colors inline-flex items-center gap-1">
-          <span>Не отображается кнопка Telegram? Войти через приложение</span>
-        </a>
-      </div>
-
-      <!-- 2. VK ID One Tap Widget Container -->
-      <div id="vk-onetap-wrap" class="w-full flex flex-col items-center">
-        <div id="vk-onetap-container" class="w-full"></div>
-      </div>
-
-      <!-- VK OAuth Direct Fallback Button (hidden by default, unhidden only if One Tap fails) -->
+      <!-- 2. VK ID Main Button -->
       <a id="vk-fallback-btn" href="/api/client/auth/vk/login"
-         class="hidden w-full flex items-center justify-center gap-3 py-2.5 rounded-xl
-                bg-[#4C75A3]/10 border border-[#4C75A3]/40 text-[#4C75A3]
-                font-semibold text-xs hover:bg-[#4C75A3]/20 transition-colors">
-        <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+         class="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl
+                bg-[#0077FF] hover:bg-[#0066ee] active:scale-[0.99] text-white font-bold text-sm shadow-md transition-all cursor-pointer">
+        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor">
           <path d="M15.684 0H8.316C1.592 0 0 1.592 0 8.316v7.368C0 22.408 1.592 24 8.316 24h7.368C22.408 24 24 22.408 24 15.684V8.316C24 1.592 22.408 0 15.684 0zm3.692 17.123h-1.744c-.66 0-.862-.523-2.049-1.714-1.033-1.01-1.49-.85-1.49.505v1.21c0 .376-.12.6-1.102.6-1.626 0-3.43-1.002-4.698-2.86-1.91-2.697-2.434-4.714-2.434-5.125 0-.205.08-.398.396-.398h1.744c.295 0 .408.132.522.44.574 1.663 1.536 3.12 1.93 3.12.148 0 .216-.068.216-.44V9.655c-.044-.79-.462-.858-.462-1.138 0-.176.147-.353.383-.353h2.742c.25 0 .338.132.338.42v3.77c0 .25.11.338.178.338.148 0 .274-.088.549-.362.847-.956 1.45-2.426 1.45-2.426.08-.176.245-.34.54-.34h1.744c.524 0 .637.27.524.638-.22.979-2.354 4.036-2.354 4.036-.186.294-.25.43 0 .758.185.25 1.79 1.74 1.79 1.74.528.586.594 1.038.594 1.038z"/>
         </svg>
-        Войти через ВКонтакте
+        <span>Войти через ВКонтакте</span>
       </a>
     </div>
 
@@ -355,7 +359,7 @@
   </div>
 </div>
 
-<script src="/js/profile.js?v=1.4.3"></script>
-<script src="/js/perf-widget.js?v=1.4.3" defer></script>
+<script src="/js/profile.js?v=1.4.4"></script>
+<script src="/js/perf-widget.js?v=1.4.4" defer></script>
 </body>
 </html>

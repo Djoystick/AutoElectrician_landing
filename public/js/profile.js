@@ -143,8 +143,7 @@ function showLoginScreen() {
   document.getElementById('profile-screen').classList.add('hidden');
   if (window.lucide) lucide.createIcons();
   
-  renderTelegramWidget();
-  setupTelegramFallbackLink();
+  setupTelegramAuthButton();
   setupDemoClientButton();
   initVkIdAuth();
 }
@@ -586,10 +585,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 /* ══════════════════════════════════════════════════════════
-   TELEGRAM AUTH (WIDGET + DIRECT APP FALLBACK)
+   TELEGRAM AUTH (DIRECT APP LAUNCH & WEBHOOK CONFIRMATION)
 ══════════════════════════════════════════════════════════ */
-let tgFallbackSessionId = null;
-let tgFallbackPollInterval = null;
+let tgSessionId = null;
+let tgPollInterval = null;
 
 function showAuthError(msg) {
   const errBanner = document.getElementById('auth-error-banner');
@@ -604,73 +603,72 @@ function hideAuthError() {
   if (errBanner) errBanner.classList.add('hidden');
 }
 
-/* 1. Official Telegram Widget Loader */
-function renderTelegramWidget() {
-  const container = document.getElementById('telegram-widget-wrapper');
-  if (!container) return;
-  // If iframe or script is already present, avoid duplicate inject
-  if (container.querySelector('iframe') || container.querySelector('script')) return;
+/* 1. Main Telegram Auth Button Handler */
+function setupTelegramAuthButton() {
+  const tgBtn = document.getElementById('tg-login-btn');
+  const tgLabel = document.getElementById('tg-btn-label');
+  const statusBox = document.getElementById('tg-status-box');
+  const reopenLink = document.getElementById('tg-reopen-link');
+  if (!tgBtn) return;
 
-  const script = document.createElement('script');
-  script.async = true;
-  script.src = 'https://telegram.org/js/telegram-widget.js?22';
-  script.setAttribute('data-telegram-login', 'Autoelectrical_Official_bot');
-  script.setAttribute('data-size', 'large');
-  script.setAttribute('data-radius', '12');
-  script.setAttribute('data-onauth', 'onTelegramAuth(user)');
-  script.setAttribute('data-request-access', 'write');
-  container.appendChild(script);
-}
-
-/* 2. Direct Telegram Native App Fallback (tg://) */
-function setupTelegramFallbackLink() {
-  const fallbackLink = document.getElementById('tg-app-fallback-link');
-  if (!fallbackLink) return;
-
-  fallbackLink.onclick = async (e) => {
-    e.preventDefault();
+  const triggerTelegramLogin = async () => {
     hideAuthError();
-
-    const originalText = fallbackLink.textContent;
-    fallbackLink.textContent = 'Подготовка ссылки в приложении...';
+    if (statusBox) statusBox.classList.remove('hidden');
+    if (tgLabel) tgLabel.textContent = 'Подключение к Telegram...';
 
     try {
-      const res = await fetch('/api/client/auth/telegram/magic?t=' + Date.now());
-      const data = await res.json();
-      if (!res.ok || !data.ok || !data.sessionId) {
-        throw new Error(data.message || 'Ошибка инициализации сессии');
+      if (!tgSessionId) {
+        const res = await fetch('/api/client/auth/telegram/magic?t=' + Date.now());
+        const data = await res.json();
+        if (!res.ok || !data.ok || !data.sessionId) {
+          throw new Error(data.message || 'Ошибка инициализации сессии');
+        }
+        tgSessionId = data.sessionId;
       }
 
-      tgFallbackSessionId = data.sessionId;
-      // Native protocol tg:// opens Telegram app directly without web t.me timeout
-      const tgAppUrl = `tg://resolve?domain=${data.botUsername || 'Autoelectrical_Official_bot'}&start=auth_${data.sessionId}`;
+      // Native protocol tg:// directly opens Telegram app without web t.me blocks
+      const tgAppUrl = `tg://resolve?domain=Autoelectrical_Official_bot&start=auth_${tgSessionId}`;
       window.location.href = tgAppUrl;
 
-      fallbackLink.textContent = '⏳ Ожидание подтверждения в Telegram...';
+      if (tgLabel) tgLabel.textContent = 'Ожидаем подтверждения в боте...';
 
-      if (tgFallbackPollInterval) clearInterval(tgFallbackPollInterval);
-      tgFallbackPollInterval = setInterval(async () => {
+      if (reopenLink) {
+        reopenLink.onclick = (e) => {
+          e.preventDefault();
+          window.location.href = tgAppUrl;
+        };
+      }
+
+      // Start polling for user confirmation
+      if (tgPollInterval) clearInterval(tgPollInterval);
+      tgPollInterval = setInterval(async () => {
         try {
-          const sRes = await fetch(`/api/client/auth/telegram/magic/status?session=${tgFallbackSessionId}`);
+          const sRes = await fetch(`/api/client/auth/telegram/magic/status?session=${tgSessionId}`);
           const sData = await sRes.json();
           if (sData.status === 'success') {
-            clearInterval(tgFallbackPollInterval);
+            clearInterval(tgPollInterval);
             TOKEN = sData.token;
             localStorage.setItem(TOKEN_KEY, TOKEN);
             await loadProfile();
           }
         } catch {}
-      }, 2500);
+      }, 2000);
 
     } catch (err) {
-      console.error('Telegram fallback error:', err);
-      showAuthError('Не удалось открыть приложение: ' + err.message);
-      fallbackLink.textContent = originalText;
+      console.error('Telegram auth error:', err);
+      showAuthError('Ошибка запуска Telegram: ' + err.message);
+      if (tgLabel) tgLabel.textContent = 'Войти через Telegram';
+      if (statusBox) statusBox.classList.add('hidden');
     }
+  };
+
+  tgBtn.onclick = (e) => {
+    e.preventDefault();
+    triggerTelegramLogin();
   };
 }
 
-/* 3. Demo Client Sandbox Login */
+/* 2. Demo Client Sandbox Login */
 function setupDemoClientButton() {
   const btnDemo = document.getElementById('btn-demo-client');
   if (!btnDemo) return;
@@ -710,12 +708,9 @@ function setupDemoClientButton() {
   };
 }
 
-/* ── Telegram Login Widget Callback (HMAC-verified on backend) ── */
+/* ── Telegram Login Widget Callback (HMAC-verified on backend if widget is used) ── */
 window.onTelegramAuth = async function(user) {
   hideAuthError();
-  const wrapper = document.getElementById('telegram-widget-wrapper');
-  if (wrapper) wrapper.style.opacity = '0.5';
-
   try {
     const res = await fetch('/api/client/auth/telegram', {
       method:  'POST',
@@ -729,11 +724,9 @@ window.onTelegramAuth = async function(user) {
       await loadProfile();
     } else {
       showAuthError('Ошибка авторизации Telegram: ' + (json.message || json.error || ''));
-      if (wrapper) wrapper.style.opacity = '1';
     }
   } catch (e) {
     showAuthError('Ошибка соединения: ' + e.message);
-    if (wrapper) wrapper.style.opacity = '1';
   }
 };
 
