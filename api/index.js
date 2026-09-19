@@ -1856,6 +1856,32 @@ app.post('/api/client/auth/telegram', limiterTgAuth, async (req, res) => {
     }
 
     if (!client) {
+      // Check if this Telegram ID is registered to a Master (e.g. Sid Vicious lead account)
+      const { data: masterRec } = await supabase
+        .from('masters')
+        .select('*')
+        .eq('telegram_chat_id', String(tgId))
+        .maybeSingle();
+
+      if (masterRec) {
+        const { data: masterClient } = await supabase
+          .from('clients')
+          .select('*')
+          .eq('id', masterRec.id)
+          .maybeSingle();
+
+        if (masterClient) {
+          client = masterClient;
+          await supabase.from('clients').update({
+            telegram_id: String(tgId),
+            telegram_chat_id: String(tgId),
+            telegram_username: username || ''
+          }).eq('id', client.id);
+        }
+      }
+    }
+
+    if (!client) {
       const name = [first_name, last_name].filter(Boolean).join(' ') || (username ? `@${username}` : `Пользователь ${tgId}`);
       const newClient = {
         id: crypto.randomUUID(),

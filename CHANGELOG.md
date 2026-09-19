@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.7] - 2026-09-19
+
+### 👑 Fix: Привязка Telegram-авторизации к системному аккаунту Lead / Главного мастера (Sid Vicious)
+
+- **Бесшовная идентификация учетной записи руководителя**:
+  - В `/api/client/auth/telegram` добавлена проверка наличия Telegram ID в таблице мастеров `masters` перед созданием новой записи клиента.
+  - Если Telegram ID совпадает с `telegram_chat_id` мастера (Sid Vicious), сессия автоматически привязывается к постоянному системному профилю `id: 19e4e551-4454-4710-8a6d-a4effc211201` вместо генерации дубликата клиента.
+  - В базе данных Supabase обновлены поля `telegram_id` и `telegram_chat_id` для профиля `Sid Vicious`, удалена временная запись-дубликат.
+
 ## [1.4.6] - 2026-09-19
 
 ### ⚡ Fix: Telegram In-Browser OAuth Callback & Popup Handshake Fix
