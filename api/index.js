@@ -1824,7 +1824,7 @@ app.post('/api/client/auth/telegram', limiterTgAuth, async (req, res) => {
     let { data: client, error: findErr } = await supabase
       .from('clients')
       .select('*')
-      .eq('telegram_id', String(tgId))
+      .or(`telegram_id.eq.${tgId},telegram_chat_id.eq.${tgId}`)
       .maybeSingle();
 
     if (findErr) {
@@ -1840,7 +1840,7 @@ app.post('/api/client/auth/telegram', limiterTgAuth, async (req, res) => {
     }
 
     if (!client) {
-      const name = [first_name, last_name].filter(Boolean).join(' ') || `Пользователь ${tgId}`;
+      const name = [first_name, last_name].filter(Boolean).join(' ') || (username ? `@${username}` : `Пользователь ${tgId}`);
       const newClient = {
         id: crypto.randomUUID(),
         name,
@@ -1861,6 +1861,8 @@ app.post('/api/client/auth/telegram', limiterTgAuth, async (req, res) => {
       client = newClient;
     } else {
       const upd = {};
+      if (!client.telegram_id) upd.telegram_id = String(tgId);
+      if (!client.telegram_chat_id) upd.telegram_chat_id = String(tgId);
       if (username && client.telegram_username !== username) upd.telegram_username = username;
       if (Object.keys(upd).length > 0) {
         await supabase.from('clients').update(upd).eq('id', client.id);
@@ -1871,6 +1873,81 @@ app.post('/api/client/auth/telegram', limiterTgAuth, async (req, res) => {
     res.json({ ok: true, token, clientId: client.id, name: client.name });
   } catch (err) {
     console.error('Telegram widget auth error:', err);
+    res.status(500).json({ ok: false, error: 'internal_error' });
+  }
+});
+
+/* ── 1.1 Demo Client Sandbox Login (1-click client testing) ── */
+app.post('/api/client/auth/demo', async (req, res) => {
+  if (!supabase) {
+    return res.status(503).json({ ok: false, error: 'db_unavailable', message: 'База данных временно недоступна' });
+  }
+
+  try {
+    const DEMO_CLIENT_ID = 'demo-client-sandbox-777';
+    let { data: client, error: findErr } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', DEMO_CLIENT_ID)
+      .maybeSingle();
+
+    if (findErr) {
+      console.error('Demo client find error:', findErr);
+    }
+
+    if (!client) {
+      const demoClient = {
+        id: DEMO_CLIENT_ID,
+        name: 'Иван Тестовый (Демо)',
+        phone: '+7 (999) 777-00-11',
+        email: 'demo@autoelectro.local',
+        vk_id: '',
+        telegram_id: '',
+        telegram_username: 'demo_client',
+        telegram_chat_id: '',
+        cars: [
+          { id: 'car-demo-1', make: 'Toyota', model: 'Camry', year: 2019, vin: 'JTDBU40E190123456', plate: 'А777АА 181' },
+          { id: 'car-demo-2', make: 'Renault', model: 'Duster', year: 2016, vin: 'VF1HSRAD450987654', plate: 'В555ВВ 181' }
+        ],
+        repairs: [
+          {
+            id: 'rep-demo-1',
+            date: '2026-08-15',
+            car: 'Toyota Camry (А777АА 181)',
+            type: 'Ремонт автоэлектрики',
+            desc: 'Диагностика системы зажигания, устранение обрыва цепи питания катушки 3-го цилиндра',
+            cost: 3500,
+            warranty: '6 месяцев (до 15.02.2027)'
+          },
+          {
+            id: 'rep-demo-2',
+            date: '2026-09-02',
+            car: 'Toyota Camry (А777АА 181)',
+            type: 'Диагностика',
+            desc: 'Компьютерная диагностика электронных блоков (ЭБУ), адаптация дроссельной заслонки',
+            cost: 1500,
+            warranty: 'Гарантия на выполненные работы 30 дней'
+          },
+          {
+            id: 'rep-demo-3',
+            date: '2026-09-10',
+            car: 'Toyota Camry (А777АА 181)',
+            type: 'Напоминание',
+            desc: 'Рекомендуется плановая проверка емкости АКБ перед зимним сезоном',
+            cost: 0,
+            warranty: ''
+          }
+        ],
+        created_at: new Date().toISOString()
+      };
+      await supabase.from('clients').insert([demoClient]);
+      client = demoClient;
+    }
+
+    const token = await createSession(client.id);
+    res.json({ ok: true, token, clientId: client.id, name: client.name });
+  } catch (err) {
+    console.error('Demo auth error:', err);
     res.status(500).json({ ok: false, error: 'internal_error' });
   }
 });
