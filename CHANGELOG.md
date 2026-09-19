@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.4] - 2026-09-19
+
+### 🐛 Fix: Toast-уведомления теперь видны поверх модальных окон
+
+- **`public/admin.html`**: z-index тоста `#toast` поднят с `z-50` до `z-[9999]`, чтобы уведомления об ошибках и успехе отображались поверх любых диалоговых окон (форм клиентов, мастеров, ремонтов и т.д.).
+
 ## [1.3.3] - 2026-09-19
+
 
 ### 🛡️ Security: Absolute Deletion Protection for Lead Master Accounts
 
