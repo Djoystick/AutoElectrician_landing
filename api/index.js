@@ -1799,6 +1799,22 @@ app.post('/api/client/auth', limiterOtpVerify, async (req, res) => {
   res.json({ ok: true, token, clientId: client.id, name: client.name });
 });
 
+/* ── 0. Telegram Silent Web OAuth Config (bot_id for browser popup) ── */
+app.get('/api/client/auth/telegram/config', async (req, res) => {
+  const bot = await getBot();
+  if (!cachedToken) {
+    return res.status(503).json({ ok: false, error: 'bot_not_configured' });
+  }
+  const botId = cachedToken.split(':')[0];
+  if (!cachedBotUsername && bot) {
+    try {
+      const me = await bot.getMe();
+      cachedBotUsername = me.username;
+    } catch {}
+  }
+  res.json({ ok: true, botId, botUsername: cachedBotUsername || 'Autoelectrical_Official_bot' });
+});
+
 /* ── 1. Telegram Official Login Widget Auth (HMAC-SHA256 verified) ── */
 app.post('/api/client/auth/telegram', limiterTgAuth, async (req, res) => {
   const bot = await getBot();

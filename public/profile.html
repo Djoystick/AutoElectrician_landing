@@ -93,7 +93,7 @@
 
     <!-- OAuth buttons -->
     <div class="space-y-3 mb-5">
-      <!-- 1. Telegram Main Button -->
+      <!-- 1. Telegram Silent Web Login Button -->
       <button id="tg-login-btn" type="button"
               class="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl
                      bg-[#0088CC] hover:bg-[#0077b3] active:scale-[0.99] text-white font-bold text-sm shadow-md transition-all cursor-pointer">
@@ -102,25 +102,6 @@
         </svg>
         <span id="tg-btn-label">Войти через Telegram</span>
       </button>
-
-      <!-- Telegram Status Indicator (shown on click) -->
-      <div id="tg-status-box" class="hidden p-3 rounded-xl bg-sky-950/50 border border-sky-800/50 text-center text-xs space-y-2">
-        <div class="flex items-center justify-center gap-2 text-sky-300 font-semibold">
-          <svg class="w-4 h-4 animate-spin shrink-0 text-[#00b4fd]" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-          </svg>
-          <span>Ожидаем подтверждения в Telegram</span>
-        </div>
-        <p class="text-gray-300 text-[11px] leading-relaxed">
-          Открываем приложение Telegram. Нажмите кнопку <strong>«Запустить»</strong> в боте.
-        </p>
-        <div class="pt-1">
-          <a id="tg-reopen-link" href="#" class="text-[#00b4fd] underline text-[11px] hover:text-white transition-colors">
-            Не открылось приложение? Нажмите здесь
-          </a>
-        </div>
-      </div>
 
       <!-- 2. VK ID Main Button -->
       <a id="vk-fallback-btn" href="/api/client/auth/vk/login"
@@ -359,7 +340,7 @@
   </div>
 </div>
 
-<script src="/js/profile.js?v=1.4.4"></script>
-<script src="/js/perf-widget.js?v=1.4.4" defer></script>
+<script src="/js/profile.js?v=1.4.5"></script>
+<script src="/js/perf-widget.js?v=1.4.5" defer></script>
 </body>
 </html>
