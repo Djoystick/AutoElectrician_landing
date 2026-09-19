@@ -187,7 +187,6 @@ function isDevUser() {
   if (!CLIENT) return false;
   if (CLIENT.id === '19e4e551-4454-4710-8a6d-a4effc211201') return true;
   if (CLIENT.role === 'lead' || CLIENT.role === 'admin') return true;
-  if (localStorage.getItem('ae_admin_token')) return true;
   return false;
 }
 
@@ -933,6 +932,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  initTgBotModal();
   checkUrlAuthParams();
   if (TOKEN) {
     await loadProfile();
@@ -1024,6 +1024,82 @@ function setupTelegramAuthButton() {
       if (tgLabel) tgLabel.textContent = 'Войти через Telegram';
     }
   };
+}
+
+/* 1.1 Telegram Bot Deep Link & Contact Share Auth (Level 2) */
+let tgBotPollInterval = null;
+
+function initTgBotModal() {
+  const btnOpen = document.getElementById('btn-open-tg-bot-modal');
+  const btnClose = document.getElementById('btn-close-tg-bot-modal');
+  const modal = document.getElementById('tg-bot-modal');
+  const deeplinkBtn = document.getElementById('tg-bot-deeplink-btn');
+  const codeEl = document.getElementById('tg-bot-code');
+
+  if (!btnOpen || !modal) return;
+
+  btnOpen.onclick = async (e) => {
+    e.preventDefault();
+    hideAuthError();
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    if (codeEl) codeEl.textContent = '...';
+
+    try {
+      const res = await fetch('/api/client/auth/telegram/magic');
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        showAuthError(data.message || 'Ошибка запуска бота Telegram');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        return;
+      }
+
+      const { sessionId, code, botUsername } = data;
+      if (codeEl) codeEl.textContent = code;
+      const tgLink = `https://t.me/${botUsername || 'Autoelectrical_Official_bot'}?start=auth_${sessionId}`;
+      if (deeplinkBtn) deeplinkBtn.href = tgLink;
+
+      // Start polling status
+      if (tgBotPollInterval) clearInterval(tgBotPollInterval);
+      tgBotPollInterval = setInterval(async () => {
+        try {
+          const sRes = await fetch(`/api/client/auth/telegram/magic/status?session=${encodeURIComponent(sessionId)}`);
+          const sData = await sRes.json();
+          if (sData.status === 'success' && sData.token) {
+            clearInterval(tgBotPollInterval);
+            tgBotPollInterval = null;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            TOKEN = sData.token;
+            localStorage.setItem(TOKEN_KEY, TOKEN);
+            await loadProfile();
+          } else if (sData.status === 'expired') {
+            clearInterval(tgBotPollInterval);
+            tgBotPollInterval = null;
+            showAuthError('Время сессии входа истекло. Пожалуйста, попробуйте снова.');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+          }
+        } catch (_) {}
+      }, 2000);
+
+    } catch (err) {
+      console.error('Telegram magic auth error:', err);
+      showAuthError('Ошибка подключения к серверу авторизации бота');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  };
+
+  btnClose?.addEventListener('click', () => {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    if (tgBotPollInterval) {
+      clearInterval(tgBotPollInterval);
+      tgBotPollInterval = null;
+    }
+  });
 }
 
 /* Helper to extract user from message data (supports telegram-widget format, legacy format, direct objects) */
