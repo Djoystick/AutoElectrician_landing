@@ -18,6 +18,10 @@ window.openRequestModal = function(prefillProblem) {
     const p = formPubReq.querySelector('[name="problem"]');
     if (p) p.value = prefillProblem;
   }
+  if (formPubReq) {
+    const formFields = formPubReq.querySelectorAll('input, textarea, .flex.gap-3.pt-1');
+    formFields.forEach(el => el.style.display = '');
+  }
   modalReq.style.display = 'flex';
   modalReq.classList.remove('hidden');
   modalReq.classList.add('flex');
@@ -79,14 +83,22 @@ document.addEventListener('submit', async function(e) {
     });
     const json = await res.json();
     if (res.ok && json.ok) {
-      if (reqSuccess) reqSuccess.classList.remove('hidden');
+      if (json.token) {
+        localStorage.setItem('ae_client_token', json.token);
+      }
+      if (reqSuccess) {
+        reqSuccess.classList.remove('hidden');
+        const openProfBtn = document.getElementById('btn-req-open-profile');
+        if (openProfBtn && json.token) {
+          openProfBtn.href = `/profile.html?auth=${json.token}`;
+        }
+      }
       formPubReq.reset();
+      const formFields = formPubReq.querySelectorAll('input, textarea, .flex.gap-3.pt-1');
+      formFields.forEach(el => el.style.display = 'none');
       if (typeof window.onMascotCelebration === 'function') {
         window.onMascotCelebration();
       }
-      setTimeout(() => {
-        window.closeRequestModal();
-      }, 2200);
     } else {
       if (reqError) {
         reqError.textContent = json.error || 'Ошибка при отправке заявки. Позвоните нам напрямую.';

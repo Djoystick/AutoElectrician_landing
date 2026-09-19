@@ -706,8 +706,14 @@
                            placeholder:text-gray-600 outline-none focus:border-accent
                            transition-colors text-sm resize-none"></textarea>
         </div>
-        <div id="req-success" class="hidden text-green-400 text-sm text-center py-2">
-          ✅ Заявка отправлена! Мастер свяжется с вами скоро.
+        <div id="req-success" class="hidden bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 text-center space-y-3">
+          <div class="text-emerald-400 font-bold text-base">✅ Заявка успешно принята!</div>
+          <p class="text-xs text-gray-300 leading-relaxed">
+            Мастер свяжется с вами в течение часа. Для вашего номера создана сервисная книжка.
+          </p>
+          <a id="btn-req-open-profile" href="/profile.html" class="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-accent text-slate-900 font-bold text-xs hover:brightness-110 transition">
+            🚗 Открыть личный кабинет
+          </a>
         </div>
         <div id="req-error" class="hidden text-red-400 text-sm text-center py-2">
           Ошибка. Позвоните нам напрямую.

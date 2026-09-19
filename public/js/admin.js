@@ -403,6 +403,7 @@ function renderClients(filter = '') {
         <div class="flex items-center gap-2 mb-1 flex-wrap">
           <span class="font-bold text-white text-sm">${esc(c.name)}</span>
           <span class="text-xs px-2 py-0.5 rounded-full bg-accent/10 text-accent font-semibold">${badge}</span>
+          ${c.pin ? `<span class="text-xs text-amber-400 font-mono font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30" title="ПИН-код клиента">PIN: ${c.pin}</span>` : ''}
           ${tgLinked ? '<span class="text-xs text-blue-400 font-semibold px-2 py-0.5 rounded-full bg-blue-500/10">✈ TG</span>' : ''}
           ${vkLinked ? '<span class="text-xs text-blue-500 font-semibold px-2 py-0.5 rounded-full bg-blue-600/10">VK</span>' : ''}
         </div>
@@ -450,6 +451,31 @@ function bindClientForm() {
     }
   });
 }
+
+/* ── Magic Link Sharing for Client (Level 3) ── */
+window.shareClientLink = async (clientId, mode) => {
+  try {
+    const res = await api('GET', `/api/clients/${clientId}/magic-link`);
+    if (!res.ok) {
+      toast(res.error || 'Ошибка генерации ссылки доступа', true);
+      return;
+    }
+    const { magicUrl, pin, phone, name } = res;
+    if (mode === 'copy') {
+      await navigator.clipboard.writeText(magicUrl);
+      toast('✅ Ссылка на профиль скопирована!');
+    } else if (mode === 'whatsapp') {
+      const cleanP = String(phone || '').replace(/[^\d]/g, '');
+      const text = encodeURIComponent(`Здравствуйте, ${name || 'клиент'}! Ваша электронная сервисная книжка и гарантия доступны по ссылке:\n${magicUrl}\n\nВаш ПИН-код: ${pin}`);
+      window.open(`https://wa.me/${cleanP}?text=${text}`, '_blank');
+    } else if (mode === 'telegram') {
+      const text = encodeURIComponent(`Здравствуйте, ${name || 'клиент'}! Ваша электронная сервисная книжка и гарантия: ${magicUrl} (ПИН: ${pin})`);
+      window.open(`https://t.me/share/url?url=${encodeURIComponent(magicUrl)}&text=${text}`, '_blank');
+    }
+  } catch (err) {
+    toast('Ошибка: ' + err.message, true);
+  }
+};
 
 /* ── Client Detail Modal ── */
 window.openClientDetail = async (id) => {
@@ -512,9 +538,28 @@ function renderClientDetail(c) {
         })()}</p>
       </div>
       <div class="card p-4">
-        <p class="label">Код доступа к профилю</p>
-        <p class="text-2xl font-black text-accent tracking-widest">${c.accessCode || '—'}</p>
-        <p class="text-xs text-gray-500 mt-1">Используется для быстрого доступа</p>
+        <p class="label">ПИН-код для клиента</p>
+        <div class="flex items-center gap-3 mt-1">
+          <p class="text-2xl font-black text-accent tracking-widest font-mono">${c.pin || '—'}</p>
+          ${c.pin ? `<button type="button" onclick="navigator.clipboard.writeText('${c.pin}'); toast('ПИН скопирован: ${c.pin}');" class="btn-ghost text-xs py-1 px-2.5">Копировать</button>` : ''}
+        </div>
+        <p class="text-xs text-gray-500 mt-1">Назовите клиенту или укажите в заказ-наряде</p>
+
+        <div class="mt-3 pt-3 border-t border-border">
+          <p class="label">📲 Доступ для клиента (Magic Link)</p>
+          <div class="flex gap-2 mt-2 flex-wrap">
+            <button type="button" onclick="shareClientLink('${c.id}', 'copy')" class="btn-ghost text-xs py-1.5 px-3">
+              📋 Скопировать ссылку
+            </button>
+            <button type="button" onclick="shareClientLink('${c.id}', 'whatsapp')" class="btn-ghost text-xs py-1.5 px-3 text-emerald-400 border-emerald-900/60 hover:border-emerald-400">
+              💬 В WhatsApp
+            </button>
+            <button type="button" onclick="shareClientLink('${c.id}', 'telegram')" class="btn-ghost text-xs py-1.5 px-3 text-[#0088CC] border-[#0088CC]/40 hover:border-[#0088CC]">
+              ✈️ В Telegram
+            </button>
+          </div>
+        </div>
+
         <p class="label mt-3">Привязка соцсетей</p>
         <p class="text-sm">${c.telegram_chat_id || c.telegramChatId ? '✅ Telegram: ' + (c.telegram_username ? '@' + esc(c.telegram_username) : esc(c.telegram_chat_id || c.telegramChatId)) : (c.vk_id ? '✅ VK ID: ' + esc(c.vk_id) : '⚠️ Соцсети не привязаны')}</p>
       </div>

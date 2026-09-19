@@ -73,8 +73,15 @@ btnSavePhone?.addEventListener('click', async () => {
     const json = await res.json();
     if (json.ok) {
       phoneMissingBanner.classList.add('hidden');
+      if (json.token) {
+        TOKEN = json.token;
+        localStorage.setItem(TOKEN_KEY, TOKEN);
+      }
+      if (json.merged) {
+        await loadProfile();
+      }
     } else {
-      missingPhoneError.textContent = 'Ошибка сохранения';
+      missingPhoneError.textContent = json.message || json.error || 'Ошибка сохранения';
       missingPhoneError.classList.remove('hidden');
     }
   } catch (err) {
@@ -474,10 +481,19 @@ function fmtDate(str) {
 document.addEventListener('DOMContentLoaded', async () => {
   lucide.createIcons();
 
-  // Handle VK OAuth redirect (token in URL params)
+  /* ── Magic Link and OAuth Redirection Handling (Levels 3 & 4) ── */
   const urlParams = new URLSearchParams(window.location.search);
   const authType  = urlParams.get('auth');
   const urlToken  = urlParams.get('token');
+
+  // Direct Magic Link: /profile.html?auth=<SESSION_TOKEN>
+  if (authType && authType !== 'vk' && authType !== 'error') {
+    TOKEN = authType;
+    localStorage.setItem(TOKEN_KEY, TOKEN);
+    window.history.replaceState({}, '', '/profile.html');
+    await loadProfile();
+    return;
+  }
 
   if (authType === 'vk' && urlToken) {
     TOKEN = urlToken;
@@ -501,6 +517,70 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.history.replaceState({}, '', '/profile.html');
     return;
   }
+
+  /* ── Phone + PIN Login Form Binding (Level 5) ── */
+  const pinPhoneInput = document.getElementById('pin-login-phone');
+  const pinCodeInput  = document.getElementById('pin-login-code');
+  const pinForm       = document.getElementById('pin-login-form');
+  const btnPinSubmit  = document.getElementById('btn-pin-submit');
+
+  pinPhoneInput?.addEventListener('input', () => {
+    let v = pinPhoneInput.value.replace(/\D/g, '');
+    if (v.startsWith('8')) v = '7' + v.slice(1);
+    if (v.length > 0 && !v.startsWith('7')) v = '7' + v;
+    if (v.length > 11) v = v.slice(0, 11);
+    let formatted = '';
+    if (v.length >= 1) formatted = '+' + v[0];
+    if (v.length >= 2) formatted += ' (' + v.slice(1, 4);
+    if (v.length >= 5) formatted += ') ' + v.slice(4, 7);
+    if (v.length >= 8) formatted += '-' + v.slice(7, 9);
+    if (v.length >= 10) formatted += '-' + v.slice(9, 11);
+    pinPhoneInput.value = formatted;
+  });
+
+  pinCodeInput?.addEventListener('input', () => {
+    pinCodeInput.value = pinCodeInput.value.replace(/\D/g, '').slice(0, 4);
+  });
+
+  pinForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideAuthError();
+    const phone = pinPhoneInput?.value.trim();
+    const pin = pinCodeInput?.value.trim();
+
+    if (!phone || !pin) {
+      showAuthError('Введите номер телефона и 4-значный ПИН-код');
+      return;
+    }
+
+    if (btnPinSubmit) {
+      btnPinSubmit.disabled = true;
+      btnPinSubmit.textContent = 'Проверка...';
+    }
+
+    try {
+      const res = await fetch('/api/client/auth/pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, pin })
+      });
+      const data = await res.json();
+      if (data.ok && data.token) {
+        TOKEN = data.token;
+        localStorage.setItem(TOKEN_KEY, TOKEN);
+        await loadProfile();
+      } else {
+        showAuthError(data.message || data.error || 'Неверный номер телефона или ПИН-код');
+      }
+    } catch (err) {
+      showAuthError('Ошибка соединения при проверке ПИН-кода: ' + err.message);
+    } finally {
+      if (btnPinSubmit) {
+        btnPinSubmit.disabled = false;
+        btnPinSubmit.textContent = 'Войти в гараж';
+      }
+    }
+  });
 
   if (TOKEN) {
     await loadProfile();

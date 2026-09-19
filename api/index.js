@@ -220,6 +220,33 @@ async function setupBotHandlers(bot) {
     }
   });
 
+  /* Any contact shared — link phone & auto-merge */
+  bot.on('contact', async (msg) => {
+    if (!msg.contact || !msg.contact.phone_number || !supabase) return;
+    const phone = normalizePhone(msg.contact.phone_number);
+    const chatId = msg.chat.id;
+    const from = msg.from;
+
+    let { data: phoneClient } = await supabase.from('clients').select('*').eq('phone', phone).maybeSingle();
+    let { data: tgClient } = await supabase.from('clients').select('*').or(`telegram_id.eq.${String(from.id)},telegram_chat_id.eq.${String(chatId)}`).maybeSingle();
+
+    if (phoneClient && tgClient && phoneClient.id !== tgClient.id) {
+      await mergeClientAccounts(phoneClient.id, tgClient.id);
+    } else if (phoneClient) {
+      await supabase.from('clients').update({
+        telegram_id: String(from.id),
+        telegram_chat_id: String(chatId),
+        telegram_username: from.username || ''
+      }).eq('id', phoneClient.id);
+    } else if (tgClient) {
+      await supabase.from('clients').update({ phone }).eq('id', tgClient.id);
+    }
+
+    bot.sendMessage(chatId, `✅ Телефон ${phone} успешно подтвержден! Ваша сервисная книжка синхронизирована.`, {
+      reply_markup: { remove_keyboard: true }
+    });
+  });
+
   /* Any text message that looks like a phone — register chatId */
   bot.on('message', async (msg) => {
     addLog(`[TG] Received message: ${msg.text} from ${msg.chat.id}`);
@@ -280,6 +307,82 @@ const normalizePhone = (phone) => {
   return raw.startsWith('+') ? raw : '+' + raw;
 };
 
+/* ── Deterministic 4-digit PIN for client self-service portal ── */
+const getClientPin = (phone, clientId) => {
+  const raw = normalizePhone(phone) || String(clientId || '');
+  if (!raw) return '1111';
+  const secret = process.env.JWT_SECRET || 'ae_pin_secret_key_2026';
+  const hash = crypto.createHmac('sha256', secret).update(raw).digest('hex');
+  const num = (parseInt(hash.slice(0, 8), 16) % 9000) + 1000; // strictly 4 digits: 1000..9999
+  return String(num);
+};
+
+/* ── Smart Account Merge: Unify duplicate client records ── */
+async function mergeClientAccounts(targetId, sourceId) {
+  if (!supabase || !targetId || !sourceId || targetId === sourceId) return null;
+  try {
+    const [{ data: target }, { data: source }] = await Promise.all([
+      supabase.from('clients').select('*').eq('id', targetId).maybeSingle(),
+      supabase.from('clients').select('*').eq('id', sourceId).maybeSingle()
+    ]);
+
+    if (!target || !source) return target || source;
+
+    // Merge repairs deduplicating by id
+    const existingRepairIds = new Set((target.repairs || []).map(r => String(r.id)));
+    const mergedRepairs = [...(target.repairs || [])];
+    for (const r of (source.repairs || [])) {
+      if (!existingRepairIds.has(String(r.id))) {
+        mergedRepairs.push(r);
+        existingRepairIds.add(String(r.id));
+      }
+    }
+
+    // Merge cars deduplicating by id or model+plate
+    const existingCarKeys = new Set((target.cars || []).map(c => String(c.id || (c.model + (c.plate || '')))));
+    const mergedCars = [...(target.cars || [])];
+    for (const c of (source.cars || [])) {
+      const k = String(c.id || (c.model + (c.plate || '')));
+      if (!existingCarKeys.has(k)) {
+        mergedCars.push(c);
+        existingCarKeys.add(k);
+      }
+    }
+
+    // Determine canonical name
+    let finalName = target.name;
+    const isGeneric = !finalName || finalName === 'Без имени' || finalName === 'Клиент' || finalName === 'Аноним' || finalName.startsWith('Клиент с сайта');
+    if (isGeneric && source.name && source.name !== 'Без имени' && source.name !== 'Клиент') {
+      finalName = source.name;
+    }
+
+    const upd = {
+      name: finalName,
+      phone: target.phone || source.phone || '',
+      email: target.email || source.email || '',
+      telegram_id: target.telegram_id || source.telegram_id || '',
+      telegram_username: target.telegram_username || source.telegram_username || '',
+      telegram_chat_id: target.telegram_chat_id || source.telegram_chat_id || '',
+      vk_id: target.vk_id || source.vk_id || '',
+      repairs: mergedRepairs,
+      cars: mergedCars,
+    };
+
+    await supabase.from('clients').update(upd).eq('id', targetId);
+
+    // Reassign any active sessions from source to target
+    await supabase.from('auth_sessions').update({ client_id: targetId }).eq('client_id', sourceId);
+
+    // Delete source client
+    await supabase.from('clients').delete().eq('id', sourceId);
+
+    return { ...target, ...upd };
+  } catch (err) {
+    console.error('[AccountMerge Error]', err);
+    return null;
+  }
+}
+
 /* ── Rate limiters ── */
 const limiterOtpRequest = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 min
@@ -318,6 +421,12 @@ const limiterVkAuth = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 min
   max: 30,
   message: { ok: false, error: 'too_many_requests', message: 'Слишком много попыток входа через VK. Попробуйте через 5 минут.' },
+  standardHeaders: true, legacyHeaders: false,
+});
+const limiterPinAuth = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 10,
+  message: { ok: false, error: 'too_many_requests', message: 'Слишком много попыток ввода ПИН-кода. Пожалуйста, подождите 15 минут.' },
   standardHeaders: true, legacyHeaders: false,
 });
 
@@ -380,12 +489,72 @@ app.post('/api/telegram-webhook', async (req, res) => {
     if (!bot || !supabase) return;
 
     const update = req.body;
-    if (!update.message || !update.message.text) return;
+    if (!update.message) return;
 
     const msg    = update.message;
-    const text   = msg.text.trim();
+    const text   = (msg.text || '').trim();
+    const contact = msg.contact;
     const chatId = msg.chat.id;
     const from   = msg.from;
+
+    // ── Handle contact sharing (Level 2) ──
+    if (contact && contact.phone_number) {
+      const contactPhone = normalizePhone(contact.phone_number);
+      let { data: phoneClient } = await supabase.from('clients').select('*').eq('phone', contactPhone).maybeSingle();
+      let { data: tgClient } = await supabase.from('clients').select('*').or(`telegram_id.eq.${String(from.id)},telegram_chat_id.eq.${String(chatId)}`).maybeSingle();
+
+      let finalClient = null;
+      if (phoneClient && tgClient && phoneClient.id !== tgClient.id) {
+        finalClient = await mergeClientAccounts(phoneClient.id, tgClient.id);
+      } else if (phoneClient) {
+        finalClient = phoneClient;
+        await supabase.from('clients').update({
+          telegram_id: String(from.id),
+          telegram_chat_id: String(chatId),
+          telegram_username: from.username || ''
+        }).eq('id', phoneClient.id);
+      } else if (tgClient) {
+        finalClient = tgClient;
+        await supabase.from('clients').update({ phone: contactPhone }).eq('id', tgClient.id);
+      } else {
+        finalClient = {
+          id: crypto.randomUUID(),
+          name: [from.first_name, from.last_name].filter(Boolean).join(' ') || 'Клиент',
+          phone: contactPhone,
+          email: '', vk_id: '', cars: [], repairs: [],
+          telegram_id: String(from.id),
+          telegram_username: from.username || '',
+          telegram_chat_id: String(chatId),
+          created_at: new Date().toISOString()
+        };
+        await supabase.from('clients').insert([finalClient]);
+      }
+
+      // Approve any pending magic link session for this chat
+      const { data: pendingSessions } = await supabase
+        .from('auth_magic_links')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (pendingSessions && pendingSessions[0]) {
+        await supabase.from('auth_magic_links').update({
+          status: 'approved',
+          client_id: finalClient.id
+        }).eq('session_id', pendingSessions[0].session_id);
+      }
+
+      await bot.sendMessage(chatId,
+        `✅ <b>Номер ${contactPhone} успешно подтвержден!</b>\n\n` +
+        `Гараж и сервисная книжка синхронизированы. Вернитесь в браузер — страница уже обновилась!`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: { remove_keyboard: true }
+        }
+      );
+      return;
+    }
 
     // ── /start — welcome message with instructions ──
     if (text === '/start' || text === '/start ') {
@@ -490,10 +659,27 @@ app.post('/api/telegram-webhook', async (req, res) => {
         ).catch(() => {});
       }
 
-      await bot.sendMessage(chatId,
-        '✅ Вы успешно вошли в личный кабинет AutoElectro!\n\n' +
-        '↩️ Вернитесь на страницу сайта — она обновится автоматически.'
-      );
+      if (!client.phone) {
+        await bot.sendMessage(chatId,
+          `👋 <b>Здравствуйте, ${escapeTgHtml(from.first_name)}!</b>\n\n` +
+          `Вы успешно вошли в личный кабинет AutoElectro.\n\n` +
+          `💡 <i>Чтобы мы автоматически подтянули ваши автомобили и историю ремонтов от мастера, нажмите кнопку ниже:</i>`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: {
+              keyboard: [[{ text: '📱 Поделиться номером для поиска авто', request_contact: true }]],
+              resize_keyboard: true,
+              one_time_keyboard: true
+            }
+          }
+        );
+      } else {
+        await bot.sendMessage(chatId,
+          '✅ Вы успешно вошли в личный кабинет AutoElectro!\n\n' +
+          '↩️ Вернитесь на страницу сайта — она обновится автоматически.',
+          { reply_markup: { remove_keyboard: true } }
+        );
+      }
       return;
     }
 
@@ -820,10 +1006,37 @@ app.post('/api/requests', limiterPublic, async (req, res) => {
   if (!phone) return res.status(400).json({ error: 'phone required' });
   if (!supabase) return res.status(500).json({ error: 'DB error' });
   
+  const cleanPhone = normalizePhone(phone);
+
+  // Level 4: Pre-create or link client so repairs and guest session are instantly ready
+  let client = null;
+  const { data: existingClient } = await supabase.from('clients').select('*').eq('phone', cleanPhone).maybeSingle();
+  if (existingClient) {
+    client = existingClient;
+  } else {
+    const newClient = {
+      id: uid(),
+      name: name || 'Клиент с сайта',
+      phone: cleanPhone,
+      email: '',
+      vk_id: '',
+      telegram_id: '',
+      telegram_username: '',
+      telegram_chat_id: '',
+      cars: [],
+      repairs: [],
+      created_at: new Date().toISOString()
+    };
+    await supabase.from('clients').insert([newClient]);
+    client = newClient;
+  }
+
+  const sessionToken = await createSession(client.id);
+
   const payload = {
     id: uid(),
-    name: name || 'Без имени',
-    phone: phone || '',
+    name: name || client.name || 'Без имени',
+    phone: cleanPhone || phone || '',
     problem: problem || '',
     status: 'new',
     created_at: new Date().toISOString()
@@ -845,7 +1058,13 @@ app.post('/api/requests', limiterPublic, async (req, res) => {
     }
   } catch {}
 
-  res.json({ ok: true, id: payload.id });
+  res.json({
+    ok: true,
+    id: payload.id,
+    token: sessionToken,
+    clientId: client.id,
+    pin: getClientPin(client.phone, client.id)
+  });
 });
 
 app.get('/api/requests', authCheck, async (req, res) => {
@@ -886,10 +1105,19 @@ app.post('/api/client/profile/phone', clientAuth, async (req, res) => {
     return res.status(400).json({ ok: false, error: 'invalid_phone' });
   }
   
-  const rawPhone = phone.replace(/[\s\-()]/g, '');
-  const cleanPhone = rawPhone.startsWith('+') ? rawPhone : '+' + rawPhone;
+  const cleanPhone = normalizePhone(phone);
 
   if (!supabase) return res.status(500).json({ ok: false });
+
+  // Check if another client already exists with this phone (e.g. created by master)
+  const { data: existingWithPhone } = await supabase.from('clients').select('*').eq('phone', cleanPhone).maybeSingle();
+  if (existingWithPhone && existingWithPhone.id !== req.clientId) {
+    // Smart merge: merge current temporary client into master's client record
+    const merged = await mergeClientAccounts(existingWithPhone.id, req.clientId);
+    const newToken = await createSession(existingWithPhone.id);
+    return res.json({ ok: true, phone: cleanPhone, merged: true, token: newToken, clientId: existingWithPhone.id });
+  }
+
   await supabase.from('clients').update({ phone: cleanPhone }).eq('id', req.clientId);
   res.json({ ok: true, phone: cleanPhone });
 });
@@ -900,6 +1128,7 @@ app.get('/api/client/me', clientAuth, async (req, res) => {
   if (!client) return res.status(404).json({ error: 'Not found' });
 
   const { accessCode, telegram_chat_id, ...safeClient } = client;
+  safeClient.pin = getClientPin(client.phone, client.id);
   const repairCount = (client.repairs || []).filter(r => r.type !== 'Напоминание').length;
   
   const ll = (cnt) => {
@@ -962,7 +1191,11 @@ app.get('/api/clients', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   const { data: clients, error } = await supabase.from('clients').select('*').order('created_at', { ascending: false });
   if (error) return res.status(500).json({ ok: false, error: error.message });
-  res.json({ ok: true, clients: clients || [] });
+  const enriched = (clients || []).map(c => ({
+    ...c,
+    pin: getClientPin(c.phone, c.id)
+  }));
+  res.json({ ok: true, clients: enriched });
 });
 
 app.post('/api/clients', authCheck, async (req, res) => {
@@ -992,6 +1225,7 @@ app.post('/api/clients', authCheck, async (req, res) => {
   };
   const { error: insErr } = await supabase.from('clients').insert(payload);
   if (insErr) return res.status(500).json({ ok: false, error: insErr.message });
+  payload.pin = getClientPin(payload.phone, payload.id);
   res.json({ ok: true, client: payload });
 });
 
@@ -999,6 +1233,7 @@ app.get('/api/clients/:id', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   const { data: client } = await supabase.from('clients').select('*').eq('id', req.params.id).maybeSingle();
   if (!client) return res.status(404).json({ error: 'Not found' });
+  client.pin = getClientPin(client.phone, client.id);
   res.json({ ok: true, client });
 });
 
@@ -1013,6 +1248,7 @@ app.put('/api/clients/:id', authCheck, async (req, res) => {
   
   await supabase.from('clients').update(payload).eq('id', req.params.id);
   const { data: client } = await supabase.from('clients').select('*').eq('id', req.params.id).maybeSingle();
+  if (client) client.pin = getClientPin(client.phone, client.id);
   res.json({ ok: true, client });
 });
 
@@ -1020,6 +1256,19 @@ app.delete('/api/clients/:id', authCheck, async (req, res) => {
   if (!supabase) return res.status(500).json({ ok: false });
   await supabase.from('clients').delete().eq('id', req.params.id);
   res.json({ ok: true });
+});
+
+/* ── Magic Link for client access from CRM ── */
+app.get('/api/clients/:id/magic-link', authCheck, async (req, res) => {
+  if (!supabase) return res.status(500).json({ ok: false, error: 'db_unavailable' });
+  const { data: client } = await supabase.from('clients').select('*').eq('id', req.params.id).maybeSingle();
+  if (!client) return res.status(404).json({ ok: false, error: 'Клиент не найден' });
+
+  const token = await createSession(client.id);
+  const pin = getClientPin(client.phone, client.id);
+  const baseUrl = 'https://xn--c1adkgvmp7a.xn--p1ai'; // чекгорит.рф
+  const magicUrl = `${baseUrl}/profile.html?auth=${token}`;
+  res.json({ ok: true, magicUrl, token, pin, name: client.name, phone: client.phone });
 });
 
 /* ── Cars ── */
@@ -1218,6 +1467,42 @@ app.get('/api/analytics', authCheck, async (req, res) => {
       totalRevenue
     }
   });
+});
+
+/* ── Level 5: Phone + 4-digit PIN Authentication ── */
+app.post('/api/client/auth/pin', limiterPinAuth, async (req, res) => {
+  const { phone, pin } = req.body;
+  if (!phone || !pin) {
+    return res.status(400).json({ ok: false, error: 'missing_fields', message: 'Введите номер телефона и 4-значный ПИН-код' });
+  }
+  if (!supabase) return res.status(503).json({ ok: false, error: 'db_unavailable', message: 'База данных временно недоступна' });
+
+  const cleanPhone = normalizePhone(phone);
+  let { data: client } = await supabase.from('clients').select('*').eq('phone', cleanPhone).maybeSingle();
+  if (!client && cleanPhone !== phone) {
+    const { data: c2 } = await supabase.from('clients').select('*').eq('phone', phone).maybeSingle();
+    if (c2) client = c2;
+  }
+
+  if (!client) {
+    return res.status(404).json({
+      ok: false,
+      error: 'client_not_found',
+      message: 'Клиент с таким номером телефона не найден. Оставьте заявку на сайте или обратитесь к мастеру.'
+    });
+  }
+
+  const expectedPin = getClientPin(client.phone, client.id);
+  if (String(pin).trim() !== expectedPin) {
+    return res.status(401).json({
+      ok: false,
+      error: 'wrong_pin',
+      message: 'Неверный ПИН-код. Уточните 4-значный код у мастера или в вашем заказ-наряде.'
+    });
+  }
+
+  const token = await createSession(client.id);
+  res.json({ ok: true, token, clientId: client.id, name: client.name });
 });
 
 app.post('/api/client/auth/request', limiterOtpRequest, async (req, res) => {
