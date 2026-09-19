@@ -97,7 +97,7 @@ function publicLandingDto(data) {
       id: String(r.id),
       name: r.name || '',
       text: r.text || '',
-      image: r.image || ''
+      image: (r.image && !r.image.includes('unsplash.com')) ? r.image : ''
     }))
   };
 }
