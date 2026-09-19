@@ -257,7 +257,22 @@ function renderRequests() {
   const reqs = DATA.requests || [];
   updateRequestsBadge();
   if (!reqs.length) {
-    list.innerHTML = '<p class="text-gray-500 text-sm py-4">Заявок нет</p>';
+    list.innerHTML = `
+      <div class="card p-8 text-center flex flex-col items-center justify-center space-y-3 my-4">
+        <div class="w-12 h-12 rounded-2xl bg-surface border border-border flex items-center justify-center text-accent/80 shadow-inner">
+          <i data-lucide="inbox" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h4 class="text-base font-bold text-white">Входящих заявок нет</h4>
+          <p class="text-xs text-gray-400 mt-1 max-w-sm leading-relaxed">
+            Все обращения клиентов обработаны или переведены в заказ-наряды.
+          </p>
+        </div>
+        <button type="button" onclick="openModal('modal-manual-request')" class="btn-primary text-xs py-1.5 px-3.5 mt-2">
+          <i data-lucide="plus" class="w-3.5 h-3.5 mr-1"></i> Добавить заявку вручную
+        </button>
+      </div>`;
+    lucide.createIcons();
     return;
   }
   list.innerHTML = reqs.map(r => {
@@ -367,7 +382,40 @@ function renderClients(filter = '') {
     );
   }
   if (!clients.length) {
-    list.innerHTML = `<p class="text-gray-500 text-sm py-4">${filter ? 'Ничего не найдено' : 'Клиентов пока нет'}</p>`;
+    if (filter) {
+      list.innerHTML = `
+        <div class="card p-8 text-center flex flex-col items-center justify-center space-y-3 my-4">
+          <div class="w-12 h-12 rounded-2xl bg-surface border border-border flex items-center justify-center text-accent/80 shadow-inner">
+            <i data-lucide="search-x" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h4 class="text-base font-bold text-white">Ничего не найдено</h4>
+            <p class="text-xs text-gray-400 mt-1 max-w-sm leading-relaxed">
+              По запросу «<strong class="text-accent">${esc(filter)}</strong>» совпадений среди клиентов, телефонов, госномеров или марок авто не обнаружено.
+            </p>
+          </div>
+          <button type="button" onclick="document.getElementById('clients-search').value=''; renderClients('');" class="btn-ghost text-xs py-1.5 px-3.5 mt-2">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 mr-1"></i> Сбросить поиск
+          </button>
+        </div>`;
+    } else {
+      list.innerHTML = `
+        <div class="card p-8 text-center flex flex-col items-center justify-center space-y-3 my-4">
+          <div class="w-12 h-12 rounded-2xl bg-surface border border-border flex items-center justify-center text-accent/80 shadow-inner">
+            <i data-lucide="users" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h4 class="text-base font-bold text-white">База клиентов пуста</h4>
+            <p class="text-xs text-gray-400 mt-1 max-w-sm leading-relaxed">
+              Добавьте первого клиента вручную или примите входящую заявку с сайта.
+            </p>
+          </div>
+          <button type="button" onclick="openModal('modal-client')" class="btn-primary text-xs py-1.5 px-3.5 mt-2">
+            <i data-lucide="user-plus" class="w-3.5 h-3.5 mr-1"></i> Добавить клиента
+          </button>
+        </div>`;
+    }
+    lucide.createIcons();
     return;
   }
   list.innerHTML = clients.map(c => {
