@@ -445,7 +445,7 @@ function bindClientForm() {
       closeModal('modal-client');
       e.target.reset();
       await loadClients();
-      toast(`Клиент ${res.client.name} создан. Код: ${res.client.accessCode}`);
+      toast(`Клиент ${res.client.name} создан. ПИН: ${res.client.pin}`);
     } else if (res.error === 'client_exists') {
       toast('Клиент с таким телефоном уже существует', true);
     }

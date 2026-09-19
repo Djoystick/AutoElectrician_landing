@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1] - 2026-09-19
+
+### 🐛 Fix & Optimization: Asset Versioning, Cache Invalidation & PIN Code Display
+
+- **Cache-Busting & Asset Versioning**:
+  - В `public/admin.html`, `public/profile.html` и `public/index.html` добавлена версионность скриптов (`?v=1.3.1`), предотвращающая загрузку браузерами устаревших версий `admin.js`, `profile.js` и `main.js` из локального дискового кэша.
+  - В `vercel.json` настроены заголовки `Cache-Control: no-cache, no-store, must-revalidate` для скриптов `/js/*` и HTML-страниц для моментального применения обновлений без необходимости принудительного сброса кэша (Ctrl+F5).
+- **CRM Frontend (public/js/admin.js)**:
+  - Исправлен текст тоста при создании нового клиента: теперь корректно отображается `ПИН: ${res.client.pin}` вместо устаревшего `accessCode`.
+  - Добавлена мета-инструкция кэш-контроля в заголовки страниц.
+
 ## [1.3.0] - 2026-09-19
 
 ### 🚀 Major Feature: 5-Level Omnichannel Client Identity & Zero-Loss Repair Linking

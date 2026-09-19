@@ -1,6 +1,6 @@
 # 📋 Полный чек-лист приёмочного тестирования CRM (Клиент — Мастер)
 
-> **Версия:** 1.3.0 (Omnichannel Client Identity Update)  
+> **Версия:** 1.3.1 (Omnichannel Client Identity & Cache Invalidation Update)  
 > **Сайт:** [`чекгорит.рф`](https://чекгорит.рф/) (зеркало: [auto-electrician-landing.vercel.app](https://auto-electrician-landing.vercel.app/))  
 > **Панель мастера:** [`чекгорит.рф/admin.html`](https://чекгорит.рф/admin.html)  
 > **Кабинет клиента:** [`чекгорит.рф/profile.html`](https://чекгорит.рф/profile.html)  
