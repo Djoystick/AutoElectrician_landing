@@ -1724,6 +1724,12 @@ const devAuthCheck = async (req, res, next) => {
   return res.status(403).json({ ok: false, error: 'forbidden_dev_access', message: 'Доступ разрешен только руководителю проекта' });
 };
 
+let APP_VERSION = '1.5.1';
+try {
+  const pkg = require('../package.json');
+  if (pkg && pkg.version) APP_VERSION = pkg.version;
+} catch (_) {}
+
 // GET /api/dev/vitals: Live telemetry and system radar
 app.get('/api/dev/vitals', devAuthCheck, async (req, res) => {
   const startDb = Date.now();
@@ -1783,7 +1789,7 @@ app.get('/api/dev/vitals', devAuthCheck, async (req, res) => {
   };
 
   const vitals = {
-    version: '1.5.0',
+    version: APP_VERSION,
     nodeVersion: process.version,
     platform: process.platform,
     uptimeSec: Math.round(process.uptime()),
@@ -1909,7 +1915,7 @@ app.post('/api/dev/test-push', devAuthCheck, async (req, res) => {
     const message =
       `⚡ <b>[Dev Center] Тестовое оповещение телеметрии</b>\n\n` +
       `📅 <b>Время:</b> ${now} (МСК)\n` +
-      `📦 <b>Версия:</b> v1.5.0\n` +
+      `📦 <b>Версия:</b> v${APP_VERSION}\n` +
       `💾 <b>Память Node:</b> ${heapMb} MB\n` +
       `🚀 <b>Платформа:</b> Vercel Serverless / Node.js\n` +
       `🟢 <b>Статус:</b> Все инженерные системы работают штатно!\n\n` +

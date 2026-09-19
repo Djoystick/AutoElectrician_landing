@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-09-19
+
+### 🔄 Auto-Sync: Динамическая синхронизация версии Dev Center с `package.json`
+
+- **Автоматическое обновление бейджа версии:**
+  - Бейдж версии в HUD Dev Center (`#dev-app-version`) теперь динамически привязан к серверной телеметрии `/api/dev/vitals`.
+  - Бэкенд считывает актуальную версию напрямую из `package.json` (`APP_VERSION`).
+  - Тестовые PUSH-уведомления в Telegram (`/api/dev/test-push`) также автоматически включают актуальный номер версии из `package.json`.
+  - Исключена вероятность рассинхронизации версий между кодом, версией релиза и интерфейсом панели.
+
 ## [1.5.0] - 2026-09-19
 
 ### ⚡ Feature: Панель управления разработчика и руководителя (Developer & Lead Control Center)

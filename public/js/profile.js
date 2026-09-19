@@ -338,9 +338,13 @@ async function refreshDevDashboard(isSilent = false) {
     }
 
     const json = await res.json();
-    if (!json.ok || !json.vitals) return;
-
     const v = json.vitals;
+
+    // Version auto-sync from server/package.json
+    if (v.version) {
+      const verEl = document.getElementById('dev-app-version');
+      if (verEl) verEl.textContent = `v${v.version}`;
+    }
 
     // Supabase DB
     const dbValEl = document.getElementById('vital-db-val');
